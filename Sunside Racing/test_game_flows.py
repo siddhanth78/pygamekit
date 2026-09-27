@@ -246,6 +246,48 @@ class GameFlowTests(unittest.TestCase):
         self.assertLess(math.dist((saved["walker"]["x"], saved["walker"]["y"]), (giver.x, giver.y)), 80)
         self.assertNotIn("queued", saved["missions"])
 
+    # Title screen -------------------------------------------------------------------
+
+    def title_with_keys(self, *keys):
+        """Run the title loop on these key presses, failing if any game system loads."""
+        for key in keys:
+            pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key, mod=0, unicode="", scancode=0))
+            pygame.event.post(pygame.event.Event(pygame.KEYUP, key=key, mod=0, unicode="", scancode=0))
+        def forbidden(*args, **kwargs):
+            raise AssertionError("the game loaded behind the title screen")
+        saved = main.World, main.Game, main.PlayerSave
+        main.World = main.Game = main.PlayerSave = forbidden
+        try:
+            return main.run_title(self.ctx)
+        finally:
+            main.World, main.Game, main.PlayerSave = saved
+
+    def test_title_play_with_arrows_loads_nothing_first(self):
+        self.assertTrue(self.title_with_keys(pygame.K_DOWN, pygame.K_UP, pygame.K_ESCAPE, pygame.K_RETURN))
+
+    def test_title_exit_with_arrows_or_w_s(self):
+        self.assertFalse(self.title_with_keys(pygame.K_DOWN, pygame.K_RETURN))
+        self.assertFalse(self.title_with_keys(pygame.K_s, pygame.K_SPACE))
+        self.assertTrue(self.title_with_keys(pygame.K_s, pygame.K_w, pygame.K_SPACE))
+
+    def test_title_mouse_and_scene(self):
+        from title_menu import ROAD_HEADING, TitleMenu
+        title = TitleMenu(self.ctx, main.PROJECT_ROOT, main.TOOLKIT_ROOT, main.WINDOW_SIZE)
+        play, exit_ = title._button_centers()
+        title.handle("pointer", exit_)
+        self.assertEqual(title.selected, 1)
+        self.assertEqual(title.handle("click", play), "play")
+        car = [s for s in title.sprites if s.name == "racer_player"]
+        self.assertEqual(len(car), 1)
+        self.assertEqual(car[0].rotation, -ROAD_HEADING)                    # Tilted 45 degrees.
+        self.assertEqual({s.rotation for s in title.sprites if s.atlas == "road-atlas"}, {-ROAD_HEADING})
+        self.assertNotIn("street_lamp", {s.name for s in title.sprites})
+        oncoming = [s for s in title.sprites if s.name.startswith("traffic_")]
+        self.assertEqual({s.rotation for s in oncoming}, {-ROAD_HEADING - 180})    # Other lane.
+        self.assertGreater(math.dist((oncoming[0].x, oncoming[0].y), (oncoming[1].x, oncoming[1].y)), 256)
+        self.assertEqual(len([s for s in title.sprites if s.atlas == "prop-atlas"]), 2)   # Trees.
+        title.render()
+
     # Zoom ---------------------------------------------------------------------------
 
     def test_eased_zoom_lands_exactly_and_only_moves_toward_the_target(self):

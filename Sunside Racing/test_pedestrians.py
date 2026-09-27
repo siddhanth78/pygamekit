@@ -162,5 +162,86 @@ class PlayerInteractionTests(unittest.TestCase):
         self.assertIsNone(call_spot(near, car, collisions))
 
 
+
+class BeachTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import json
+        cls.world = World()
+        cls.peds = Pedestrians(cls.world, cls.world.seed)
+        cls.peds._player = (-9999.0, -9999.0)
+        cls.sectors = [(sx, sy) for sy in range(64) for sx in range(64)
+                       if cls.world.region(sx, sy) == "beach" and cls.world._landmass(sx, sy) == "mainland"]
+        cls.groups = {s: cls.peds._beach(*s, cls.peds._group_rng(("beach", *s))) for s in cls.sectors}
+        cls.manifest = json.loads((PROJECT_ROOT / "assets" / "atlas-manifest.json").read_text())["atlases"]
+
+    def test_quiet_like_the_countryside_and_mostly_resting(self):
+        people = [p for group in self.groups.values() for p in group]
+        rural = [(sx, sy) for sy in range(64) for sx in range(64) if self.world.region(sx, sy) == "rural"]
+        rural_people = sum(len(self.peds._farm(sx, sy, self.peds._group_rng(("farm", sx, sy))))
+                           for sx, sy in rural) + len(rural and self.peds.walkers) // 2
+        per_beach, per_rural = len(people) / len(self.sectors), rural_people / len(rural)
+        self.assertLess(per_beach, 2 * per_rural)
+        self.assertGreater(per_beach, 0.5 * per_rural)
+        resting = [p for p in people if p.still]
+        self.assertGreater(len(resting) / len(people), 0.65)
+        self.assertEqual({p.pose for p in resting}, {"lounge", "lie"})
+        self.assertTrue(all(p.kind.startswith("beach_") for p in people))
+
+    def test_gear_and_people_stay_on_open_sand(self):
+        world = self.world
+        for (sx, sy), group in self.groups.items():
+            props = self.peds.props[("beach", sx, sy)]
+            scenery = [s for s in world.sector(sx, sy) if s.solid_width]
+            for thing in props + [p.sprite() for p in group]:
+                self.assertEqual(world.region_at(thing.x, thing.y), "beach")
+                for s in scenery:
+                    self.assertGreater(math.dist((thing.x, thing.y), (s.x, s.y)), 30, (thing.name, s.name))
+            for dock in world.docks:
+                for thing in props:
+                    self.assertGreater(math.dist((thing.x, thing.y), dock.shore()), 200)
+
+    def test_everyone_faces_the_sea_and_every_sprite_exists(self):
+        for (sx, sy), group in self.groups.items():
+            heading = self.peds._sea_heading(sx, sy)
+            dx, dy = math.sin(math.radians(heading)), -math.cos(math.radians(heading))
+            self.assertEqual(self.world._landmass(sx + round(dx), sy + round(dy)), "sea")
+            for person in group:
+                if person.still:
+                    self.assertEqual(person.heading, heading)
+            for sprite in self.peds.props[("beach", sx, sy)] + [p.sprite() for p in group]:
+                self.assertIn(sprite.name, self.manifest[sprite.atlas]["sprites"], sprite.name)
+
+    def test_umbrellas_shade_heads_but_leave_legs_showing(self):
+        for (sx, sy), group in self.groups.items():
+            canopies = [s for s in self.peds.props[("beach", sx, sy)] if s.atlas == "canopy-atlas"]
+            heading = self.peds._sea_heading(sx, sy)
+            fx, fy = math.sin(math.radians(heading)), -math.cos(math.radians(heading))
+            for canopy in canopies:
+                under = [p for p in group if math.dist((p.x, p.y), (canopy.x, canopy.y)) < 40]
+                for person in under:
+                    feet = (person.x + fx * 14, person.y + fy * 14)
+                    self.assertGreater(math.dist(feet, (canopy.x, canopy.y)), canopy.width / 2)
+
+    def test_loungers_and_umbrella_poles_are_solid_mats_are_not(self):
+        peds = Pedestrians(self.world, self.world.seed)
+        sx, sy = next(s for s, g in self.groups.items()
+                      if any("chair" in p.name for p in self.peds.props[("beach", *s)]))
+        chair = next(p for p in self.peds.props[("beach", sx, sy)] if "chair" in p.name)
+        peds.update(1 / 60, far_player(chair.x + 400, chair.y))     # Load the beach nearby.
+        names = {o.name for o in peds.nearby_obstacles(chair.x, chair.y)}
+        self.assertIn(chair.name, names)
+        self.assertFalse(any("mat" in n or n == "umbrella_shade" for n in names))
+
+    def test_never_spawns_on_the_player(self):
+        sx, sy, spot = next((s[0], s[1], p) for s, g in self.groups.items()
+                            for p in self.peds.props[("beach", *s)])
+        peds = Pedestrians(self.world, self.world.seed)
+        peds.update(1 / 60, far_player(spot.x, spot.y))
+        for props in peds.props.values():
+            for thing in props:
+                self.assertGreater(math.dist((thing.x, thing.y), (spot.x, spot.y)), 60)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -40,6 +40,7 @@
       "test_traffic.py",
       "test_walker.py",
       "test_world_save.py",
+      "title_menu.py",
       "track_gen.py",
       "traffic.py",
       "ui_text.py",
@@ -50,6 +51,7 @@
     "assets": [
       "assets/atlas-manifest.json",
       "assets/camp-atlas.png",
+      "assets/canopy-atlas.png",
       "assets/marker-atlas.png",
       "assets/people-atlas.png",
       "assets/prop-atlas.png",
@@ -61,6 +63,7 @@
     ],
     "bitmaps": [
       "bitmap/camp-atlas.json",
+      "bitmap/canopy-atlas.json",
       "bitmap/marker-atlas.json",
       "bitmap/people-atlas.json",
       "bitmap/prop-atlas.json",

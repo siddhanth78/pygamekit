@@ -1087,3 +1087,54 @@ Zoom shimmer fix (2026-09-26, built)
   (too much load). Some shimmer while the zoom is moving is expected.
 - Tests: the ease's shape and exact landing, get out/in timing with no
   creep, turning around mid-zoom, travel snapping mid-ease. 148 passing.
+
+Title screen (2026-09-26, built; revised the same day)
+- Launch shows only the title screen; the game (world, saves, traffic, HUD)
+  is not created until PLAY. main.run_title runs its own loop; EXIT or
+  closing the window quits without loading or saving anything.
+- Background (user request): a staged scene, not the game world. The
+  player's race car in the right-hand lane of a city road across grass (no
+  pavement or lamps), two oncoming traffic cars (blue, taxi) spaced out in the
+  other lane, and two round trees on the grass clear of the menu. The whole
+  scene is turned 45 degrees, the road running up to the right across the
+  right side of the screen (title_menu.scene_sprites, drawn with GameState's
+  sprite renderer at 2x).
+- Text: only "SUNSIDE RACING", plus the PLAY and EXIT buttons on the left.
+  Up/Down or W/S move, Enter/Space choose, the mouse hovers and clicks;
+  Escape does nothing.
+- Performance and memory checks the same day (scratch probes, no changes):
+  frames 3-4 ms, worst ~15 ms (first frame after load; a full world autosave
+  write); memory flat in steady play, ~260 MB with the whole world explored.
+- Tests: arrows and W/S, Escape ignored, PLAY and EXIT via run_title with the
+  world, game, and saves made to fail if touched, mouse, and the scene's 45
+  degree car and road. 151 passing.
+
+Beachgoers (2026-09-26, built)
+- User request: populate beaches, about as busy as rural (quiet), with few
+  people moving; most lounge on folding chairs, sleep on mats, or lie under
+  umbrellas.
+- Art (asset_sources.py): people-atlas beach_a..beach_d (swimwear colors,
+  sun hat, cap, hair) with idle/walk frames plus resting poses <kind>_lounge
+  (hands behind the head) and <kind>_lie (asleep, sun hat over the face if
+  worn). prop-atlas grew to 8 x 5: beach_chair_red/blue (folding loungers),
+  beach_mat_red/blue/green, umbrella_shade. New canopy-atlas (4 umbrellas:
+  red, blue, yellow, green), drawn after people-atlas and before vehicles so
+  a canopy covers whoever is under it (game_state.DRAW_ORDER).
+- pedestrians.py: a "beach" group per beach sector near the player (same
+  load/drop as farms and camps; seeded per sector, so it is the same every
+  visit; nothing added to world.json). Each sector: 0-1 spots (umbrella
+  with loungers 45%, loungers 25%, mats with sleepers 30%, sometimes with an
+  umbrella), 1-2 loungers or mats, each 85% occupied, all facing the sea;
+  20% of sectors have one stroller walking between two patches of sand with
+  2-6 s pauses. Measured: ~1.2 people per beach sector (rural ~1.1), ~23%
+  moving.
+- Placement: on sand only, clear of palms and scenery, 260 px from each
+  pier's landing spot, away from the ferry dock sector, never within 110 px
+  of the player when spawned. Stroll lines avoid scenery and the spots.
+- Umbrellas sit over the head end (50 px, 20 px landward), so legs and
+  loungers show. Loungers and umbrella poles are solid; mats and shade are
+  not.
+- Tests (test_pedestrians.BeachTests): density vs rural and mostly resting,
+  on open sand, facing the sea, every sprite exists, umbrellas leave legs
+  showing, solidity, never spawning on the player. 157 passing. Setting up a
+  beach sector takes ~0.14 ms.

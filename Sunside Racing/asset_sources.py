@@ -7,6 +7,7 @@ the PNGs from those JSON files with the toolkit's png_generator.py.
 from __future__ import annotations
 
 import json
+import math
 import random
 from pathlib import Path
 
@@ -456,8 +457,39 @@ def prop(p: Painter, name: str, index: int):
         raise ValueError(name)
 
 
+BEACH_GEAR = ("beach_chair_red", "beach_chair_blue", "beach_mat_red", "beach_mat_blue",
+              "beach_mat_green", "umbrella_shade")
+SAND_SHADE = "#d4b57f"
+
+
+def beach_gear(p: Painter, name: str):
+    """Loungers and mats face north (the engine turns them toward the sea); the head end
+    is south. umbrella_shade is the shadow under an umbrella's canopy."""
+    if name.startswith("beach_chair"):
+        cloth = {"red": "#d9453f", "blue": "#3f7fd0"}[name.rsplit("_", 1)[1]]
+        p.rect(23, 8, 47, 63, SAND_SHADE)                 # Shadow on the sand.
+        p.rect(19, 3, 45, 61, "#c9ccc9")                  # Folding aluminium frame.
+        for y in range(5, 59, 6):                         # Striped fabric.
+            p.rect(21, y, 43, min(59, y + 3), cloth)
+            p.rect(21, y + 3, 43, min(59, y + 6), "#f4ead0")
+        p.rect(19, 40, 45, 42, "#8a8f8f")                 # Hinge where the backrest rises.
+        for x, y in ((18, 3), (43, 3), (18, 58), (43, 58)):
+            p.rect(x, y, x + 3, y + 3, "#5d6366")          # Legs.
+    elif name.startswith("beach_mat"):
+        base, band = {"red": ("#d9453f", "#f4ead0"), "blue": ("#3f7fd0", "#f2ca57"),
+                      "green": ("#4f9a5a", "#f4ead0")}[name.rsplit("_", 1)[1]]
+        p.rect(18, 6, 46, 58, base)
+        for y in (10, 14, 48, 52):                        # Bands near both ends.
+            p.rect(18, y, 46, y + 2, band)
+        p.dots([(x, y) for x in range(19, 46, 3) for y in (4, 59)], band)  # Fringe.
+    elif name == "umbrella_shade":
+        p.ellipse(35, 36, 27, 25, SAND_SHADE)
+    else:
+        raise ValueError(name)
+
+
 def props() -> Atlas:
-    a = Atlas("prop-atlas", 64, 8, 4)
+    a = Atlas("prop-atlas", 64, 8, 5)
     names = [
         "jungle_tree_a", "jungle_tree_b", "jungle_tree_c", "jungle_tree_d",
         "pine_a", "pine_b", "pine_c", "pine_d",
@@ -468,6 +500,41 @@ def props() -> Atlas:
         "street_lamp", "barrier", "cone", "buoy",
     ]
     for i, name in enumerate(names): prop(a.tile(name, i % 8, i // 8), name, i)
+    for i, name in enumerate(BEACH_GEAR, len(names)):
+        beach_gear(a.tile(name, i % 8, i // 8), name)
+    return a
+
+
+UMBRELLAS = {"umbrella_red": "#d9453f", "umbrella_blue": "#3f7fd0",
+             "umbrella_yellow": "#f2ca57", "umbrella_green": "#4f9a5a"}
+
+
+def umbrella(p: Painter, color: str):
+    """A beach umbrella's canopy from above: eight panels alternating with white."""
+    panels = {color: [], "#f4ead0": []}
+    edge = []
+    for y in range(64):
+        for x in range(64):
+            dx, dy = x - 31.5, y - 31.5
+            r = math.hypot(dx, dy)
+            if r > 28:
+                continue
+            if r > 26.5:
+                edge.append((x, y))
+                continue
+            panel = int((math.atan2(dy, dx) + math.pi) / (math.pi / 4)) % 8
+            panels[color if panel % 2 == 0 else "#f4ead0"].append((x, y))
+    p.dots(edge, "#5d4a3a")
+    for ink, coords in panels.items():
+        p.dots(coords, ink)
+    p.ellipse(32, 32, 3, 3, "#5d4a3a")                    # Finial on the pole.
+
+
+def canopies() -> Atlas:
+    """Drawn above people, so whoever lies under an umbrella is covered by it."""
+    a = Atlas("canopy-atlas", 64, len(UMBRELLAS), 1)
+    for i, (name, color) in enumerate(UMBRELLAS.items()):
+        umbrella(a.tile(name, i, 0), color)
     return a
 
 
@@ -557,7 +624,14 @@ PEOPLE = (
     ("explorer_a", "#a89a64", "#6b4f35", "safari", "#c8b47a", "#6b4f35", "backpack", "#e2b48c"),
     ("explorer_b", "#6f7a45", "#6b4f35", "safari", "#b9a56a", "#4d3a28", "backpack", "#8d5a3b"),
     ("fish_trader", "#4f8a55", "#e8dcc0", "wide", "#d9b75a", "#a8843a", "basket", "#8d5a3b"),
+    # Beachgoers in swimwear colors: they stroll, lounge on chairs, or sleep on mats.
+    ("beach_a", "#f28fb0", "#ffffff", "wide", "#f0d890", "#d9453f", None, "#f0c9a6"),
+    ("beach_b", "#3fb0c9", "#fff1c0", "hair", "#3a2a22", None, None, "#8d5a3b"),
+    ("beach_c", "#f2ca57", "#2f5f8f", "cap", "#2f5f8f", "#1d3a5a", None, "#e2b48c"),
+    ("beach_d", "#7fcf7a", "#ffffff", "hair", "#c9a15a", None, None, "#c68a5e"),
 )
+BEACH_KINDS = ("beach_a", "beach_b", "beach_c", "beach_d")
+REST_POSES = ("lounge", "lie")
 PERSON_FRAMES = ("idle", "walk_a", "walk_b")
 
 
@@ -645,6 +719,37 @@ def fish(p: Painter, rarity: str):
         p.dots([(6, 5), (6, 7), (5, 6), (7, 6), (26, 8), (26, 10)], "#fff4b0")
 
 
+def resting(p: Painter, pose: str, top: str, trim: str, head: str, head_color: str,
+            accent: str | None, skin: str):
+    """A person lying on their back, feet north and head south, like the loungers and
+    mats. lounge: hands behind the head; lie: arms at the sides, asleep (a sun hat over
+    the face if they wear one)."""
+    p.rect(12, 3, 15, 13, skin)                           # Legs,
+    p.rect(17, 3, 20, 13, skin)
+    p.rect(12, 2, 15, 4, "#c68a5e" if skin != "#c68a5e" else "#8d5a3b")   # feet,
+    p.rect(17, 2, 20, 4, "#c68a5e" if skin != "#c68a5e" else "#8d5a3b")
+    p.rect(11, 12, 21, 16, trim)                          # shorts,
+    p.rect(10, 15, 22, 23, top)                           # and top.
+    if pose == "lounge":
+        p.rect(8, 18, 11, 24, skin)                       # Elbows out, hands behind the head.
+        p.rect(21, 18, 24, 24, skin)
+        p.rect(10, 23, 13, 27, skin)
+        p.rect(19, 23, 22, 27, skin)
+    else:
+        p.rect(8, 15, 10, 24, skin)                       # Arms along the sides.
+        p.rect(22, 15, 24, 24, skin)
+    if head == "wide" and pose == "lie":
+        p.ellipse(16, 26, 6, 5, head_color)               # Sun hat over the face.
+        p.ellipse(16, 26, 3, 2, accent)
+        return
+    p.ellipse(16, 27, 4, 4, head_color)                   # Hair frames the face,
+    p.ellipse(16, 25, 3, 3, skin)                         # seen from above.
+    if head == "cap":
+        p.rect(13, 21, 19, 22, accent)                    # Brim over the brow.
+    if pose == "lie":
+        p.dots([(14, 25), (18, 25)], "#5d4a3a")           # Eyes closed.
+
+
 FISHING_SPRITES = ("player_fish_cast", "player_fish_hold", "player_fish_reel",
                    "fishing_bobber", "fishing_bobber_bite", "fish_common", "fish_uncommon",
                    "fish_rare", "fish_epic", "fishing_line")
@@ -666,7 +771,8 @@ def people() -> Atlas:
     sprites fill the cells after the last kind."""
     per_row = 4
     columns = per_row * len(PERSON_FRAMES)
-    cells = len(PEOPLE) * len(PERSON_FRAMES) + len(FISHING_SPRITES)
+    rest = [(f"{kind}_{pose}", kind, pose) for kind in BEACH_KINDS for pose in REST_POSES]
+    cells = len(PEOPLE) * len(PERSON_FRAMES) + len(FISHING_SPRITES) + len(rest)
     rows = -(-cells // columns)
     a = Atlas("people-atlas", 32, columns, rows)
     for i, (name, top, trim, head, head_color, accent, extra, skin) in enumerate(PEOPLE):
@@ -676,6 +782,12 @@ def people() -> Atlas:
     start = len(PEOPLE) * len(PERSON_FRAMES)
     for i, name in enumerate(FISHING_SPRITES):
         fishing_sprite(a.tile(name, (start + i) % columns, (start + i) // columns), name)
+    start += len(FISHING_SPRITES)
+    kinds = {entry[0]: entry[1:] for entry in PEOPLE}
+    for i, (name, kind, pose) in enumerate(rest):
+        top, trim, head, head_color, accent, _, skin = kinds[kind]
+        resting(a.tile(name, (start + i) % columns, (start + i) // columns), pose,
+                top, trim, head, head_color, accent, skin)
     return a
 
 
@@ -879,7 +991,7 @@ def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track()]
+                markers(), track(), canopies()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

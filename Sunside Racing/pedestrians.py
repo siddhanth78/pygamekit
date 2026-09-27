@@ -1,6 +1,7 @@
 """Rudimentary pedestrians: people walk fixed rounds near the player and pop into doors.
 
-Groups (a city block's sidewalks, a farm, a camp, a racing-center plaza) are created
+Groups (a city block's sidewalks, a farm, a camp, a racing-center plaza, a stretch of
+beach) are created
 when the player comes within SCAN_SECTORS and dropped past KEEP_SECTORS, so the cost
 stays bounded however big the world is. A few road walkers in the countryside are
 always simulated, like traffic.
@@ -35,9 +36,26 @@ SIZE = 32
 SOLID = 10
 YIELD_AHEAD = 20           # A pedestrian waits if the player stands this close in front.
 
+# Beaches: quiet, about as busy as the countryside. Each beach sector gets 0-1 spots
+# (an umbrella with loungers, a pair of loungers, or mats with sleepers), all facing the
+# sea, and sometimes one person strolling the sand.
+BEACH_KINDS = ("beach_a", "beach_b", "beach_c", "beach_d")
+BEACH_SPOTS = (0, 0, 1, 1, 1)          # Picked per sector: ~1.2 people each, like rural.
+BEACH_LAYOUTS = (("umbrella", 0.45), ("chairs", 0.25), ("mats", 0.30))
+BEACH_OCCUPIED = 0.85                  # Chance each lounger or mat has someone on it.
+BEACH_STROLLER = 0.2                   # Chance a sector has someone walking the sand.
+BEACH_PAUSE = (2.0, 6.0)               # Strollers stop to look at the sea.
+BEACH_CLEAR = 72                       # px from palms and other scenery.
+BEACH_APART = 120                      # px between spots.
+BEACH_KEEP_OFF = 260                   # px from a pier's landing spot on the sand.
+PLAYER_CLEAR = 110                     # Never spawn a spot on top of the player.
+BEACH_SIZE = {"chair": 48, "mat": 48, "shade": 56, "umbrella": 50}
+UMBRELLA_BACK = 20                     # px landward of the loungers' middle: shades heads.
+UMBRELLA_COLORS = ("red", "blue", "yellow", "green")
+
 CITY_KINDS = tuple(f"city_{c}" for c in "abcdefgh")
 REGION_KINDS = {
-    "city": CITY_KINDS, "island": CITY_KINDS, "beach": CITY_KINDS,
+    "city": CITY_KINDS, "island": CITY_KINDS, "beach": BEACH_KINDS,
     "rural": ("farmer_a", "farmer_b"), "snow": ("snow_a", "snow_b"),
     "desert": ("nomad_a", "nomad_b"), "jungle": ("explorer_a", "explorer_b"),
 }
@@ -46,8 +64,9 @@ REGION_KINDS = {
 class Pedestrian:
     """Walks a closed path forever, pausing at stops; 'door' stops hide them inside."""
 
-    def __init__(self, kind, path, speed, start=0.0, stops=None, heading=0.0):
+    def __init__(self, kind, path, speed, start=0.0, stops=None, heading=0.0, pose=None):
         self.kind = kind
+        self.pose = pose  # A resting sprite (e.g. "lounge", "lie") for people who stay put.
         self.path = path
         self.stops = stops or {}  # Path index -> ("door" | "pause", (min_s, max_s)).
         self.lengths = [math.dist(path[i], path[(i + 1) % len(path)]) for i in range(len(path))]
@@ -105,6 +124,8 @@ class Pedestrian:
         self.moving = True
 
     def frame(self) -> str:
+        if self.pose:
+            return f"{self.kind}_{self.pose}"
         if not self.moving:
             return f"{self.kind}_idle"
         return f"{self.kind}_walk_a" if int(self.stride // 10) % 2 == 0 else f"{self.kind}_walk_b"
@@ -164,7 +185,9 @@ class Pedestrians:
         self.seed = seed
         self.rng = random.Random(seed + 2718)
         self.groups: dict[tuple, list[Pedestrian]] = {}
+        self.props: dict[tuple, list[Sprite]] = {}   # Beach gear, kept with its group.
         self._scanned_sector = None
+        self._player = (0.0, 0.0)
         self.walkers = self._road_walkers()
 
     # Group creation -------------------------------------------------------------
@@ -277,6 +300,111 @@ class Pedestrians:
         people += self._people(rng, kinds, path, stops, 2)
         return people
 
+    def _sea_heading(self, sx, sy):
+        """Degrees clockwise from north toward the sea from a beach sector."""
+        for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+            if self.world._landmass(sx + dx, sy + dy) == "sea":
+                return math.degrees(math.atan2(dx, -dy)) % 360
+        return 180.0
+
+    def _beach_spot_ok(self, sx, sy, x, y, taken):
+        world = self.world
+        if any(world.region_at(x + dx, y + dy) != "beach"
+               for dx, dy in ((0, 0), (-44, 0), (44, 0), (0, -44), (0, 44))):
+            return False
+        if any(math.dist((x, y), spot) < BEACH_APART for spot in taken):
+            return False
+        if math.dist((x, y), self._player) < PLAYER_CLEAR:
+            return False
+        if any(math.dist((x, y), dock.shore()) < BEACH_KEEP_OFF for dock in world.docks):
+            return False
+        tx, ty = int(x // TILE_SIZE), int(y // TILE_SIZE)
+        if any((tx + dx, ty + dy) in world.pier_tiles for dx in range(-2, 3) for dy in range(-2, 3)):
+            return False
+        return not any(s.solid_width and math.dist((x, y), (s.x, s.y)) < BEACH_CLEAR + s.width / 3
+                       for s in world.sector(sx, sy))
+
+    def _beach_path_clear(self, sx, sy, a, b, taken):
+        """A stroll's straight line keeps clear of palms, piers, and the spots' gear."""
+        steps = max(1, int(math.dist(a, b) // 16))
+        scenery = [s for s in self.world.sector(sx, sy) if s.solid_width]
+        for i in range(steps + 1):
+            x, y = a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps
+            if self.world.region_at(x, y) != "beach":
+                return False
+            if any(math.dist((x, y), (s.x, s.y)) < 24 + s.width / 3 for s in scenery):
+                return False
+            if any(math.dist((x, y), spot) < BEACH_APART * 0.6 for spot in taken):
+                return False
+        return True
+
+    def _beach(self, sx, sy, rng):
+        """Beachgoers: mostly lounging on chairs or asleep on mats, facing the sea."""
+        if (sx, sy) in (self.world.mainland_dock, self.world.island_dock):
+            self.props[("beach", sx, sy)] = []
+            return []   # The ferry dock's sector stays clear.
+        heading = self._sea_heading(sx, sy)
+        rad = math.radians(heading)
+        fx, fy = math.sin(rad), -math.cos(rad)          # Toward the sea.
+        rx, ry = math.cos(rad), math.sin(rad)           # To the right, facing the sea.
+        rotation = -heading                              # GL rotation is counterclockwise.
+        cells = [(sx * SECTOR_SIZE + (lx + 0.5) * TILE_SIZE, sy * SECTOR_SIZE + (ly + 0.5) * TILE_SIZE)
+                 for ly in range(1, 7) for lx in range(1, 7)]
+        rng.shuffle(cells)
+        spots = []
+        wanted = rng.choice(BEACH_SPOTS)
+        for x, y in cells:
+            if len(spots) == wanted:
+                break
+            if self._beach_spot_ok(sx, sy, x, y, spots):
+                spots.append((x, y))
+        people, props = [], []
+
+        def gear(atlas, name, x, y, size, solid=(0.0, 0.0), rot=rotation):
+            props.append(Sprite(atlas, name, x, y, size, size, rot, *solid))
+
+        def rest(x, y, pose):
+            if rng.random() < BEACH_OCCUPIED:
+                people.append(Pedestrian(rng.choice(BEACH_KINDS), [(x, y)], 0, heading=heading, pose=pose))
+
+        for cx, cy in spots:
+            layout = rng.choices([name for name, _ in BEACH_LAYOUTS],
+                                 [weight for _, weight in BEACH_LAYOUTS])[0]
+            pair = [-1, 1] if rng.random() < 0.7 else [rng.choice((-1, 1))]
+            umbrella = layout == "umbrella" or (layout == "mats" and rng.random() < 0.4)
+            if umbrella:   # Over the head end, so legs and loungers show; shade a bit off.
+                ux, uy = cx - fx * UMBRELLA_BACK, cy - fy * UMBRELLA_BACK
+                gear("prop-atlas", "umbrella_shade", ux + 5, uy + 6, BEACH_SIZE["shade"], rot=0.0)
+            for side in pair:
+                x, y = cx + rx * 15 * side, cy + ry * 15 * side
+                if layout == "mats":
+                    gear("prop-atlas", f"beach_mat_{rng.choice(('red', 'blue', 'green'))}", x, y,
+                         BEACH_SIZE["mat"])
+                    rest(x, y, "lie")
+                else:
+                    gear("prop-atlas", f"beach_chair_{rng.choice(('red', 'blue'))}", x, y,
+                         BEACH_SIZE["chair"], (16, 38))
+                    rest(x, y, rng.choice(("lounge", "lounge", "lie")))
+            if umbrella:
+                gear("canopy-atlas", f"umbrella_{rng.choice(UMBRELLA_COLORS)}", ux, uy,
+                     BEACH_SIZE["umbrella"], (8, 8), rot=0.0)
+        if rng.random() < BEACH_STROLLER:
+            # A stroll between two open patches of sand, stopping at each end.
+            ends = []
+            for x, y in cells:
+                if len(ends) == 2:
+                    break
+                if self._beach_spot_ok(sx, sy, x, y, spots + ends) and \
+                        (not ends or (math.dist(ends[0], (x, y)) > 160
+                                      and self._beach_path_clear(sx, sy, ends[0], (x, y), spots))):
+                    ends.append((x, y))
+            if len(ends) == 2:
+                stops = {0: ("pause", BEACH_PAUSE), 1: ("pause", BEACH_PAUSE)}
+                people.append(Pedestrian(rng.choice(BEACH_KINDS), ends, rng.uniform(20, 28),
+                                         rng.uniform(0, 300), stops))
+        self.props[("beach", sx, sy)] = props
+        return people
+
     def _road_walkers(self):
         """Country folk strolling the road shoulders; always simulated, like traffic."""
         rng = random.Random(self.seed + 31415)
@@ -305,6 +433,7 @@ class Pedestrians:
         for key in [k for k in self.groups
                     if max(abs(k[1] - px), abs(k[2] - py)) > KEEP_SECTORS]:
             del self.groups[key]
+            self.props.pop(key, None)
         (cx_lo, cx_hi), (cy_lo, cy_hi) = CITY_SECTORS_X, CITY_SECTORS_Y
         for sy in range(py - SCAN_SECTORS, py + SCAN_SECTORS + 1):
             for sx in range(px - SCAN_SECTORS, px + SCAN_SECTORS + 1):
@@ -317,6 +446,8 @@ class Pedestrians:
                     candidates.append(("camp", sx, sy, self._camp))
                 elif 0 <= sx < 64 and 0 <= sy < 64 and self.world.region(sx, sy) == "rural":
                     candidates.append(("farm", sx, sy, self._farm))
+                elif 0 <= sx < 64 and 0 <= sy < 64 and self.world.region(sx, sy) == "beach":
+                    candidates.append(("beach", sx, sy, self._beach))
                 for kind, gx, gy, make in candidates:
                     key = (kind, gx, gy)
                     if key not in self.groups:
@@ -329,6 +460,7 @@ class Pedestrians:
 
     def update(self, dt: float, player_rect: list[float]):
         """Advance everyone; a pedestrian waits while the player stands right in front."""
+        self._player = (player_rect[0], player_rect[1])
         self._refresh_groups(player_rect[0], player_rect[1])
         px, py = player_rect[0], player_rect[1]
         # Center-to-center distance at which the gap between them drops below YIELD_AHEAD.
@@ -347,15 +479,20 @@ class Pedestrians:
 
     def sprites(self, camera_x, camera_y, width, height):
         margin = SIZE
-        return [p.sprite() for p in self.people()
-                if not p.inside and camera_x - margin <= p.x <= camera_x + width + margin
-                and camera_y - margin <= p.y <= camera_y + height + margin]
+        gear = [s for props in self.props.values() for s in props
+                if camera_x - s.width <= s.x <= camera_x + width + s.width
+                and camera_y - s.height <= s.y <= camera_y + height + s.height]
+        return gear + [p.sprite() for p in self.people()
+                       if not p.inside and camera_x - margin <= p.x <= camera_x + width + margin
+                       and camera_y - margin <= p.y <= camera_y + height + margin]
 
     def nearby_obstacles(self, x, y):
         """Solid to the player, except anyone already overlapping them (never trapped)."""
-        return [p.sprite() for p in self.people()
-                if not p.inside and not p.overlapping_player
-                and abs(p.x - x) < 60 and abs(p.y - y) < 60]
+        gear = [s for props in self.props.values() for s in props
+                if s.solid_width and abs(s.x - x) < 80 and abs(s.y - y) < 80]
+        return gear + [p.sprite() for p in self.people()
+                       if not p.inside and not p.overlapping_player
+                       and abs(p.x - x) < 60 and abs(p.y - y) < 60]
 
     def road_blockers(self):
         """People crossing a road, for traffic to stop for.

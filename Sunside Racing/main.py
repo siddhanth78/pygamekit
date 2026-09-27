@@ -31,6 +31,7 @@ from pedestrians import Pedestrians
 from progression import CENTER_RACES, FISHING_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from pause_menu import PauseMenu
+from title_menu import TitleMenu
 from player_save import PlayerSave
 from traffic import Traffic
 from walker import CALL_PROMPT_DISTANCE, Walker, call_spot, exit_spot
@@ -740,6 +741,23 @@ class Game:
         self.player_save.save(*self._saved_pose(), self.missions.to_dict())
 
 
+def run_title(ctx, inputs: InputHandler | None = None) -> bool:
+    """Show the title screen until PLAY (True) or EXIT / closing the window (False).
+    Nothing of the game is loaded here: just the staged scene and the menu."""
+    title = TitleMenu(ctx, PROJECT_ROOT, TOOLKIT_ROOT, WINDOW_SIZE)
+    inputs = inputs or InputHandler()
+    while True:
+        for action, value in inputs.handle_events():
+            if action == "quit":
+                return False
+            choice = title.handle(action, value)
+            if choice:
+                return choice == "play"
+        ctx.clear(0.10, 0.25, 0.36, 1.0)
+        title.render()
+        pygame.display.flip()
+
+
 def main():
     pygame.init()
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 3)
@@ -751,10 +769,12 @@ def main():
     ctx = moderngl.create_context()
     ctx.enable(moderngl.BLEND)
     ctx.blend_func = (moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA)
-    game = Game(ctx)
-    clock = pygame.time.Clock()
-    running = True
     try:
+        if not run_title(ctx):
+            return   # EXIT (or closing the window) before anything was loaded or saved.
+        game = Game(ctx)
+        clock = pygame.time.Clock()
+        running = True
         while running:
             # Vsync'd flip() paces frames; a second software cap drops frames.
             dt = min(clock.tick() / 1000.0, 0.05)

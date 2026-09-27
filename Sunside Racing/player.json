@@ -1,32 +1,32 @@
 {
   "version": 3,
-  "mode": "drive",
+  "mode": "walk",
   "car": {
-    "x": 10971.493039909263,
-    "y": 15326.38670534967,
-    "heading": 94.72208130708422
+    "x": 6440.0,
+    "y": 7604.0,
+    "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
         "level": 4,
-        "mastery": 1,
+        "mastery": 7,
         "completed": {
           "delivery": 4,
           "speed": 8,
-          "drag": 11
+          "drag": 12
         },
         "races": 4
       },
       "jungle": {
-        "level": 1,
-        "mastery": 1,
+        "level": 2,
+        "mastery": 0,
         "completed": {
           "delivery": 0,
           "speed": 0,
-          "drag": 0
+          "drag": 3
         },
-        "races": 0
+        "races": 1
       },
       "desert": {
         "level": 1,
@@ -59,7 +59,7 @@
         "races": 0
       }
     },
-    "counter": 33,
+    "counter": 38,
     "offers": {
       "city-delivery": {
         "type": "delivery",
@@ -79,22 +79,46 @@
         },
         "rating": null,
         "declines": 0
+      },
+      "city-drag": {
+        "type": "drag",
+        "scale": 1.0,
+        "target": null,
+        "track": {
+          "kind": "straight",
+          "theme": "city"
+        },
+        "seed": 167472530,
+        "levels": {
+          "city": 4,
+          "jungle": 1,
+          "desert": 1,
+          "snow": 1,
+          "rural": 1
+        },
+        "rating": 140,
+        "declines": 0
       }
     },
     "fish": {
       "bag": {
-        "common": 0,
+        "common": 4,
         "uncommon": 0,
         "rare": 0,
         "epic": 0
       },
       "caught": {
-        "common": 3,
+        "common": 7,
         "uncommon": 1,
         "rare": 0,
         "epic": 0
       }
     },
     "unspent_mastery": 0
+  },
+  "walker": {
+    "x": 6400.0,
+    "y": 7604.0,
+    "heading": 0.0
   }
 }
