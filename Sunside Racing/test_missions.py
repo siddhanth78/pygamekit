@@ -17,7 +17,7 @@ from collision_manager import CollisionManager
 from drag_race import CLEAN_LAP, RIVAL_BUMP_SPEED, DragRace, TrackLevel, flawless_time, off_day
 from missions import DELIVERY_PENALTY, Missions, Offer, difficulty
 from player_save import PlayerSave
-from progression import Progress, rating_difficulty, rating_speed, reward
+from progression import Progress, mastery_to_next, mastery_to_reach, rating_difficulty, rating_speed, reward
 from world import TILE_SIZE, World
 
 
@@ -31,11 +31,12 @@ def center_rival_time(race):
 
 
 class ProgressionTests(unittest.TestCase):
-    def test_levels_cost_ten_times_level(self):
+    def test_levels_cost_fifteen_times_level(self):
         progress = Progress()
-        self.assertEqual(progress.add("city", 9), [])
+        self.assertEqual(progress.add("city", 14), [])
         self.assertEqual(progress.add("city", 1), [2])
-        self.assertEqual(progress.add("city", 20 + 30), [3, 4])
+        self.assertEqual(progress.add("city", 30 + 45), [3, 4])
+        self.assertEqual(mastery_to_reach(4), 15 + 30 + 45)
         self.assertEqual((progress.levels["city"], progress.mastery["city"]), (4, 0))
         self.assertEqual(progress.levels["snow"], 1)  # Levels are per region.
 
@@ -126,10 +127,10 @@ class GiverAndOfferTests(unittest.TestCase):
         missions.offers[giver.id] = offer
         preview = missions.preview(offer)
         self.assertEqual((preview["difficulty"], preview["rules"]), ("Hard", "Rival (125) VS You (110)"))
-        missions.progress.add("city", 20)               # Level 3 (120): +5 is Medium.
+        missions.progress.add("city", mastery_to_next(2))      # Level 3 (120): +5 is Medium.
         preview = missions.preview(offer)
         self.assertEqual((preview["difficulty"], preview["rules"]), ("Medium", "Rival (125) VS You (120)"))
-        missions.progress.add("city", 30)               # Level 4 (130): below the player is Easy.
+        missions.progress.add("city", mastery_to_next(3))      # Level 4 (130): below the player is Easy.
         self.assertEqual(missions.label(offer), "Easy")
         restored = Missions(self.world, self.world.seed, json.loads(json.dumps(missions.to_dict())))
         self.assertEqual(restored.offers[giver.id].rating, 125)
@@ -145,11 +146,11 @@ class GiverAndOfferTests(unittest.TestCase):
         offer = Offer(giver.id, "speed", 1.0, (giver.x + 3000, giver.y), levels={"city": 1})
         start = (giver.x, giver.y)
         before = missions.speed_limit(offer, start)
-        missions.progress.add("city", 10 + 20 + 30)  # Level 4.
+        missions.progress.add("city", mastery_to_reach(4))  # Level 4.
         self.assertAlmostEqual(missions.speed_limit(offer, start), before)
         self.assertAlmostEqual(missions.effective_scale(offer), 1.0 / 1.12)
         self.assertEqual(missions.label(offer), "Medium")
-        missions.progress.add("city", 40 + 50 + 60 + 70)  # Level 8: 1 / 1.28 = 0.78.
+        missions.progress.add("city", mastery_to_reach(8) - mastery_to_reach(4))  # Level 8: 1 / 1.28 = 0.78.
         self.assertEqual(missions.label(offer), "Easy")
         delivery = Offer(giver.id, "delivery", 1.0, (giver.x + 3000, giver.y), levels={"city": 1})
         self.assertEqual(missions.label(delivery), "Medium")  # Deliveries aren't speed-based.
@@ -284,7 +285,7 @@ class InWorldMissionTests(unittest.TestCase):
 
     def test_level_up_from_missions(self):
         missions, giver = self.start("city-delivery", 0.6)
-        missions.progress.mastery["city"] = 9
+        missions.progress.mastery["city"] = mastery_to_next(1) - 1   # One short of level 2.
         result = missions.update(0.1, giver.x + 3000, giver.y, True, False, False)
         self.assertEqual((result["mastery"], result["levels"], result["level"]), (2, [2], 2))
 
@@ -292,13 +293,13 @@ class InWorldMissionTests(unittest.TestCase):
         missions, giver = self.start("city-speed", 1.0)
         missions.update(0.1, giver.x, giver.y, True, True, False)
         missions.update(0.1, giver.x + 3000, giver.y, True, True, False)  # Completed.
-        missions.progress.add("desert", 10 + 20 + 30 + 40)                 # Level 5.
+        missions.progress.add("desert", mastery_to_reach(5))                # Level 5.
         desert = missions.by_id["desert-delivery"]
         missions.offers[desert.id] = Offer(desert.id, "delivery", 0.9, (desert.x + 3000, desert.y))
         missions.accept(desert)
         rows = {row["region"]: row for row in missions.mastery_rows()}
         self.assertEqual(rows["city"]["completed"], {"delivery": 0, "speed": 1, "drag": 0})
-        self.assertEqual((rows["city"]["mastery"], rows["city"]["need"]), (1, 10))
+        self.assertEqual((rows["city"]["mastery"], rows["city"]["need"]), (1, 15))
         self.assertEqual((rows["desert"]["level"], rows["desert"]["speed"], rows["desert"]["veterans"]),
                          (5, 16, True))
         self.assertEqual(rows["desert"]["mission"], "Ongoing  ·  Delivery")
@@ -329,7 +330,7 @@ class InWorldMissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             store = PlayerSave(Path(temp) / "player.json")
             missions, giver = self.start("city-delivery", 1.0)
-            missions.progress.add("snow", 35)
+            missions.progress.add("snow", mastery_to_reach(3) + 5)
             store.save(Car(), None, missions.to_dict())
             store.load_state(CollisionManager(None, self.world))
             restored = Missions(self.world, self.world.seed, store.missions_data)
@@ -345,7 +346,7 @@ class FastTravelTests(unittest.TestCase):
 
     def test_travel_unlocks_at_level_three_and_not_during_missions(self):
         missions = Missions(self.world, self.world.seed)
-        missions.progress.add("snow", 10 + 20)
+        missions.progress.add("snow", mastery_to_reach(3))
         rows = {r["region"]: r["travel"] for r in missions.mastery_rows("city")}
         self.assertEqual((rows["snow"], rows["jungle"]), ("ready", "locked"))
         self.assertEqual({r["region"]: r["travel"] for r in missions.mastery_rows("snow")}["snow"], "here")

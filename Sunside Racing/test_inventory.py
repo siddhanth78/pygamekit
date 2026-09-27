@@ -35,13 +35,13 @@ class InventoryTests(unittest.TestCase):
 
     def test_holds_fish_and_unspent_points_in_order_skipping_empties(self):
         m = self.missions()
-        self.assertEqual(contents(m), [])
+        self.assertEqual([(item.id, n) for item, n in contents(m)], [("sunside_tokens", 0)])
         m.fish.add("epic")
         m.fish.add("common")
         m.fish.add("common")
         m.unspent = 7
         self.assertEqual([(item.id, n) for item, n in contents(m)],
-                         [("fish_common", 2), ("fish_epic", 1), ("mastery_points", 7)])
+                         [("sunside_tokens", 0), ("fish_common", 2), ("fish_epic", 1), ("mastery_points", 7)])
         self.assertEqual(GRID, (4, 4))
         self.assertLessEqual(len(ITEMS), GRID[0] * GRID[1])
         for item in ITEMS:                                   # Every icon exists.
@@ -78,14 +78,25 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual((m.fish.bag["epic"], m.fish.bag["common"]), (2, 2))
         self.assertEqual(m.trade_fish(), (0, 0))             # Full: nothing more.
 
-    def test_future_items_are_saved(self):
-        m = self.missions({"inventory": {"fish_rare": 3, "not_an_item": 2, "fish_epic": -1}})
-        self.assertEqual(m.items, {"fish_rare": 3})          # Known ids, positive counts only.
+    def test_sunside_tokens_start_at_zero_hold_slot_one_and_are_saved(self):
+        m = self.missions()
+        self.assertEqual(m.tokens, 0)
+        self.assertEqual(contents(m)[0][0].id, "sunside_tokens")   # First, even at 0.
+        self.assertEqual(m.add_item("sunside_tokens", 25), 25)
+        self.assertEqual(m.add_item("sunside_tokens", 5000), STACK_MAX - 25)   # Capped at 999.
+        self.assertEqual(m.add_item("sunside_tokens", -10), -10)
+        self.assertEqual(m.tokens, STACK_MAX - 10)
         with tempfile.TemporaryDirectory() as temp:
             store = PlayerSave(Path(temp) / "player.json")
             store.save(Car(), None, m.to_dict())
             store.load_state(CollisionManager(None, self.world))
-            self.assertEqual(self.missions(store.missions_data).items, {"fish_rare": 3})
+            self.assertEqual(self.missions(store.missions_data).tokens, STACK_MAX - 10)
+        self.assertEqual(m.add_item("sunside_tokens", -5000), -(STACK_MAX - 10))
+        self.assertEqual((m.tokens, contents(m)[0][1]), (0, 0))   # Back to 0, still slot one.
+
+    def test_saved_items_are_checked(self):
+        m = self.missions({"inventory": {"sunside_tokens": 3, "not_an_item": 2, "fish_epic": -1}})
+        self.assertEqual(m.items, {"sunside_tokens": 3})     # Known ids, positive counts only.
 
     def test_notes_wrap_into_the_details_panel(self):
         for item in ITEMS:

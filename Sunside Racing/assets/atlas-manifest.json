@@ -1880,6 +1880,13 @@
             0
           ],
           "source_row": 2
+        },
+        "icon_token": {
+          "tile": [
+            2,
+            0
+          ],
+          "source_row": 2
         }
       }
     },

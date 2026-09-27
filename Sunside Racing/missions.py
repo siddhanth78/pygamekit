@@ -16,7 +16,8 @@ from car import OFF_SURFACE, SURFACES, TOP_SPEED
 from collision_manager import CollisionManager, nearest_clear_spot
 from fishing import FishLog
 from inventory import BY_ID, STACK_MAX, room
-from progression import (FAST_TRAVEL_LEVEL, FISHING_LEVEL, RATING_EDGE, REGIONS, SPEED_PER_LEVEL, Progress, rating,
+from progression import (FAST_TRAVEL_LEVEL, FISHING_LEVEL, RATING_EDGE, REGIONS, SPEED_PER_LEVEL, Progress,
+                         mastery_to_next, rating,
                          rating_difficulty, reward)
 from walker import Walker
 from world import CENTERS, SECTOR_SIZE, SECTORS, TILE_SIZE, Sprite
@@ -151,7 +152,7 @@ class Missions:
         # Universal mastery from traded fish, spent on any region whenever the player likes.
         unspent = data.get("unspent_mastery")
         self.unspent = min(unspent, STACK_MAX) if type(unspent) is int and unspent >= 0 else 0
-        # Inventory items beyond fish and points (none yet): item id -> count.
+        # Inventory items beyond fish and points (Sunside Tokens, ...): item id -> count.
         items = data.get("inventory")
         self.items = {k: min(v, STACK_MAX) for k, v in items.items()
                       if k in BY_ID and type(v) is int and v > 0} if isinstance(items, dict) else {}
@@ -457,7 +458,7 @@ class Missions:
                 "region": giver.region, "levels": levels, "giver": giver,
                 "level": self.progress.levels[giver.region],
                 "progress": (self.progress.mastery[giver.region],
-                             10 * self.progress.levels[giver.region])}
+                             mastery_to_next(self.progress.levels[giver.region]))}
 
     # Display ----------------------------------------------------------------------
 
@@ -514,7 +515,7 @@ class Missions:
                 mission = f"Ongoing  ·  {TITLES[self.active.offer.type]}"
             rows.append({
                 "region": region, "level": level,
-                "mastery": self.progress.mastery[region], "need": 10 * level,
+                "mastery": self.progress.mastery[region], "need": mastery_to_next(level),
                 "speed": round((self.progress.speed_scale(region) - 1) * 100),
                 "rating": self.progress.rating(region),
                 "veterans": self.progress.harder_unlocked(region),
@@ -558,6 +559,21 @@ class Missions:
         count, value = self.fish.take_bag(room(self.unspent))
         self.unspent += value
         return count, value
+
+    def add_item(self, item_id: str, amount: int = 1) -> int:
+        """Add to an inventory stack (e.g. "sunside_tokens"), up to STACK_MAX; returns
+        how many were added. Negative amounts take away, never below 0."""
+        have = self.items.get(item_id, 0)
+        new = max(0, min(STACK_MAX, have + amount))
+        if new:
+            self.items[item_id] = new
+        else:
+            self.items.pop(item_id, None)
+        return new - have
+
+    @property
+    def tokens(self) -> int:
+        return self.items.get("sunside_tokens", 0)
 
     def spend(self, region: str, amount: int = 1) -> list[int]:
         """Put up to amount unspent points into a region; returns the levels reached."""

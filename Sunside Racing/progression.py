@@ -36,9 +36,17 @@ def rating_speed(value: float) -> float:
     return 1.0 + SPEED_PER_LEVEL * (value - RATING_BASE) / RATING_PER_LEVEL
 
 
+MASTERY_PER_LEVEL = 15  # Mastery to go from level L to L + 1 is this x L.
+
+
 def mastery_to_next(level: int) -> int:
     """Mastery needed to go from level to level + 1."""
-    return 10 * level
+    return MASTERY_PER_LEVEL * level
+
+
+def mastery_to_reach(level: int) -> int:
+    """Total mastery from level 1 up to `level`."""
+    return sum(mastery_to_next(l) for l in range(1, level))
 
 
 def reward(base: int, level: int, harder: bool = False) -> int:

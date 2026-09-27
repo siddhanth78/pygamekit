@@ -20,6 +20,7 @@ from fishing import (ODDS, PIERS, RARITIES, pier_open, STRIKE_TIME, STRIKES, SWE
                      beach_destination, fishing_spot, roll_rarity, trader_near, trader_spots,
                      trader_sprites)
 from missions import Missions
+from progression import mastery_to_reach
 from player_save import PlayerSave
 from world import TILE_SIZE, World
 
@@ -176,9 +177,11 @@ class TradeTests(unittest.TestCase):
         self.assertEqual((missions.fish.count, missions.unspent), (0, 11))
         self.assertEqual(missions.progress.mastery, {r: 0 for r in missions.progress.mastery})
         self.assertEqual(missions.spend("snow", 5), [])
-        self.assertEqual(missions.spend("snow", 5), [2])   # Level 1 needs 10.
+        self.assertEqual(missions.spend("snow", 5), [])
         self.assertEqual(missions.spend("desert", 5), [])  # Only 1 left.
         self.assertEqual((missions.unspent, missions.progress.mastery["desert"]), (0, 1))
+        missions.unspent = 5
+        self.assertEqual(missions.spend("snow", 5), [2])   # Level 1 needs 15.
         self.assertEqual(missions.spend("city", 1), [])
         self.assertEqual(missions.spend("beach", 1), [])
 
@@ -203,7 +206,7 @@ class TradeTests(unittest.TestCase):
         beach = missions.mastery_rows("city")[-1]
         self.assertEqual((beach["region"], beach["travel"]), ("beach", "locked"))
         self.assertNotIn("level", beach)                    # No mastery on the beach.
-        missions.progress.add("rural", 10 + 20 + 30)       # Level 4 anywhere opens travel.
+        missions.progress.add("rural", mastery_to_reach(4))  # Level 4 anywhere opens travel.
         self.assertEqual(missions.mastery_rows("city")[-1]["travel"], "ready")
         self.assertEqual(missions.mastery_rows("beach")[-1]["travel"], "ready")  # Another pier.
 

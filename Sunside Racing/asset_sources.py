@@ -1012,6 +1012,21 @@ def camp() -> Atlas:
     return a
 
 
+def token(p: Painter):
+    """A Sunside Token: a green coin with a raised rim and an embossed S (no badge)."""
+    p.ellipse(17, 18, 13, 13, "#1d2a30")                  # Drop shadow.
+    p.ellipse(16, 16, 13, 13, "#1f6b3a")                  # Rim,
+    p.ellipse(16, 16, 11, 11, "#3fae5c")                  # face,
+    p.ellipse(15, 14, 7, 7, "#5cc774")                    # and its shine.
+    strokes = ((13, 8, 20, 10), (12, 9, 14, 15), (13, 14, 19, 16),     # Blocky S: top, upper left,
+               (18, 15, 20, 21), (12, 20, 19, 22))                      # middle, lower right, bottom.
+    for x0, y0, x1, y1 in strokes:
+        p.rect(x0 + 1, y0 + 1, x1 + 1, y1 + 1, "#1f6b3a")               # Embossed shadow,
+    for x0, y0, x1, y1 in strokes:
+        p.rect(x0, y0, x1, y1, "#d8f5d0")                               # then the face.
+    p.dots([(9, 12), (10, 10), (11, 9)], "#e8ffe0")       # Glint on the rim.
+
+
 def marker(p: Painter, name: str):
     """Floating 32 px mission badges; harder givers get a red badge with a gold ring."""
     hard = name.endswith("_hard")
@@ -1088,6 +1103,7 @@ def markers() -> Atlas:
     a = Atlas("marker-atlas", 32, 4, 3)
     for i, name in enumerate(MARKERS):
         marker(a.tile(name, i % 4, i // 4), name)
+    token(a.tile("icon_token", len(MARKERS) % 4, len(MARKERS) // 4))
     return a
 
 

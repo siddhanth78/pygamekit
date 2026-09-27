@@ -75,6 +75,10 @@ TRAVEL_BUTTON = (84, 36)
 TRAVEL_TEXT = {"ready": "TRAVEL", "here": "Here", "busy": "Busy", "locked": "Lvl 3"}
 MASTERY_ROW_GAP = 54
 MASTERY_FIRST_ROW = 226    # Row centers from the panel's top; the sixth row is the beach.
+# COMPLETED splits into sub-columns: (mission type, sub-header), centered this far apart.
+COMPLETED_KINDS = (("delivery", "Del"), ("speed", "Time"), ("drag", "Drag"))
+COMPLETED_STEP = 62
+COMPLETED_COL = 5
 MASTERY_BUTTONS_Y = 598    # SPEND POINTS and BACK.
 GOOD = (120, 200, 130)
 LOCKED = (226, 120, 100)
@@ -118,12 +122,21 @@ class PauseMenu:
                                     bold=c in (0, 1, TRAVEL_COL, VETERANS_COL),
                                     align="center" if c == TRAVEL_COL else "left")
                        for c, w in enumerate(COLUMN_WIDTHS)] for _ in range(6)]
+        # COMPLETED: Del / Time / Drag sub-headers, and a count under each per row.
+        self.sub_headers = [DynamicLabel(ctx, (60, 20), 17, bold=True, align="center")
+                            for _ in COMPLETED_KINDS]
+        for label, (_, text) in zip(self.sub_headers, COMPLETED_KINDS):
+            label.set(text)
+        self.done_cells = [[DynamicLabel(ctx, (60, 30), 22, align="center") for _ in COMPLETED_KINDS]
+                           for _ in range(6)]
         # Under each pier button: its catch, or what it needs while locked.
         self.docks = {name: False for name, _, _ in DOCK_SITES}
         self.dock_notes = {name: DynamicLabel(ctx, (300, 22), 18, bold=True, align="center")
                            for name in self.docks}
         self.quads = {}
-        for label in self.headers + [self.footer] + list(self.dock_notes.values()) + [cell for row in self.cells for cell in row]:
+        for label in (self.headers + [self.footer] + list(self.dock_notes.values())
+                      + [cell for row in self.cells for cell in row] + self.sub_headers
+                      + [cell for row in self.done_cells for cell in row]):
             instances = get_new_instances(0, 0, 1)[2]
             self.quads[id(label)] = (instances, *build_tex_objs(ctx, self.text_program, instances))
 
@@ -138,6 +151,10 @@ class PauseMenu:
         if current is not None:
             items = self.items
             self.selected = items.index(current) if current in items else len(items) - 1
+        for done_cells, row in zip(getattr(self, "done_cells", []), rows):
+            counts = row.get("completed") or {}
+            for label, (kind, _) in zip(done_cells, COMPLETED_KINDS):
+                label.set(str(counts[kind]) if kind in counts else "")
         for cells, row in zip(self.cells, rows):
             if row.get("kind") == "beach":
                 # No mastery on the beach: only its fast-travel button, once unlocked.
@@ -149,7 +166,7 @@ class PauseMenu:
             done = row["completed"]
             texts = (row["region"].title(), str(row["level"]), f"{row['mastery']} / {row['need']}",
                      f"{row['races']} / 10", str(row["rating"]),
-                     f"Del {done['delivery']}  ·  Trial {done['speed']}  ·  Drag {done['drag']}",
+                     "",   # COMPLETED shows as three sub-columns (done_cells).
                      row["mission"] or "—", TRAVEL_TEXT[row["travel"]],
                      "Unlocked" if row["veterans"] else "Lvl 5")
             for cell, text in zip(cells, texts):
@@ -341,10 +358,14 @@ class PauseMenu:
     def _mastery_table(self, rects, left, top, panel_w):
         """Add the table's rects; return (label, record) pairs for its text."""
         cells = []
-        header_y = top + 170
+        header_y = top + 160
         for label, (_, x) in zip(self.headers, MASTERY_COLUMNS):
             cells.append((label, label.record(left + x, header_y, MUTED)))
-        rects.append(_rect(left + panel_w // 2, header_y + 20, panel_w - 60, 2, (*MUTED, 120)))
+        done_x = [left + MASTERY_COLUMNS[COMPLETED_COL][1] + 28 + k * COMPLETED_STEP
+                  for k in range(len(COMPLETED_KINDS))]
+        for label, x in zip(self.sub_headers, done_x):          # Del  Time  Drag
+            cells.append((label, label.record(x, header_y + 24, MUTED)))
+        rects.append(_rect(left + panel_w // 2, header_y + 38, panel_w - 60, 2, (*MUTED, 120)))
         for i, (row, labels) in enumerate(zip(self.mastery_rows, self.cells)):
             y = top + MASTERY_FIRST_ROW + i * MASTERY_ROW_GAP
             if i % 2 == 0:
@@ -377,6 +398,8 @@ class PauseMenu:
                 # The TRAVEL cell is centered on its button; the rest are left-aligned.
                 x = left + x + (TRAVEL_BUTTON[0] // 2 if c == TRAVEL_COL else 0)
                 cells.append((label, label.record(x, y + dy, color)))
+            for label, x, (kind, _) in zip(self.done_cells[i], done_x, COMPLETED_KINDS):
+                cells.append((label, label.record(x, y, CREAM if row["completed"][kind] else MUTED)))
         # Elite Island progress under the table.
         cells.append((self.footer, self.footer.record(left + panel_w // 2,
                                                       top + MASTERY_FIRST_ROW + 6 * MASTERY_ROW_GAP - 10,

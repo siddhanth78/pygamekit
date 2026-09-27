@@ -3,7 +3,7 @@
   "mode": "drive",
   "car": {
     "x": 10964.0,
-    "y": 15976.0,
+    "y": 15761.792360000001,
     "heading": 0.0
   },
   "missions": {
@@ -59,7 +59,7 @@
         "races": 0
       }
     },
-    "counter": 53,
+    "counter": 54,
     "offers": {
       "city-drag-hard": {
         "type": "drag",
@@ -78,6 +78,25 @@
           "rural": 2
         },
         "rating": 146,
+        "declines": 0
+      },
+      "city-speed": {
+        "type": "speed",
+        "scale": 0.752,
+        "target": [
+          11099.12110890298,
+          13540.687164178351
+        ],
+        "track": null,
+        "seed": 785190910,
+        "levels": {
+          "city": 5,
+          "jungle": 3,
+          "desert": 1,
+          "snow": 3,
+          "rural": 2
+        },
+        "rating": null,
         "declines": 0
       }
     },

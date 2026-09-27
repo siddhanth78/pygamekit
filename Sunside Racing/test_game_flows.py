@@ -18,7 +18,7 @@ import pygame
 import main
 import player_save
 import world_save
-from progression import rating_speed
+from progression import mastery_to_next, mastery_to_reach, rating_speed
 from missions import Offer
 from walker import Walker
 
@@ -85,7 +85,7 @@ class GameFlowTests(unittest.TestCase):
 
     def test_center_offers_show_both_ratings(self):
         g = self.game
-        g.missions.progress.add("city", 10 + 20)         # Level 3: rating 120.
+        g.missions.progress.add("city", mastery_to_reach(3))   # Level 3: rating 120.
         g.missions.progress.races["city"] = 3            # Race 4's rival is rated 140.
         cx, cy = g.missions.center_position("city")
         g._step_out(Walker(cx, cy + 110))
@@ -147,10 +147,10 @@ class GameFlowTests(unittest.TestCase):
     def test_a_drag_rival_keeps_its_rating_after_leveling(self):
         g = self.game
         dg = g.missions.by_id["city-drag"]
-        g.missions.progress.add("city", 10)             # Level 2 (110) when offered.
+        g.missions.progress.add("city", mastery_to_reach(2))   # Level 2 (110) when offered.
         g.missions.offers[dg.id] = Offer(dg.id, "drag", 1.0, None, {"kind": "straight", "theme": "city"},
                                          5, dict(g.missions.progress.levels), 125)
-        g.missions.progress.add("city", 20)             # Level 3 (120) by the time it's accepted.
+        g.missions.progress.add("city", mastery_to_next(2))    # Level 3 (120) by the time it's accepted.
         g._step_out(Walker(dg.x + 20, dg.y))
         self.press(pygame.K_e)
         self.assertEqual(g.panel.lines[1].text, "Rival (125) VS You (120)")
@@ -168,7 +168,7 @@ class GameFlowTests(unittest.TestCase):
         g._step_out(Walker(dg.x + 20, dg.y))
         self.press(pygame.K_e, pygame.K_ESCAPE)          # Walking away keeps the offer.
         self.assertEqual(g.missions.offers[dg.id].rating, 112)
-        g.missions.progress.add("city", 10 + 20)          # Level 3: a drag pays 5.
+        g.missions.progress.add("city", mastery_to_reach(3))   # Level 3: a drag pays 5.
         self.press(pygame.K_e, pygame.K_RIGHT, pygame.K_RETURN)   # DECLINE: 5 -> 2.
         self.assertEqual(g.missions.offers[dg.id].declines, 1)
         self.assertTrue(g.panel.open)                     # The easier offer is shown at once.
@@ -406,6 +406,16 @@ class GameFlowTests(unittest.TestCase):
         self.assertFalse(g.menu.open)
         self.assert_at_home(g)
 
+    def test_mastery_completed_splits_into_del_time_drag(self):
+        g = self.game
+        g.missions.progress.completed["city"].update(delivery=12, speed=3, drag=7)
+        self.press(pygame.K_ESCAPE, pygame.K_DOWN, pygame.K_RETURN)      # Pause > Mastery.
+        self.assertEqual(g.menu.page, "mastery")
+        self.assertEqual([h.text for h in g.menu.sub_headers], ["Del", "Time", "Drag"])
+        self.assertEqual([c.text for c in g.menu.done_cells[0]], ["12", "3", "7"])      # City row.
+        self.assertEqual([c.text for c in g.menu.done_cells[5]], ["", "", ""])          # Beach row.
+        self.assertEqual(g.menu.cells[0][5].text, "")
+
     # Inventory ----------------------------------------------------------------------
 
     def test_inventory_opens_with_i_moves_with_arrows_and_closes(self):
@@ -417,8 +427,11 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_i)
         self.assertTrue(g.inventory.open)
         self.assertEqual([(i.id, n) for i, n in g.inventory.stacks],
-                         [("fish_uncommon", 1), ("mastery_points", 4)])
+                         [("sunside_tokens", 0), ("fish_uncommon", 1), ("mastery_points", 4)])
         self.assertEqual((g.car.x, g.car.y), start)                 # Paused while open.
+        self.assertEqual(g.inventory.name.text, "Sunside Tokens")    # Always slot one.
+        self.assertEqual(g.inventory.amount.text, "0 / 999")
+        self.press(pygame.K_RIGHT)
         self.assertEqual(g.inventory.name.text, "Uncommon fish")
         self.press(pygame.K_RIGHT)
         self.assertEqual(g.inventory.name.text, "Mastery points")
@@ -585,7 +598,7 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_e)
         g.update(1 / 60)
         self.assertTrue(1.0 < g.zoom < 2.0)
-        g.missions.progress.add("rural", 60)
+        g.missions.progress.add("rural", mastery_to_reach(4))
         g.menu.toggle()
         g._fast_travel("rural")
         self.assertEqual(g.zoom, main.DRIVE_ZOOM)
@@ -606,7 +619,7 @@ class GameFlowTests(unittest.TestCase):
         self.game._step_out(Walker(x + 20, y))
 
     def unlock_fishing(self):
-        self.game.missions.progress.add("rural", 10 + 20 + 30)   # Level 4 in any region.
+        self.game.missions.progress.add("rural", mastery_to_reach(4))   # Level 4 in any region.
 
     def test_locked_piers_and_traders_say_level_four(self):
         g = self.game
@@ -703,7 +716,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g.menu.page, "docks")
         self.assertEqual(g.menu.dock_notes["north"].text, "Needs 3 regions at level 7")
         for region in ("city", "snow", "desert"):
-            g.missions.progress.add(region, 210)                   # Level 7.
+            g.missions.progress.add(region, mastery_to_reach(7))
         self.press(pygame.K_RETURN)                                # Now it opens.
         self.assertFalse(g.menu.open)
         north = next(d for d in g.world.docks if d.name == "north")

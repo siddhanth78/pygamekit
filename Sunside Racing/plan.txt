@@ -1350,3 +1350,32 @@ Racing-center lots for fast travel (2026-09-27, built)
   travel still goes to the chosen pier.
 - Test: every region parks in its center's lot, west stall, facing up, within
   400 px of the center, clear to drive up and out. 195 passing.
+
+Sunside Tokens (2026-09-27, built)
+- New currency, an inventory item ("sunside_tokens"): a green coin with an
+  embossed S (marker-atlas icon_token). Permanent: always the first
+  inventory slot, even at 0; new saves start at 0. Stored in Missions.items
+  (saved under "inventory"); Missions.tokens reads it; Missions.add_item(id, n)
+  adds (or with n < 0 takes away) up to the 999 stack limit.
+- Earning: not decided yet ("earned in different ways", to come). Open: the
+  sources and amounts, and whether the currency should go past 999.
+- Tests: 0 at start, slot one at 0, capped at 999, saved, back to 0 still in
+  slot one; the inventory flow starts on tokens. 196 passing.
+
+Mastery per level 15 x level (2026-09-27, built)
+- User: new ways to earn mastery are coming, so levels cost more; earnings
+  unchanged. progression.MASTERY_PER_LEVEL = 15 (was 10): level L to L + 1
+  takes 15 x L. The Mastery page and mission results use mastery_to_next (no
+  more hardcoded 10 x level). Totals from level 1: level 3 45, level 4 90,
+  level 5 150, level 7 315, level 12 990, level 25 4500.
+- Saves keep their levels and the mastery banked toward the next level; only
+  the remaining gap grows. Rival ratings follow levels, so races are
+  unchanged.
+- progression.mastery_to_reach(level) added; tests use it instead of raw
+  amounts. 196 passing.
+
+Mastery page COMPLETED columns (2026-09-27, built)
+- The COMPLETED column now has sub-headers Del / Time / Drag under its title,
+  with each region's count centered under its sub-header (was one line
+  "Del n · Trial n · Drag n"). Counts at 0 show muted; the Beach row is blank.
+  Test added. 197 passing.
