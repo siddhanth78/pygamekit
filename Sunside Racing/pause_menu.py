@@ -22,6 +22,7 @@ CONTROLS = (
     ("Q", "Call your car (on foot)"),
     ("T", "Travel to or from Elite Island"),
     ("M", "World map  ·  pick a guide  ·  C clears it"),
+    ("I", "Inventory"),
     ("R", "Unstick yourself nearby"),
     ("ESC", "Pause menu"),
 )
@@ -42,7 +43,7 @@ LABELS = {
     **{f"dock:{name}": (f"PIER {PIERS[name][0]}  ·  {name.upper()}", 30, True, "center")
        for name, _, _ in DOCK_SITES},
     "hint": ("W/S or arrows to choose  ·  Enter to confirm  ·  Esc to resume", 20, False, "center"),
-    "goal": ("Follow the yellow arrow to each region's racing center.", 24, False, "center"),
+    "goal": ("Open the map (M) and click a landmark to get a guide arrow.", 24, False, "center"),
     **{f"key{i}": (key, 28, True, "left") for i, (key, _) in enumerate(CONTROLS)},
     **{f"act{i}": (action, 28, False, "left") for i, (_, action) in enumerate(CONTROLS)},
 }
@@ -79,7 +80,7 @@ GOOD = (120, 200, 130)
 LOCKED = (226, 120, 100)
 BUTTON_SIZE = (312, 64)
 BUTTON_GAP = 84
-ROW_GAP = 34
+ROW_GAP = 30
 
 
 def _rect(x, y, width, height, rgba, thickness=0.0):

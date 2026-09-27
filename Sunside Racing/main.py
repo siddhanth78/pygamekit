@@ -35,6 +35,8 @@ from title_menu import TitleMenu
 from world_map import WorldMap, guide_line, landmarks
 from arcade import ArcadeCabinet
 from home import HomeInterior
+from inventory import STACK_MAX
+from inventory_ui import InventoryMenu
 from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
 from player_save import PlayerSave
 from traffic import Traffic
@@ -128,6 +130,7 @@ class Game:
         self.inside = False
         self.resting = None     # The home Spot the player is sitting or sleeping on.
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
+        self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
         # Face the way it's parked from the first frame (getting out at once kept it north).
         self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
@@ -228,7 +231,7 @@ class Game:
         if region == "beach":
             landing = beach_destination(self.world, self.collisions, self.car, player.x, player.y, dock)
         else:
-            landing = destination(self.world, self.collisions, self.car, region, player.x, player.y)
+            landing = destination(self.world, self.collisions, self.car, region)
         self.menu.toggle()
         if landing is None:
             self.panel.show_message("Fast travel", f"No clear spot at the {region} border right now.")
@@ -252,6 +255,9 @@ class Game:
         """Apply one input intent; returns False to quit."""
         if action == "quit":
             return False
+        if self.inventory.open:
+            self.inventory.handle(action, value)
+            return True
         if self.arcade.open:
             if self.arcade.handle(action, value) == "close":
                 self.autosave.request()   # Keep a new best score.
@@ -325,6 +331,8 @@ class Game:
                 self.race.car.respawn_nearby(self.race.collisions)
         elif action == "map":
             self.world_map.toggle()
+        elif action == "inventory":
+            self.inventory.toggle(self.missions)
         elif action == "confirm":
             if self.fishing:
                 self.fishing.press()   # Space: strike while the marker is in the green.
@@ -508,6 +516,9 @@ class Game:
                 f"You have {unspent} unspent point{'s' if unspent != 1 else ''}" if unspent else ""))
             return
         count, value = self.missions.trade_fish()
+        if not count:
+            self.panel.show_message(title, f"Your mastery points are full ({STACK_MAX}). Spend some first.")
+            return
         self.autosave.request()
         self.spend_menu.show(self.missions, f"Traded {count} fish for {value} point{'s' if value != 1 else ''}")
 
@@ -665,6 +676,8 @@ class Game:
         if self.arcade.open:
             self.arcade.update(dt)
             return
+        if self.inventory.open:
+            return   # Paused while the inventory is open.
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
         if self.race:
@@ -763,6 +776,8 @@ class Game:
             self.spend_menu.render()
         if self.arcade.open:
             self.arcade.render()
+        if self.inventory.open:
+            self.inventory.render()
         if self.menu.open:
             if self.menu.page in ("mastery", "docks"):
                 self._refresh_mastery()

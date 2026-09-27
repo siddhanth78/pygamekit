@@ -1308,3 +1308,45 @@ Smooth rival slides on ice (2026-09-27, built)
   track in race 10; time +1.9/+3.5/+7.1/+12.7/+27.4% vs dry.
 - Tests: no jumps on races 1, 5, 10 and the offset stays within the room.
   187 passing.
+
+Inventory (2026-09-27, built)
+- I toggles an inventory (inventory_ui.InventoryMenu): a 4 x 4 grid of item
+  stacks with icons and counts, and a details panel (name, count / 999, what
+  it's for). Arrows/WASD or the mouse pick a slot; I or Esc close it. The game
+  pauses while it's open; not available in races. Help lists I (rows tightened;
+  its tip line now says to use the map for a guide arrow).
+- Contents (inventory.ITEMS, grid order): common/uncommon/rare/epic fish and
+  Mastery points (new marker-atlas icon_points, a gold star badge). Fish stay
+  in the fish log's bag and points in Missions.unspent (existing saves);
+  future items go in Missions.items, saved as "inventory". Adding an item =
+  one ITEMS entry (plus how it's gained).
+- Every stack stops at STACK_MAX = 999. A catch that would overflow its stack
+  is released ("Bag full: released the ..."); trades hand over only fish whose
+  points fit under 999 (rarest first) and the trader says so when points are
+  already full; saves over 999 clamp.
+- Tests: test_inventory.py (contents and order, caps, released catch, partial
+  trades, future items saved, note wrapping) and flows (I, arrows, grid edges,
+  mouse, Esc, points-full trader). 195 passing.
+
+Fast travel lands at the racing center (2026-09-27, built)
+- Region fast travel (Mastery page TRAVEL) now parks the car on clear ground
+  just south of that region's racing center, facing it
+  (fast_travel.destination, ARRIVE_OFFSET = 230 px; the city lands 181 px out
+  where the road allows). Before, it landed just inside the region's border.
+  Beach travel still goes to the chosen pier; Elite Island travel unchanged.
+- Test: every region lands in the region, clear, south of and within 450 px of
+  its center, facing north. 195 passing.
+
+Racing-center lots for fast travel (2026-09-27, built)
+- Supersedes "Fast travel lands at the racing center" above. Every mainland
+  racing center (city, jungle, desert, snow, rural) has its own two-stall lot,
+  the same home_lot tile as the house: just east of the plaza (local tile
+  (6, 3)); in the city, where the building east of the plaza stood (local
+  tile (5, 1), that building removed). The tiles north of each lot are kept
+  clear of scatter so the car can drive straight out. The island center has
+  none (reached by ferry). GENERATOR_VERSION 9.
+- Region fast travel parks the car in that lot's west stall facing up
+  (world.center_parking via fast_travel.destination), like at home. Beach
+  travel still goes to the chosen pier.
+- Test: every region parks in its center's lot, west stall, facing up, within
+  400 px of the center, clear to drive up and out. 195 passing.

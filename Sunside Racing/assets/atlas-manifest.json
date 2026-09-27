@@ -1873,6 +1873,13 @@
             0
           ],
           "source_row": 2
+        },
+        "icon_points": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 2
         }
       }
     },

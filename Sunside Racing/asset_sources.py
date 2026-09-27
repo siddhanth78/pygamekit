@@ -1053,6 +1053,25 @@ def marker(p: Painter, name: str):
         p.rect(22, 13, 23, 20, "#5d6366")
         p.rect(18, 20, 23, 21, "#5d6366")
         p.rect(18, 17, 19, 20, "#5d6366")
+    elif kind == "points":
+        # Mastery points: a five-pointed gold star with a darker rim.
+        def star(outer, inner):
+            corners = [(16 + math.sin(math.pi * k / 5) * (outer if k % 2 == 0 else inner),
+                        16 - math.cos(math.pi * k / 5) * (outer if k % 2 == 0 else inner))
+                       for k in range(10)]
+            inside = []
+            for y in range(32):
+                for x in range(32):
+                    px, py, hit = x + 0.5, y + 0.5, False
+                    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+                        if (ay > py) != (by > py) and px < ax + (py - ay) * (bx - ax) / (by - ay):
+                            hit = not hit
+                    if hit:
+                        inside.append((x, y))
+            return inside
+        p.dots(star(11.5, 5.2), "#b8862a")
+        p.dots(star(9.5, 4.0), "#f2ca57")
+        p.dots([(14, 10), (15, 10), (14, 11)], "#fff4d6")                # Shine.
     elif kind == "finish":
         for i in range(4):
             for j in range(4):
@@ -1062,7 +1081,7 @@ def marker(p: Painter, name: str):
 
 MARKERS = ("icon_delivery", "icon_speed", "icon_drag", "icon_dropoff",
            "icon_delivery_hard", "icon_speed_hard", "icon_drag_hard", "icon_finish",
-           "icon_fishing")
+           "icon_fishing", "icon_points")
 
 
 def markers() -> Atlas:

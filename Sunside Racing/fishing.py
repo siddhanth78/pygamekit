@@ -15,6 +15,7 @@ import math
 import random
 
 from collision_manager import nearest_clear_spot
+from inventory import STACK_MAX
 from world import TILE_SIZE, Sprite
 
 
@@ -66,14 +67,18 @@ class FishLog:
                     for rarity in RARITIES:
                         value = counts.get(rarity)
                         if type(value) is int and value >= 0:
-                            getattr(self, key)[rarity] = value
+                            getattr(self, key)[rarity] = min(value, STACK_MAX) if key == "bag" else value
 
     def to_dict(self) -> dict:
         return {"bag": dict(self.bag), "caught": dict(self.caught)}
 
-    def add(self, rarity: str):
+    def add(self, rarity: str) -> bool:
+        """Put a fish in the bag; False (released) if that stack is already full."""
+        if self.bag[rarity] >= STACK_MAX:
+            return False
         self.bag[rarity] += 1
         self.caught[rarity] += 1
+        return True
 
     @property
     def count(self) -> int:
@@ -86,10 +91,16 @@ class FishLog:
     def summary(self) -> str:
         return ",  ".join(f"{n} {r}" for r, n in self.bag.items() if n) or "empty"
 
-    def take_bag(self) -> tuple[int, int]:
-        """Empty the bag for a trade: (fish, mastery)."""
-        count, value = self.count, self.value
-        self.bag = {r: 0 for r in RARITIES}
+    def take_bag(self, points_room: int | None = None) -> tuple[int, int]:
+        """Hand over fish for a trade: (fish, mastery). With points_room, only as many as
+        pay at most that many points (rarest first); the rest stay in the bag."""
+        count = value = 0
+        for rarity in reversed(RARITIES):
+            n = self.bag[rarity]
+            if points_room is not None:
+                n = min(n, (points_room - value) // VALUE[rarity])
+            self.bag[rarity] -= n
+            count, value = count + n, value + n * VALUE[rarity]
         return count, value
 
 
@@ -134,6 +145,7 @@ class FishingSession:
         self.phase, self.timer = "ready", 0.0
         self.rarity, self.name = "common", ""   # Rolled at each bite.
         self.strike = 0               # Strikes passed.
+        self.bag_full = False         # The last catch was released: its stack was full.
         self.sweep_t = 0.0            # Drives the marker.
         self.zone = (0.0, 0.0)
         self.bobber = self.rod_tip()
@@ -215,9 +227,9 @@ class FishingSession:
             (ax, ay), (bx, by) = self.target, self.rod_tip()
             self.bobber = (ax + (bx - ax) * t, ay + (by - ay) * t)
             if t >= 1.0:
-                log.add(self.rarity)
+                self.bag_full = not log.add(self.rarity)
                 self.phase, self.timer = "caught", 0.0
-                return self.rarity
+                return None if self.bag_full else self.rarity
         elif self.phase in ("caught", "escaped") and self.timer >= SHOW_TIME:
             self.phase, self.timer = "ready", 0.0
         return None
@@ -251,6 +263,9 @@ class FishingSession:
                     "SPACE when the marker is in the green")
         if self.phase == "reel":
             return "Reeling in...", ""
+        if self.phase == "caught" and self.bag_full:
+            return (f"Bag full: released the {self.name}",
+                    f"{STACK_MAX} is the most you can carry  ·  trade at a jungle camp")
         if self.phase == "caught":
             return (f"Caught: {self.rarity.title()} {self.name}!",
                     f"Worth {VALUE[self.rarity]} mastery at a jungle fish trader")

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from car import OFF_SURFACE, SURFACES, TOP_SPEED
 from collision_manager import CollisionManager, nearest_clear_spot
 from fishing import FishLog
+from inventory import BY_ID, STACK_MAX, room
 from progression import (FAST_TRAVEL_LEVEL, FISHING_LEVEL, RATING_EDGE, REGIONS, SPEED_PER_LEVEL, Progress, rating,
                          rating_difficulty, reward)
 from walker import Walker
@@ -149,7 +150,11 @@ class Missions:
         self.fish = FishLog(data.get("fish"))
         # Universal mastery from traded fish, spent on any region whenever the player likes.
         unspent = data.get("unspent_mastery")
-        self.unspent = unspent if type(unspent) is int and unspent >= 0 else 0
+        self.unspent = min(unspent, STACK_MAX) if type(unspent) is int and unspent >= 0 else 0
+        # Inventory items beyond fish and points (none yet): item id -> count.
+        items = data.get("inventory")
+        self.items = {k: min(v, STACK_MAX) for k, v in items.items()
+                      if k in BY_ID and type(v) is int and v > 0} if isinstance(items, dict) else {}
         # Best arcade scores by game id (the cabinet at home).
         arcade = data.get("arcade")
         self.arcade = {k: v for k, v in arcade.items() if isinstance(k, str) and type(v) is int and v >= 0} \
@@ -544,12 +549,13 @@ class Missions:
         return {"progress": self.progress.to_dict(), "counter": self.counter,
                 "offers": {gid: offer.to_dict() for gid, offer in self.offers.items()},
                 "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
-                "arcade": dict(self.arcade)}
+                "arcade": dict(self.arcade), "inventory": dict(self.items)}
 
     def trade_fish(self):
-        """Hand the whole bag to a jungle fish trader: returns (fish, points). The points
-        join the unspent pool; spend() puts them into regions."""
-        count, value = self.fish.take_bag()
+        """Hand fish to a jungle fish trader: returns (fish, points). The points join the
+        unspent pool (spend() puts them into regions); fish that would push it past the
+        stack limit stay in the bag."""
+        count, value = self.fish.take_bag(room(self.unspent))
         self.unspent += value
         return count, value
 

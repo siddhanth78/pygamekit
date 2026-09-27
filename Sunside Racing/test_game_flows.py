@@ -406,6 +406,48 @@ class GameFlowTests(unittest.TestCase):
         self.assertFalse(g.menu.open)
         self.assert_at_home(g)
 
+    # Inventory ----------------------------------------------------------------------
+
+    def test_inventory_opens_with_i_moves_with_arrows_and_closes(self):
+        g = self.game
+        g.missions.fish.add("uncommon")
+        g.missions.unspent = 4
+        g.inputs.driving = lambda: (1, 0)
+        start = (g.car.x, g.car.y)
+        self.press(pygame.K_i)
+        self.assertTrue(g.inventory.open)
+        self.assertEqual([(i.id, n) for i, n in g.inventory.stacks],
+                         [("fish_uncommon", 1), ("mastery_points", 4)])
+        self.assertEqual((g.car.x, g.car.y), start)                 # Paused while open.
+        self.assertEqual(g.inventory.name.text, "Uncommon fish")
+        self.press(pygame.K_RIGHT)
+        self.assertEqual(g.inventory.name.text, "Mastery points")
+        self.assertEqual(g.inventory.amount.text, "4 / 999")
+        self.press(pygame.K_DOWN)
+        self.assertEqual(g.inventory.name.text, "Empty slot")
+        for _ in range(5):
+            self.press(pygame.K_DOWN, pygame.K_RIGHT)               # Stays inside the grid.
+        self.assertEqual(g.inventory.selected, 15)
+        x, y = g.inventory.slot_centers()[0]
+        g.handle("pointer", (x, y))
+        self.assertEqual(g.inventory.selected, 0)
+        self.press(pygame.K_i)
+        self.assertFalse(g.inventory.open)
+        self.press(pygame.K_i, pygame.K_ESCAPE)                     # Esc closes it too,
+        self.assertFalse(g.inventory.open)
+        self.assertFalse(g.menu.open)                               # without pausing.
+
+    def test_trader_says_so_when_points_are_full(self):
+        g = self.game
+        self.unlock_fishing()
+        g.missions.unspent = 999
+        g.missions.fish.add("common")
+        self.at_trader()
+        self.press(pygame.K_e)
+        self.assertIn("full", g.panel.lines[0].text)
+        self.assertEqual(g.missions.fish.count, 1)
+        self.assertFalse(g.spend_menu.open)
+
     # Veterans -----------------------------------------------------------------------
 
     def test_locked_veterans_show_their_badge_and_explain(self):

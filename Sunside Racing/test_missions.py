@@ -354,20 +354,22 @@ class FastTravelTests(unittest.TestCase):
         missions.accept(giver)
         self.assertEqual({r["region"]: r["travel"] for r in missions.mastery_rows("city")}["snow"], "busy")
 
-    def test_lands_just_inside_each_region_on_clear_ground(self):
-        from fast_travel import INSET, destination, region_anchor
+    def test_parks_in_each_racing_centers_own_lot(self):
+        from fast_travel import destination, region_anchor
+        from world import TILE_SIZE
         collisions = CollisionManager(None, self.world)
-        start = Car()  # City start.
-        for region in ("jungle", "desert", "snow", "rural"):
-            x, y, heading = destination(self.world, collisions, start, region, start.x, start.y)
+        start = Car(heading=90.0)
+        for region in ("city", "jungle", "desert", "snow", "rural"):
+            x, y, heading = destination(self.world, collisions, start, region)
             self.assertEqual(self.world.region_at(x, y), region)
-            probe = Car(x=x, y=y, heading=heading)
-            self.assertTrue(collisions.can_move(probe.collision_record()))
-            # Near the border, far closer to the player than the region's center is.
-            self.assertLess(math.dist((x, y), (start.x, start.y)),
-                            math.dist(region_anchor(self.world, region), (start.x, start.y)))
-            self.assertEqual(start.heading, 0.0)  # The search does not turn the real car.
-
+            lot = [s for s in self.world.sector(int(x // 512), int(y // 512)) if s.name == "home_lot"]
+            self.assertEqual(len(lot), 1)                               # One two-stall lot,
+            self.assertEqual((lot[0].x - TILE_SIZE / 2 + 20, heading), (x, 0.0))   # west stall, up.
+            self.assertLess(math.dist((x, y), region_anchor(self.world, region)), 400)
+            for step in range(0, 97, 8):                                # Clear to drive up and out.
+                self.assertTrue(collisions.can_move(Car(x=x, y=y - step, heading=0).collision_record()),
+                                (region, step))
+            self.assertEqual(start.heading, 90.0)
 
 class DragRaceTests(unittest.TestCase):
     def test_tracks_are_walled_and_tiled(self):

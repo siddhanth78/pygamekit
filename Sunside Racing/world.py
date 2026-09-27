@@ -112,6 +112,11 @@ HOME_PARK = (_HOME_X + HOME_LOT_TILE[0] * TILE_SIZE + 20,                  # Car
 HOME_DOOR = (_HOME_X + 2.5 * TILE_SIZE, _HOME_Y + 2.2 * TILE_SIZE)      # Stand here to go inside
                                                                          # (beyond the car's reach).
 
+# Every mainland racing center has its own two-stall lot (the home_lot tile) beside its
+# plaza; fast travel parks the car there, west stall, facing up. Local tile in the
+# center's sector: east of the plaza, or (city) where the building east of it would be.
+CENTER_LOT_TILE = {"city": (5, 1), "other": (6, 3)}
+
 # Encampments: offsets from the camp center (the sector's middle).
 CAMPS_PER_REGION = 5
 CAMP_TENTS = ((-88, -56), (84, -60), (6, 92))
@@ -402,11 +407,17 @@ class World:
             lot = self._center_lot(sx, sy)
             center_xy = grid(*lot)
             self._center_plaza(center, lot, center_xy, ground, occupied, scenery, prop)
+            if region != "island":
+                tx, ty = self._center_lot_tile(sx, sy)
+                ground[(tx, ty)] = "home_lot"
+                occupied |= {(tx, ty), (tx, ty - 1), (tx, ty - 2)}   # Clear way out, north.
 
         if region == "city":
             home = (sx, sy) == HOME_SECTOR
-            self._city_blocks(rng, grid, ground, scenery, prop,
-                              skip_lot=(2, 2) if center or home else None)
+            skip = {(2, 2)} if center or home else set()
+            if center:
+                skip.add((6, 2))                  # The center's parking lot goes here.
+            self._city_blocks(rng, grid, ground, scenery, prop, skip_lots=skip)
             if home:
                 scenery.append(Sprite("structure-atlas", "player_house", *HOME_HOUSE, 106, 106,
                                       solid_width=82, solid_height=82))
@@ -506,6 +517,15 @@ class World:
                 prop(name, x, y, size, solid=(solid, solid))
         return tuple(result + scenery)
 
+    def _center_lot_tile(self, sx: int, sy: int) -> tuple[int, int]:
+        return CENTER_LOT_TILE["city" if self.region(sx, sy) == "city" else "other"]
+
+    def center_parking(self, sx: int, sy: int) -> tuple[float, float, float]:
+        """Where fast travel parks the car at this center: its lot's west stall, facing up."""
+        tx, ty = self._center_lot_tile(sx, sy)
+        return (sx * SECTOR_SIZE + tx * TILE_SIZE + 20,
+                sy * SECTOR_SIZE + (ty + 1) * TILE_SIZE - STALL_Y, 0.0)
+
     def _center_lot(self, sx: int, sy: int) -> tuple[int, int]:
         # City centers take a building lot so they never sit on the road grid.
         return (2, 2) if self.region(sx, sy) == "city" else (4, 4)
@@ -569,9 +589,9 @@ class World:
             scenery.append(Sprite("camp-atlas", name, cx + dx, cy + dy, size, size, rotation,
                                   solid, solid))
 
-    def _city_blocks(self, rng, grid, ground, scenery, prop, skip_lot):
+    def _city_blocks(self, rng, grid, ground, scenery, prop, skip_lots=()):
         for lot in ((2, 2), (6, 2), (2, 6), (6, 6)):
-            if lot == skip_lot:
+            if lot in skip_lots:
                 continue
             if rng.random() < 0.2:
                 # Parking lot: 2 x 2 tiles whose painted stalls sit in each tile's top half.
