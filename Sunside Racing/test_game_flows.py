@@ -288,6 +288,25 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(len([s for s in title.sprites if s.atlas == "prop-atlas"]), 2)   # Trees.
         title.render()
 
+    # Veterans -----------------------------------------------------------------------
+
+    def test_locked_veterans_show_their_badge_and_explain(self):
+        g = self.game
+        vet = g.missions.by_id["snow-drag-hard"]
+        badges = [s for s in g.missions.sprites(0.0) if s.name == "icon_drag_hard"]
+        self.assertTrue(any(abs(s.x - vet.x) < 1 for s in badges))    # Badge while locked.
+        g._step_out(Walker(vet.x + 20, vet.y))
+        self.assertIs(g.missions.giver_near(g.walker.x, g.walker.y), vet)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.title.text, vet.name)
+        self.assertEqual(g.panel.chip_name, "Locked")
+        self.assertIn("level 5", g.panel.lines[0].text)
+        self.assertIsNone(g.pending_offer)
+        self.press(pygame.K_RETURN)
+        g.missions.progress.levels["snow"] = 5                        # Unlocked: an offer.
+        self.press(pygame.K_e)
+        self.assertIs(g.pending_offer, vet)
+
     # World map ----------------------------------------------------------------------
 
     def test_no_guide_until_a_landmark_is_picked_on_the_map(self):
@@ -328,7 +347,9 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(kinds.count("dock"), 3)
         self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
-                         {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170)})
+                         {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
+                          "veteran": (150, 226, 140)})
+        self.assertEqual(kinds.count("veteran"), 15)
         for mark in g.landmarks:                                      # Arrow matches the diamond.
             self.assertEqual(mark.arrow_color, KINDS[mark.kind][0])
         g.world_map.toggle()

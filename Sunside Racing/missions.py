@@ -42,7 +42,9 @@ DELIVERY_DISTANCE = (3000, 15000)  # px (10 px = 1 m): 0.3-1.5 km, often another
 SPEED_DISTANCE = (2000, 6000)
 GIVER_RADIUS = 200           # Givers stand about this far from their racing center.
 BASE_ANGLES = (200, 240, 280)   # Degrees (screen, y down) for delivery, speed, drag givers.
-HARDER_ANGLES = (330, 10, 50)
+VETERAN_MIN_SECTORS = 4      # Veterans stand at least this many sectors from their center,
+VETERAN_EDGE_MARGIN = 2      # this many sectors inside their region's edges,
+VETERAN_APART = 5            # and this many sectors from each other.
 GIVER_KINDS = {"city": "city_d", "rural": "farmer_b", "snow": "snow_a",
                "desert": "nomad_b", "jungle": "explorer_a"}
 
@@ -167,7 +169,8 @@ class Missions:
     # Placement ------------------------------------------------------------------
 
     def _place_givers(self):
-        """Stand three givers (plus three harder ones) on open ground near each center."""
+        """Three givers on open ground near each center, and three veterans spread out
+        across the region, far from the center and from each other."""
         probe_collisions = CollisionManager(None, self.world)
         givers = []
         for (sx, sy), center in CENTERS.items():
@@ -175,15 +178,45 @@ class Missions:
             if region not in REGIONS:
                 continue  # The island has no givers.
             cx, cy = self.world.center_position(sx, sy)
-            for harder, angles in ((False, BASE_ANGLES), (True, HARDER_ANGLES)):
-                for mission_type, angle in zip(TYPES, angles):
-                    ax = cx + math.cos(math.radians(angle)) * GIVER_RADIUS
-                    ay = cy + math.sin(math.radians(angle)) * GIVER_RADIUS
-                    spot = self._open_spot(probe_collisions, ax, ay, region, givers)
-                    if spot:
-                        gid = f"{region}-{mission_type}{'-hard' if harder else ''}"
-                        givers.append(Giver(gid, region, mission_type, harder, *spot))
+            for mission_type, angle in zip(TYPES, BASE_ANGLES):
+                ax = cx + math.cos(math.radians(angle)) * GIVER_RADIUS
+                ay = cy + math.sin(math.radians(angle)) * GIVER_RADIUS
+                spot = self._open_spot(probe_collisions, ax, ay, region, givers)
+                if spot:
+                    givers.append(Giver(f"{region}-{mission_type}", region, mission_type, False, *spot))
+            for mission_type, (vx, vy) in zip(TYPES, self._veteran_sectors(region, (sx, sy))):
+                spot = self._open_spot(probe_collisions, (vx + 0.5) * SECTOR_SIZE,
+                                       (vy + 0.5) * SECTOR_SIZE, region, givers)
+                if spot:
+                    givers.append(Giver(f"{region}-{mission_type}-hard", region, mission_type, True, *spot))
         return givers
+
+    def _veteran_sectors(self, region, center):
+        """Three random sectors inside the region (not on its edges), away from the center
+        and from each other. Seeded, so veterans always stand in the same places."""
+        rng = random.Random(f"{self.seed}-veterans-{region}")
+        world = self.world
+
+        def inside(sx, sy, margin):
+            return all(world.region(sx + dx, sy + dy) == region
+                       for dx in range(-margin, margin + 1) for dy in range(-margin, margin + 1)
+                       if 0 <= sx + dx < SECTORS and 0 <= sy + dy < SECTORS)
+
+        region_sectors = [(sx, sy) for sy in range(SECTORS) for sx in range(SECTORS)
+                          if world.region(sx, sy) == region and (sx, sy) not in CENTERS
+                          and (sx, sy) not in world.camps
+                          and math.dist((sx, sy), center) >= VETERAN_MIN_SECTORS]
+        # Prefer the region's interior; relax the edge margin and spacing if it is small.
+        for margin, apart in ((VETERAN_EDGE_MARGIN, VETERAN_APART), (1, VETERAN_APART), (1, 3), (0, 2)):
+            candidates = [s for s in region_sectors if inside(*s, margin)]
+            rng.shuffle(candidates)
+            chosen = []
+            for sector in candidates:
+                if all(math.dist(sector, other) >= apart for other in chosen):
+                    chosen.append(sector)
+                    if len(chosen) == len(TYPES):
+                        return chosen
+        return chosen
 
     def _open_spot(self, collisions, x, y, region=None, others=(), clearance=24):
         """Nearest clear, off-road spot a person can stand on (and a car can reach)."""
@@ -205,7 +238,11 @@ class Missions:
     # Offers ---------------------------------------------------------------------
 
     def visible_givers(self):
+        """Givers who will offer work now (veterans wait for level 5 in their region)."""
         return [g for g in self.givers if not g.harder or self.progress.harder_unlocked(g.region)]
+
+    def is_locked(self, giver: Giver) -> bool:
+        return giver.harder and not self.progress.harder_unlocked(giver.region)
 
     def offer_for(self, giver: Giver) -> Offer:
         if giver.id not in self.offers:
@@ -442,7 +479,7 @@ class Missions:
         out = []
         bob = math.sin(clock * 3) * 3
         busy = self.active is not None
-        for giver in self.visible_givers():
+        for giver in self.givers:   # Veterans show with their badges even while locked.
             kind = GIVER_KINDS[giver.region]
             out.append(Sprite("people-atlas", f"{kind}_idle", giver.x, giver.y, 32, 32, 180.0))
             if not busy:
@@ -494,7 +531,8 @@ class Missions:
         return self.world.center_position(*sector)
 
     def giver_near(self, x, y):
-        return next((g for g in self.visible_givers()
+        """Any giver within talking range, locked veterans included (they explain)."""
+        return next((g for g in self.givers
                      if math.dist((x, y), (g.x, g.y)) <= TALK_RANGE), None)
 
     def to_dict(self):

@@ -1,20 +1,20 @@
 {
   "version": 3,
-  "mode": "drive",
+  "mode": "walk",
   "car": {
-    "x": 6501.245942533025,
-    "y": 7240.25881471409,
-    "heading": 328.0420066929226
+    "x": 12968.0,
+    "y": 15668.0,
+    "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
         "level": 4,
-        "mastery": 7,
+        "mastery": 10,
         "completed": {
           "delivery": 4,
           "speed": 8,
-          "drag": 12
+          "drag": 13
         },
         "races": 4
       },
@@ -59,7 +59,7 @@
         "races": 0
       }
     },
-    "counter": 38,
+    "counter": 39,
     "offers": {
       "city-delivery": {
         "type": "delivery",
@@ -79,25 +79,6 @@
         },
         "rating": null,
         "declines": 0
-      },
-      "city-drag": {
-        "type": "drag",
-        "scale": 1.0,
-        "target": null,
-        "track": {
-          "kind": "straight",
-          "theme": "city"
-        },
-        "seed": 167472530,
-        "levels": {
-          "city": 4,
-          "jungle": 1,
-          "desert": 1,
-          "snow": 1,
-          "rural": 1
-        },
-        "rating": 140,
-        "declines": 0
       }
     },
     "fish": {
@@ -115,5 +96,10 @@
       }
     },
     "unspent_mastery": 0
+  },
+  "walker": {
+    "x": 12928.0,
+    "y": 15638.0,
+    "heading": 0.0
   }
 }

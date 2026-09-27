@@ -138,9 +138,9 @@ class PauseMenu:
             self.selected = items.index(current) if current in items else len(items) - 1
         for cells, row in zip(self.cells, rows):
             if row.get("kind") == "beach":
-                # No mastery on the beach: only its fast-travel button (open at level 4).
+                # No mastery on the beach: only its fast-travel button, once unlocked.
                 texts = ("Beach", "", "", "", "", "", "",
-                         TRAVEL_TEXT[row["travel"]] if row["travel"] != "locked" else row["unlock"], "")
+                         TRAVEL_TEXT[row["travel"]] if row["travel"] != "locked" else "", "")
                 for cell, text in zip(cells, texts):
                     cell.set(text)
                 continue

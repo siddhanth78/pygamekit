@@ -71,6 +71,24 @@ class GiverAndOfferTests(unittest.TestCase):
             self.assertFalse(self.world._road_style(int(giver.x // TILE_SIZE), int(giver.y // TILE_SIZE)))
         self.assertEqual(len(missions.visible_givers()), 15)  # Veterans wait for level 5.
 
+    def test_veterans_are_spread_across_their_region(self):
+        from world import SECTOR_SIZE
+        missions = Missions(self.world, self.world.seed)
+        for region in ("city", "jungle", "desert", "snow", "rural"):
+            center = missions.center_position(region)
+            vets = [g for g in missions.givers if g.harder and g.region == region]
+            self.assertEqual(sorted(g.type for g in vets), ["delivery", "drag", "speed"])
+            for vet in vets:
+                self.assertGreaterEqual(math.dist((vet.x, vet.y), center), 3.5 * SECTOR_SIZE)
+                sx, sy = int(vet.x // SECTOR_SIZE), int(vet.y // SECTOR_SIZE)
+                self.assertTrue(all(self.world.region(sx + dx, sy + dy) == region  # Inside, not
+                                    for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2)))  # on the edge.
+            for i, a in enumerate(vets):
+                for b in vets[i + 1:]:
+                    self.assertGreater(math.dist((a.x, a.y), (b.x, b.y)), 4 * SECTOR_SIZE)
+        again = Missions(self.world, self.world.seed)                 # Same spots every time.
+        self.assertEqual([(g.x, g.y) for g in again.givers], [(g.x, g.y) for g in missions.givers])
+
     def test_offers_match_their_type_and_survive_a_round_trip(self):
         missions = Missions(self.world, self.world.seed)
         for giver in missions.givers[:6]:

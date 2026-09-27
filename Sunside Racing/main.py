@@ -28,7 +28,7 @@ from mission_ui import MissionPanel
 from missions import TITLES, Missions
 from parking import Parking
 from pedestrians import Pedestrians
-from progression import CENTER_RACES, FISHING_LEVEL, ISLAND_LEVEL, REGIONS
+from progression import CENTER_RACES, FISHING_LEVEL, HARDER_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
@@ -110,7 +110,7 @@ class Game:
         self.spend_menu = SpendMenu(ctx, TOOLKIT_ROOT, viewport)
         # M: the world map. A diamond clicked there sets the guide arrow; nothing is
         # selected at launch, so there is no arrow until the player picks a landmark.
-        self.landmarks = landmarks(world)
+        self.landmarks = landmarks(world, self.missions.givers)
         self.world_map = WorldMap(ctx, TOOLKIT_ROOT, viewport, world, self.landmarks)
         self.guide_to = None
         self.strike_bar = StrikeBar(ctx, TOOLKIT_ROOT, viewport)
@@ -341,7 +341,12 @@ class Game:
         trader = trader_near(self.world, self.walker.x, self.walker.y)
         dock = fishing_spot(self.world, self.walker.x, self.walker.y)
         if giver:
-            if self.missions.active:
+            if self.missions.is_locked(giver):
+                self.panel.show_lines(giver.name, "Locked", (
+                    f"Veterans work with {giver.region} level {HARDER_LEVEL} drivers.",
+                    f"You're {giver.region} level {self.missions.progress.levels[giver.region]}.",
+                    "Earn mastery in this region to unlock them."))
+            elif self.missions.active:
                 self.panel.show_message(giver.name, "Finish your current mission first.")
             else:
                 self.pending_offer, self.pending_center = giver, None
@@ -662,7 +667,9 @@ class Game:
         giver = self.missions.giver_near(player.x, player.y) if walker else None
         center_region = self._center_near(player.x, player.y) if walker else None
         island = self._island_prompt(player)
-        if giver:
+        if giver and self.missions.is_locked(giver):
+            prompt = f"Veteran  ·  {giver.region.title()} level {HARDER_LEVEL}"
+        elif giver:
             prompt = f"E   Talk  ·  {TITLES[giver.type]}"
         elif center_region:
             won = self.missions.progress.races[center_region]

@@ -1159,3 +1159,23 @@ World map and landmark guide (2026-09-26, built)
 - Help lists M. Tests: no arrow at launch, map pauses, select/clear/close,
   arrow colors, every diamond pickable, mission arrow precedence, no map in
   races. 161 passing. A map frame takes ~1.6 ms (regions uploaded once).
+
+Veterans out in the regions (2026-09-27, built)
+- Supersedes the veteran placement near the center (HARDER_ANGLES is gone).
+  Each region's three veteran givers (delivery, time trial, drag) stand at
+  random valid sectors inside the region (missions._veteran_sectors; user:
+  "anywhere valid, middle of region", not on its edges): at least 2 sectors
+  inside the region's edges, 4+ sectors from the center, 5+ sectors apart,
+  never in a center or camp sector, seeded so they are always in the same
+  places (margins relax only if a region is too small). Measured: 4-14
+  sectors from their center, 2-5 inside the edge.
+- Always visible with their red veteran badges, locked or not. Below level 5
+  in their region the prompt reads "Veteran · <Region> level 5" and E opens a
+  "Locked" panel saying what's needed; no offer is made. At level 5 they offer
+  work as before.
+- World map: veterans are light-green diamonds (150, 226, 140) with a
+  matching light-green arrow and a "Veteran giver" legend entry.
+- Mastery page: the Beach row's TRAVEL cell is blank until beach travel
+  unlocks (no "Lvl 4").
+- Tests: veterans spread and stable, badges while locked, locked panel then
+  an offer at level 5, 15 veteran landmarks and their color. 163 passing.

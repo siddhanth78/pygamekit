@@ -35,6 +35,7 @@ KINDS = {
     "center": ((212, 80, 66), "Racing center"),
     "dock": ((242, 150, 60), "Fishing pier"),
     "camp": ((236, 120, 170), "Fish trader camp"),
+    "veteran": ((150, 226, 140), "Veteran giver"),
 }
 PANEL = (20, 32, 40, 235)
 ACCENT = (242, 202, 87)
@@ -45,7 +46,7 @@ INK = (32, 45, 52)
 
 @dataclass(frozen=True)
 class Landmark:
-    kind: str          # "center", "dock", or "camp".
+    kind: str          # A KINDS key: "center", "dock", "camp", or "veteran".
     name: str
     x: float
     y: float
@@ -55,7 +56,7 @@ class Landmark:
         return KINDS[self.kind][0]
 
 
-def landmarks(world) -> list[Landmark]:
+def landmarks(world, givers=()) -> list[Landmark]:
     """Every landmark the map shows. More kinds can be added here."""
     out = []
     for (sx, sy), name in sorted(CENTERS.items()):
@@ -66,6 +67,9 @@ def landmarks(world) -> list[Landmark]:
         out.append(Landmark("dock", pier_title(dock.name), (ex + 0.5) * 64, (ey + 0.5) * 64))
     for x, y, _ in trader_spots(world):
         out.append(Landmark("camp", "Fish trader camp", x, y))
+    for giver in givers:
+        if giver.harder:
+            out.append(Landmark("veteran", giver.name, giver.x, giver.y))
     return out
 
 

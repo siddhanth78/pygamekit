@@ -22,7 +22,8 @@ BUTTON_EDGE = (78, 104, 112, 255)
 SHADOW = (8, 14, 18, 150)
 CHIP = {"Easy": (86, 176, 104), "Medium": (226, 176, 72), "Hard": (212, 80, 66),
         "Success": (86, 176, 104), "Failed": (212, 80, 66), "Level up": (242, 202, 87),
-        "Champion": (242, 202, 87), "Island unlocked": (86, 176, 104)}
+        "Champion": (242, 202, 87), "Island unlocked": (86, 176, 104),
+        "Locked": (150, 170, 172)}
 PANEL_SIZE = (680, 420)
 BUTTON_SIZE = (240, 60)
 
