@@ -22,7 +22,7 @@ from fishing import (FishingSession, beach_destination, fishing_spot, pier_open,
                      pier_title, trader_near, trader_sprites)
 from fishing_ui import SpendMenu, StrikeBar, level_up_line
 from game_state import GameState
-from hud import CenterArrow, Hud, compass
+from hud import FILL, CenterArrow, Hud, compass
 from input_handler import InputHandler
 from mission_ui import MissionPanel
 from missions import TITLES, Missions
@@ -32,6 +32,7 @@ from progression import CENTER_RACES, FISHING_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
+from world_map import WorldMap, guide_line, landmarks
 from player_save import PlayerSave
 from traffic import Traffic
 from walker import CALL_PROMPT_DISTANCE, Walker, call_spot, exit_spot
@@ -107,6 +108,11 @@ class Game:
         self.panel = MissionPanel(ctx, TOOLKIT_ROOT, viewport)
         self.hud = Hud(ctx, TOOLKIT_ROOT, viewport, TOP_SPEED)
         self.spend_menu = SpendMenu(ctx, TOOLKIT_ROOT, viewport)
+        # M: the world map. A diamond clicked there sets the guide arrow; nothing is
+        # selected at launch, so there is no arrow until the player picks a landmark.
+        self.landmarks = landmarks(world)
+        self.world_map = WorldMap(ctx, TOOLKIT_ROOT, viewport, world, self.landmarks)
+        self.guide_to = None
         self.strike_bar = StrikeBar(ctx, TOOLKIT_ROOT, viewport)
         self.fishing: FishingSession | None = None   # On foot at a pier's end, rod out.
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
@@ -236,6 +242,13 @@ class Game:
         """Apply one input intent; returns False to quit."""
         if action == "quit":
             return False
+        if self.world_map.open:
+            outcome = self.world_map.handle(action, value)
+            if isinstance(outcome, tuple):
+                self.guide_to = outcome[1]
+            elif outcome == "clear":
+                self.guide_to = None
+            return True
         if self.menu.open:
             self._refresh_mastery()  # Travel buttons depend on the latest state.
             self.menu.set_ongoing(self._ongoing())
@@ -293,6 +306,8 @@ class Game:
         elif self.race:
             if action == "reset" and self.race.result is None:
                 self.race.car.respawn_nearby(self.race.collisions)
+        elif action == "map":
+            self.world_map.toggle()
         elif action == "confirm":
             if self.fishing:
                 self.fishing.press()   # Space: strike while the marker is in the green.
@@ -520,7 +535,7 @@ class Game:
         # Runs even while paused; drag races are skipped (they save when they end).
         if self.autosave.tick(dt, allowed=self.race is None):
             self._autosave()
-        if self.menu.open or self.panel.open or self.spend_menu.open:
+        if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
         if self.race:
             self._update_race(dt)
@@ -639,6 +654,8 @@ class Game:
             label = ("Deliver here" if self.missions.active and self.missions.active.offer.type == "delivery"
                      else "Checkpoint" if self.missions.active else "Mission giver")
             guide = target_guide(player, target, label)
+        elif self.guide_to:
+            guide = guide_line(player, self.guide_to, compass)
         else:
             guide = center_guide(player, center)
         prompt = ""
@@ -667,10 +684,15 @@ class Game:
                         mission=mission, toast=self._toast())
         if fishing and not (self.menu.open or self.panel.open):
             self.strike_bar.render(fishing)
-        point = target or (center[1:] if center else None)
-        if point and not (self.menu.open or self.panel.open or self.spend_menu.open):
+        # Missions point at their target (yellow); otherwise only a landmark picked on the
+        # map gets an arrow, in its kind's color.
+        point, color = (target, FILL) if target else (
+            ((self.guide_to.x, self.guide_to.y), self.guide_to.arrow_color) if self.guide_to else (None, None))
+        if point and not (self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open):
             # Drawn last so nothing in the world or HUD can cover it.
-            self.arrow.render(point[0], point[1], player.x, player.y, camera_x, camera_y, zoom)
+            self.arrow.render(point[0], point[1], player.x, player.y, camera_x, camera_y, zoom, color)
+        if self.world_map.open:
+            self.world_map.render(player.x, player.y, self.guide_to)
 
     def _render_race(self):
         race = self.race

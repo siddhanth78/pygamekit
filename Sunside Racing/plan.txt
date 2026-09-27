@@ -1138,3 +1138,24 @@ Beachgoers (2026-09-26, built)
   on open sand, facing the sea, every sprite exists, umbrellas leave legs
   showing, solidity, never spawning on the player. 157 passing. Setting up a
   beach sector takes ~0.14 ms.
+
+World map and landmark guide (2026-09-26, built)
+- M toggles a world map (world_map.WorldMap): every sector as a flat region
+  color, the player as a round orange dot (dark rim; "You" in the legend),
+  and clickable landmark diamonds. The
+  game pauses while it is open; Escape or M closes it; not available during
+  races. A legend on the left; the hovered or selected landmark's name below.
+- Landmarks (world_map.landmarks, extend as we go): racing centers (red
+  diamonds, including the island's), fishing piers at their ends (orange),
+  fish trader camps in the jungle (pink).
+- Clicking a diamond selects it as the guide; C (map open) clears it.
+  Overlapping diamonds pick the one nearest the pointer.
+- Guide arrow: nothing is selected at launch and the selection is not saved,
+  so there is no arrow until one is picked. Colors: center red, camp pink,
+  pier blue. The top-left guide line shows "<landmark> · <distance> <dir>".
+  During an in-world mission the arrow still points at the mission target in
+  yellow; the landmark arrow returns afterwards. With nothing selected and no
+  mission, the guide line still names the nearest racing center (text only).
+- Help lists M. Tests: no arrow at launch, map pauses, select/clear/close,
+  arrow colors, every diamond pickable, mission arrow precedence, no map in
+  races. 161 passing. A map frame takes ~1.6 ms (regions uploaded once).

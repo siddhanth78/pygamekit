@@ -25,6 +25,10 @@ class InputHandler:
                     intents.append(("call_car", None))
                 elif event.key == pygame.K_t:
                     intents.append(("island", None))
+                elif event.key == pygame.K_m:
+                    intents.append(("map", None))
+                elif event.key == pygame.K_c:
+                    intents.append(("clear", None))
                 elif event.key in (pygame.K_UP, pygame.K_w):
                     intents.append(("menu_up", None))
                 elif event.key in (pygame.K_DOWN, pygame.K_s):

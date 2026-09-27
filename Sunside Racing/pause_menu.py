@@ -21,6 +21,7 @@ CONTROLS = (
     ("E", "Get in/out  ·  talk  ·  fish  ·  trade"),
     ("Q", "Call your car (on foot)"),
     ("T", "Travel to or from Elite Island"),
+    ("M", "World map  ·  pick a guide  ·  C clears it"),
     ("R", "Unstick yourself nearby"),
     ("ESC", "Pause menu"),
 )

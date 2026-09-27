@@ -288,6 +288,80 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(len([s for s in title.sprites if s.atlas == "prop-atlas"]), 2)   # Trees.
         title.render()
 
+    # World map ----------------------------------------------------------------------
+
+    def test_no_guide_until_a_landmark_is_picked_on_the_map(self):
+        g = self.game
+        self.assertIsNone(g.guide_to)
+        drawn = []
+        g.arrow.render = lambda *args: drawn.append(args)
+        g.render()
+        self.assertEqual(drawn, [])                                   # No arrow at launch.
+        self.press(pygame.K_m)
+        self.assertTrue(g.world_map.open)
+        start = (g.car.x, g.car.y)
+        g.inputs.driving = lambda: (1, 0, False)
+        for _ in range(20):
+            g.update(1 / 60)
+        self.assertEqual((g.car.x, g.car.y), start)                   # Paused while open.
+        dock = next(m for m in g.landmarks if m.kind == "dock")
+        g.handle("click", g.world_map.to_screen(dock.x, dock.y))
+        self.assertEqual(g.guide_to, dock)
+        self.press(pygame.K_m)                                        # Close.
+        self.assertFalse(g.world_map.open)
+        g.render()
+        self.assertEqual(drawn[-1][:2], (dock.x, dock.y))
+        self.assertEqual(drawn[-1][-1], (70, 140, 220))              # Piers: blue arrow.
+        self.press(pygame.K_m, pygame.K_c, pygame.K_ESCAPE)          # Clear, then Esc closes.
+        self.assertIsNone(g.guide_to)
+        self.assertFalse(g.world_map.open)
+        self.assertFalse(g.menu.open)
+        count = len(drawn)
+        g.render()
+        self.assertEqual(len(drawn), count)                           # Arrow gone again.
+
+    def test_map_arrow_colors_and_landmarks(self):
+        from world_map import KINDS
+        g = self.game
+        kinds = [m.kind for m in g.landmarks]
+        self.assertEqual(kinds.count("center"), 6)
+        self.assertEqual(kinds.count("dock"), 3)
+        self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
+        self.assertEqual({k: v[1] for k, v in KINDS.items()},
+                         {"center": (212, 80, 66), "dock": (70, 140, 220), "camp": (236, 120, 170)})
+        self.assertEqual({k: v[0] for k, v in KINDS.items()}["dock"], (242, 150, 60))   # Orange on the map.
+        g.world_map.toggle()
+        camp = next(m for m in g.landmarks if m.kind == "camp")
+        g.handle("pointer", g.world_map.to_screen(camp.x, camp.y))
+        self.assertEqual(g.world_map.hovered, camp)
+        g.render()                                                    # Map draws.
+        for mark in g.landmarks:                                      # Every diamond is pickable,
+            g.handle("click", g.world_map.to_screen(mark.x, mark.y))  # even where they overlap.
+            self.assertEqual(g.guide_to, mark)
+
+    def test_a_mission_target_still_gets_the_yellow_arrow(self):
+        from hud import FILL
+        g = self.game
+        g.guide_to = next(m for m in g.landmarks if m.kind == "center")
+        giver = g.missions.by_id["city-delivery"]
+        g._step_out(Walker(giver.x + 20, giver.y))
+        g.missions.offers[giver.id] = Offer(giver.id, "delivery", 1.0, (giver.x + 3000, giver.y))
+        self.press(pygame.K_e, pygame.K_RETURN)
+        drawn = []
+        g.arrow.render = lambda *args: drawn.append(args)
+        g.render()
+        self.assertEqual(drawn[-1][:2], (giver.x + 3000, giver.y))
+        self.assertEqual(drawn[-1][-1], FILL)
+
+    def test_no_map_during_races(self):
+        g = self.game
+        cx, cy = g.missions.center_position("city")
+        g._step_out(Walker(cx, cy + 110))
+        self.press(pygame.K_e, pygame.K_RETURN)
+        self.assertIsNotNone(g.race)
+        self.press(pygame.K_m)
+        self.assertFalse(g.world_map.open)
+
     # Zoom ---------------------------------------------------------------------------
 
     def test_eased_zoom_lands_exactly_and_only_moves_toward_the_target(self):

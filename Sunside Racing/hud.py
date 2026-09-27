@@ -52,19 +52,21 @@ class CenterArrow:
         self.outline_vao, self.outline_vbo = build_polygon_obj(ctx, self.program, placeholder, OUTLINE)
         self.fill_vao, self.fill_vbo = build_polygon_obj(ctx, self.program, placeholder, FILL)
 
-    def render(self, target_x, target_y, car_x, car_y, camera_x, camera_y, zoom=1.0):
-        """Orbit the player, pointing at the target, until the player arrives there."""
+    def render(self, target_x, target_y, car_x, car_y, camera_x, camera_y, zoom=1.0, fill=FILL):
+        """Orbit the player, pointing at the target, until the player arrives there.
+        fill: RGB or RGBA; the arrow is yellow for missions, colored by landmark otherwise."""
+        fill = tuple(fill) if len(fill) == 4 else (*fill, FILL[3])
         placement = orbit_tip(target_x, target_y, car_x, car_y, camera_x, camera_y, zoom)
         if placement is None:
             return
         tip_x, tip_y, dx, dy = placement
         outline = _triangle(tip_x + dx * 4, tip_y + dy * 4, dx, dy,
                             ARROW_LENGTH + 8, ARROW_WIDTH + 8)
-        fill = _triangle(tip_x, tip_y, dx, dy, ARROW_LENGTH, ARROW_WIDTH)
+        tip = _triangle(tip_x, tip_y, dx, dy, ARROW_LENGTH, ARROW_WIDTH)
         update_polygon_obj(self.outline_vbo, outline, OUTLINE)
         render_polygon(self.outline_vao, outline, fill=True)
-        update_polygon_obj(self.fill_vbo, fill, FILL)
-        render_polygon(self.fill_vao, fill, fill=True)
+        update_polygon_obj(self.fill_vbo, tip, fill)
+        render_polygon(self.fill_vao, tip, fill=True)
 
 
 def compass(dx, dy):

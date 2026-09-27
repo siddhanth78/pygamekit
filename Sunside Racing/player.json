@@ -1,10 +1,10 @@
 {
   "version": 3,
-  "mode": "walk",
+  "mode": "drive",
   "car": {
-    "x": 6440.0,
-    "y": 7604.0,
-    "heading": 0.0
+    "x": 6577.2999859669235,
+    "y": 7280.404357814953,
+    "heading": 333.1598093556924
   },
   "missions": {
     "progress": {
@@ -115,10 +115,5 @@
       }
     },
     "unspent_mastery": 0
-  },
-  "walker": {
-    "x": 6400.0,
-    "y": 7604.0,
-    "heading": 0.0
   }
 }

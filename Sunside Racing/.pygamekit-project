@@ -46,6 +46,7 @@
       "ui_text.py",
       "walker.py",
       "world.py",
+      "world_map.py",
       "world_save.py"
     ],
     "assets": [
