@@ -144,14 +144,14 @@ class InventoryMenu:
                 label = self.counts[i]
                 label.set(f"x{count}")
                 rects.append(_rect(x + 22, y + 38, 58, 22, (20, 30, 36, 230)))
-                labels.append((label, label.record(x + 22, y + 39, ACCENT if count >= STACK_MAX else CREAM)))
+                labels.append((label, label.record(x + 22, y + 39, ACCENT if count >= item.max_stack else CREAM)))
         detail_x = left + 48 + GRID[0] * (SLOT_SIZE + SLOT_GAP) + 24
         detail_y = top + 112
         rects.append(_rect(detail_x + DETAIL_WIDTH // 2, detail_y + 120, DETAIL_WIDTH + 24, 256, (20, 30, 36, 255)))
         if self.selected < len(self.stacks):
             item, count = self.stacks[self.selected]
             self.name.set(item.name)
-            self.amount.set(f"{count} / {STACK_MAX}")
+            self.amount.set(f"{count:,} / {item.max_stack:,}")
             note = wrap(item.note)
         else:
             self.name.set("Empty slot")

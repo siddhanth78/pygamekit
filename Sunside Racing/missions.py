@@ -154,7 +154,7 @@ class Missions:
         self.unspent = min(unspent, STACK_MAX) if type(unspent) is int and unspent >= 0 else 0
         # Inventory items beyond fish and points (Sunside Tokens, ...): item id -> count.
         items = data.get("inventory")
-        self.items = {k: min(v, STACK_MAX) for k, v in items.items()
+        self.items = {k: min(v, BY_ID[k].max_stack) for k, v in items.items()
                       if k in BY_ID and type(v) is int and v > 0} if isinstance(items, dict) else {}
         # Best arcade scores by game id (the cabinet at home).
         arcade = data.get("arcade")
@@ -561,10 +561,10 @@ class Missions:
         return count, value
 
     def add_item(self, item_id: str, amount: int = 1) -> int:
-        """Add to an inventory stack (e.g. "sunside_tokens"), up to STACK_MAX; returns
+        """Add to an inventory stack (e.g. "sunside_tokens"), up to the item's max; returns
         how many were added. Negative amounts take away, never below 0."""
         have = self.items.get(item_id, 0)
-        new = max(0, min(STACK_MAX, have + amount))
+        new = max(0, min(BY_ID[item_id].max_stack, have + amount))
         if new:
             self.items[item_id] = new
         else:

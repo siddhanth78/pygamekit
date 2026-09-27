@@ -36,6 +36,7 @@ KINDS = {
     "dock": ((242, 150, 60), "Fishing pier"),
     "camp": ((236, 120, 170), "Fish trader camp"),
     "veteran": ((150, 226, 140), "Veteran giver"),
+    "store": ((160, 96, 220), "General Store"),
 }
 PANEL = (20, 32, 40, 235)
 ACCENT = (242, 202, 87)
@@ -67,6 +68,9 @@ def landmarks(world, givers=()) -> list[Landmark]:
         out.append(Landmark("dock", pier_title(dock.name), (ex + 0.5) * 64, (ey + 0.5) * 64))
     for x, y, _ in trader_spots(world):
         out.append(Landmark("camp", "Fish trader camp", x, y))
+    shop = getattr(world, "general_store", None)
+    if shop:
+        out.append(Landmark("store", "General Store", *shop.door))
     for giver in givers:
         if giver.harder:
             out.append(Landmark("veteran", giver.name, giver.x, giver.y))

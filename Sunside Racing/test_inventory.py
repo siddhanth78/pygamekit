@@ -15,7 +15,7 @@ if str(TOOLKIT_ROOT) not in sys.path:
 from car import Car
 from collision_manager import CollisionManager
 from fishing import VALUE, FishingSession, FishLog
-from inventory import GRID, ITEMS, STACK_MAX, contents
+from inventory import GRID, ITEMS, STACK_MAX, TOKEN_MAX, contents
 from inventory_ui import wrap
 from missions import Missions
 from player_save import PlayerSave
@@ -83,16 +83,22 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(m.tokens, 0)
         self.assertEqual(contents(m)[0][0].id, "sunside_tokens")   # First, even at 0.
         self.assertEqual(m.add_item("sunside_tokens", 25), 25)
-        self.assertEqual(m.add_item("sunside_tokens", 5000), STACK_MAX - 25)   # Capped at 999.
+        self.assertEqual(m.add_item("sunside_tokens", 5000), 5000)   # Past 999: the currency
+        self.assertEqual(m.add_item("sunside_tokens", 10 ** 7), TOKEN_MAX - 5025)   # stops at TOKEN_MAX.
         self.assertEqual(m.add_item("sunside_tokens", -10), -10)
-        self.assertEqual(m.tokens, STACK_MAX - 10)
+        self.assertEqual(m.tokens, TOKEN_MAX - 10)
         with tempfile.TemporaryDirectory() as temp:
             store = PlayerSave(Path(temp) / "player.json")
             store.save(Car(), None, m.to_dict())
             store.load_state(CollisionManager(None, self.world))
-            self.assertEqual(self.missions(store.missions_data).tokens, STACK_MAX - 10)
-        self.assertEqual(m.add_item("sunside_tokens", -5000), -(STACK_MAX - 10))
+            self.assertEqual(self.missions(store.missions_data).tokens, TOKEN_MAX - 10)
+        self.assertEqual(m.add_item("sunside_tokens", -10 ** 7), -(TOKEN_MAX - 10))
         self.assertEqual((m.tokens, contents(m)[0][1]), (0, 0))   # Back to 0, still slot one.
+
+    def test_passes_stop_at_one_other_items_at_999(self):
+        m = self.missions()
+        self.assertEqual(m.add_item("island_pass", 3), 1)
+        self.assertEqual(m.add_item("seeds_corn", 5000), STACK_MAX)
 
     def test_saved_items_are_checked(self):
         m = self.missions({"inventory": {"sunside_tokens": 3, "not_an_item": 2, "fish_epic": -1}})

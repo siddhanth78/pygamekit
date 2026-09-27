@@ -368,6 +368,24 @@ def building(p: Painter, roof: str, kind: str, seed: int):
         for x in (24, 46, 68): p.rect(x, 17, x + 3, 77, "#e2bb8b")
         p.rect(32, 62, 64, 78, "#503d36")
         p.rect(46, 62, 50, 78, "#dbb38a")
+    elif kind == "store":
+        # The General Store: a flat roof with rooftop units, and along the front (south)
+        # a purple awning over the door with a shopping-bag sign.
+        p.rect(24, 22, 38, 34, "#7d8a90")                 # Rooftop units.
+        p.rect(26, 24, 36, 32, "#5d6366")
+        p.rect(56, 24, 72, 36, "#7d8a90")
+        p.ellipse(64, 30, 4, 4, "#5d6366")
+        p.rect(10, 70, 86, 88, "#6b3fa0")                 # Awning,
+        for x in range(10, 86, 8):
+            p.rect(x, 70, x + 4, 88, "#8a55c9")           # striped,
+        p.rect(10, 86, 86, 88, "#4a2a70")
+        p.rect(36, 44, 60, 66, "#f4ead0")                 # sign board,
+        p.rect(40, 51, 56, 63, "#8a55c9")                 # a shopping bag,
+        p.rect(44, 47, 46, 52, "#4a2a70")
+        p.rect(50, 47, 52, 52, "#4a2a70")
+        p.rect(44, 47, 52, 48, "#4a2a70")
+        p.rect(40, 88, 56, 96, "#83b8c0")                 # and glass doors below it.
+        p.rect(47, 88, 49, 96, "#5d6366")
     elif kind == "house":
         # The player's house: a gabled roof (ridge north-south), a chimney, and the front
         # door with its step on the east wall, facing the parking lot.
@@ -404,7 +422,7 @@ def structures() -> Atlas:
         ("center_desert", "#c5a474", "center"), ("center_snow", "#8fa9b6", "center"),
         ("center_rural", "#a97f5d", "center"), ("center_island", "#748f81", "center"),
         ("rural_barn", "#ae5c4c", "barn"), ("beach_ferry_dock", "#a78259", "dock"),
-        ("player_house", "#b0503f", "house"),
+        ("player_house", "#b0503f", "house"), ("general_store", "#9da8a4", "store"),
     ]
     for i, (name, roof, kind) in enumerate(definitions):
         building(a.tile(name, i % 4, i // 4), roof, kind, i)
@@ -648,6 +666,102 @@ def home() -> Atlas:
     a = Atlas("home-atlas", 64, 4, 4)
     for i, name in enumerate(HOME_FURNITURE):
         furniture(a.tile(name, i % 4, i // 4), name)
+    return a
+
+
+STORE_ART = ("shelf", "counter", "ticket_board", "crate", "seeds_corn", "seeds_tomato",
+             "seeds_lettuce", "super_fertilizer", "fair_ticket", "factory_pass", "island_pass",
+             "store_mat")
+
+
+def seed_packet(p: Painter, color: str, mark: str):
+    p.rect(20, 14, 46, 52, "#1d2a30")                     # Shadow.
+    p.rect(18, 12, 44, 50, "#f4ead0")                     # Paper packet,
+    p.rect(18, 12, 44, 18, color)                         # colored band,
+    p.rect(18, 44, 44, 50, color)
+    p.ellipse(31, 31, 8, 9, mark)                         # and the crop.
+
+
+def store_art(p: Painter, name: str):
+    """General Store fixtures (drawn at 2x) and product icons (inventory and shelves)."""
+    if name == "shelf":
+        # A shelving unit seen from above, running north-south, stocked on both faces.
+        p.rect(24, 4, 44, 62, "#1d2a30")
+        p.rect(22, 2, 42, 60, "#c9ccc9")
+        colors = ("#d9453f", "#f2ca57", "#3f7fd0", "#4f9a5a", "#f28fb0", "#e08a4a")
+        for i, y in enumerate(range(4, 58, 6)):
+            p.rect(22, y, 26, y + 5, colors[i % 6])           # Goods on the west face,
+            p.rect(38, y, 42, y + 5, colors[(i + 3) % 6])     # and the east face.
+        p.rect(31, 2, 33, 60, "#8a8f8f")                  # Divider down the middle.
+    elif name == "counter":
+        p.rect(4, 22, 62, 44, "#1d2a30")
+        p.rect(2, 20, 60, 42, WOOD)                       # Checkout counter,
+        p.rect(4, 22, 40, 34, "#3a3a3a")                  # conveyor belt,
+        for x in range(6, 40, 5):
+            p.rect(x, 22, x + 1, 34, "#5d6366")
+        p.rect(44, 22, 58, 36, "#34454c")                 # and the register.
+        p.rect(46, 24, 56, 29, "#83f0a0")
+        p.dots([(47, 32), (50, 32), (53, 32), (47, 34), (50, 34), (53, 34)], "#f4ead0")
+    elif name == "ticket_board":
+        p.rect(6, 24, 60, 42, "#1d2a30")
+        p.rect(4, 22, 58, 40, "#4a2a70")                  # Board of tickets and passes.
+        for i, (x, c) in enumerate(((8, "#f2ca57"), (26, "#3fb0c9"), (44, "#f28fb0"))):
+            p.rect(x, 25, x + 12, 37, c)
+            p.rect(x + 2, 29, x + 10, 30, "#1d2a30")
+    elif name == "crate":
+        p.rect(18, 18, 50, 50, "#1d2a30")
+        p.rect(16, 16, 48, 48, "#a47a4a")
+        p.rect(16, 30, 48, 34, "#7a5638")
+        p.rect(30, 16, 34, 48, "#7a5638")
+    elif name == "store_mat":
+        p.rect(8, 20, 56, 44, "#6b3fa0")                  # Welcome mat by the door.
+        p.rect(12, 24, 52, 40, "#8a55c9")
+    elif name == "seeds_corn":
+        seed_packet(p, "#f2ca57", "#f2ca57")
+        p.rect(30, 22, 32, 40, "#4f9a5a")                 # Husk stripe.
+    elif name == "seeds_tomato":
+        seed_packet(p, "#d9453f", "#d9453f")
+        p.rect(29, 21, 33, 24, "#4f9a5a")                 # Stem.
+    elif name == "seeds_lettuce":
+        seed_packet(p, "#4f9a5a", "#7fcf7a")
+        p.ellipse(31, 31, 4, 5, "#4f9a5a")
+    elif name == "super_fertilizer":
+        p.rect(20, 12, 48, 54, "#1d2a30")
+        p.rect(18, 10, 46, 52, "#6b4a30")                 # A sack,
+        p.rect(18, 10, 46, 14, "#8a6440")                 # tied at the top,
+        p.rect(22, 22, 42, 42, "#f2ca57")                 # with a label
+        p.rect(30, 25, 34, 39, "#4f9a5a")                 # showing a sprout
+        p.rect(26, 28, 30, 31, "#4f9a5a")
+        p.rect(34, 30, 38, 33, "#4f9a5a")
+    elif name in ("fair_ticket", "factory_pass", "island_pass"):
+        base, ink = {"fair_ticket": ("#f2ca57", "#d9453f"), "factory_pass": ("#8a8f8f", "#3a3a3a"),
+                     "island_pass": ("#3fb0c9", "#f4ead0")}[name]
+        p.rect(10, 22, 56, 46, "#1d2a30")
+        p.rect(8, 20, 54, 44, base)                       # Ticket with notched ends,
+        p.rect(8, 30, 10, 34, "#27353d")
+        p.rect(52, 30, 54, 34, "#27353d")
+        p.rect(40, 20, 41, 44, ink)                       # a tear line,
+        if name == "fair_ticket":
+            p.ellipse(24, 32, 7, 7, ink)                  # a ferris wheel,
+            p.ellipse(24, 32, 5, 5, base)
+            p.rect(23, 25, 25, 39, ink)
+            p.rect(17, 31, 31, 33, ink)
+        elif name == "factory_pass":
+            p.rect(16, 30, 34, 40, ink)                   # a factory,
+            p.rect(18, 24, 21, 30, ink)
+            p.rect(26, 26, 29, 30, ink)
+        else:
+            p.ellipse(24, 36, 9, 4, "#f2ca57")            # or an island with a palm.
+            p.rect(23, 26, 25, 34, "#6b4a30")
+            p.rect(18, 24, 31, 27, "#4f9a5a")
+    else:
+        raise ValueError(name)
+
+
+def store() -> Atlas:
+    a = Atlas("store-atlas", 64, 4, 3)
+    for i, name in enumerate(STORE_ART):
+        store_art(a.tile(name, i % 4, i // 4), name)
     return a
 
 
@@ -1187,7 +1301,7 @@ def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home()]
+                markers(), track(), canopies(), home(), store()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

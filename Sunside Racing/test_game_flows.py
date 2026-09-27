@@ -430,7 +430,7 @@ class GameFlowTests(unittest.TestCase):
                          [("sunside_tokens", 0), ("fish_uncommon", 1), ("mastery_points", 4)])
         self.assertEqual((g.car.x, g.car.y), start)                 # Paused while open.
         self.assertEqual(g.inventory.name.text, "Sunside Tokens")    # Always slot one.
-        self.assertEqual(g.inventory.amount.text, "0 / 999")
+        self.assertEqual(g.inventory.amount.text, "0 / 999,999")
         self.press(pygame.K_RIGHT)
         self.assertEqual(g.inventory.name.text, "Uncommon fish")
         self.press(pygame.K_RIGHT)
@@ -460,6 +460,76 @@ class GameFlowTests(unittest.TestCase):
         self.assertIn("full", g.panel.lines[0].text)
         self.assertEqual(g.missions.fish.count, 1)
         self.assertFalse(g.spend_menu.open)
+
+    # General Store ------------------------------------------------------------------
+
+    def enter_store(self):
+        g = self.game
+        self.press(pygame.K_e)                                       # Out of the car,
+        g.walker.x, g.walker.y = g.world.general_store.door           # to the store's door.
+        g.render()
+        self.assertEqual(g.hud.prompt.text, "E   Enter the General Store")
+        self.press(pygame.K_e)
+        self.assertTrue(g.in_store)
+        return g
+
+    def at_spot(self, g, kind, item=""):
+        spot = next(s for s in g.store.spots if s.kind == kind and s.item == item)
+        g.walker.x, g.walker.y = spot.stand
+
+    def test_shopping_pay_at_the_cashier(self):
+        g = self.enter_store()
+        g.missions.add_item("sunside_tokens", 100)
+        self.at_spot(g, "product", "seeds_corn")
+        self.assertEqual(g._store_prompt(), "E   Corn seeds  ·  10 S")
+        self.press(pygame.K_e, pygame.K_e)                            # Two packets.
+        self.at_spot(g, "product", "super_fertilizer")
+        self.press(pygame.K_e)
+        self.assertEqual((g.store.cart.count, g.store.cart.total), (3, 70))
+        g.render()
+        self.assertEqual(g.hud.mission_title.text, "CART  ·  3 items")
+        self.at_spot(g, "cashier")
+        self.press(pygame.K_e, pygame.K_RETURN)                       # PAY.
+        self.assertEqual(g.store.cart.count, 0)
+        self.assertEqual((g.missions.tokens, g.missions.items["seeds_corn"],
+                          g.missions.items["super_fertilizer"]), (30, 2, 1))
+        self.assertEqual(g.panel.chip_name, "Success")
+        self.press(pygame.K_RETURN)
+        self.at_spot(g, "door")
+        self.press(pygame.K_e)                                        # Empty cart: out.
+        self.assertFalse(g.in_store)
+        self.assertEqual((g.walker.x, g.walker.y), g.world.general_store.door)
+
+    def test_cant_leave_with_an_unpaid_cart(self):
+        g = self.enter_store()
+        self.at_spot(g, "product", "island_pass")
+        self.press(pygame.K_e)
+        self.at_spot(g, "cashier")
+        self.press(pygame.K_e, pygame.K_RETURN)                       # PAY with 0 tokens.
+        self.assertIn("Not enough", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        self.assertEqual(g.store.cart.count, 1)
+        self.at_spot(g, "door")
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.title.text, "Leaving?")
+        self.press(pygame.K_RETURN)                                   # STAY (selected first).
+        self.assertTrue(g.in_store)
+        self.assertEqual(g.store.cart.count, 1)
+        self.press(pygame.K_e, pygame.K_LEFT, pygame.K_RETURN)        # EMPTY CART.
+        self.assertFalse(g.in_store)
+        self.assertEqual(g.store.cart.count, 0)
+        self.assertEqual(g.missions.items.get("island_pass", 0), 0)
+
+    def test_going_home_from_the_store_puts_the_cart_back(self):
+        g = self.enter_store()
+        self.at_spot(g, "product", "fair_ticket")
+        self.press(pygame.K_e)
+        g.menu.toggle()
+        g.menu.selected = g.menu.items.index("home")
+        self.press(pygame.K_RETURN)
+        self.assertFalse(g.in_store)
+        self.assertEqual(g.store.cart.count, 0)
+        self.assert_at_home(g)
 
     # Veterans -----------------------------------------------------------------------
 
@@ -521,7 +591,8 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
                          {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
-                          "veteran": (150, 226, 140)})
+                          "veteran": (150, 226, 140), "store": (160, 96, 220)})
+        self.assertEqual(kinds.count("store"), 1)
         self.assertEqual(kinds.count("veteran"), 15)
         for mark in g.landmarks:                                      # Arrow matches the diamond.
             self.assertEqual(mark.arrow_color, KINDS[mark.kind][0])

@@ -26,7 +26,7 @@ from gl_utils import (
 # floating mission badges over everything.
 DRAW_ORDER = (
     "terrain-atlas", "road-atlas", "track-atlas", "structure-atlas", "prop-atlas",
-    "camp-atlas", "home-atlas", "people-atlas", "canopy-atlas", "vehicle-atlas", "marker-atlas",
+    "camp-atlas", "home-atlas", "store-atlas", "people-atlas", "canopy-atlas", "vehicle-atlas", "marker-atlas",
 )
 CAPACITY = {
     "terrain-atlas": 8192,
@@ -38,6 +38,7 @@ CAPACITY = {
     "people-atlas": 512,
     "canopy-atlas": 128,
     "home-atlas": 64,
+    "store-atlas": 64,
     "vehicle-atlas": 512,
     "marker-atlas": 128,
 }

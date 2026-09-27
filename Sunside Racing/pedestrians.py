@@ -241,7 +241,7 @@ class Pedestrians:
         return self._people(rng, CITY_KINDS, *route(0), CITY_PER_BLOCK, inset_path=route(8))
 
     def _building_at(self, sx, sy, x, y):
-        return any(s.atlas == "structure-atlas" and s.name in CITY_BUILDINGS
+        return any(s.atlas == "structure-atlas" and (s.name in CITY_BUILDINGS or s.name == "general_store")
                    and s.x == x and s.y == y for s in self.world.sector(sx, sy))
 
     def _plaza(self, sx, sy, rng):

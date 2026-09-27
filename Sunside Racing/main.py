@@ -35,6 +35,8 @@ from title_menu import TitleMenu
 from world_map import WorldMap, guide_line, landmarks
 from arcade import ArcadeCabinet
 from home import HomeInterior
+from store import StoreInterior
+from inventory import BY_ID
 from inventory import STACK_MAX
 from inventory_ui import InventoryMenu
 from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
@@ -54,6 +56,7 @@ EXIT_SPEED = 15.0   # The car must be nearly stopped to get out.
 RACE_OVER_DELAY = 2.0  # Seconds a win's banner shows before returning (losses end at once).
 CENTER_TALK_RANGE = 130  # On foot, px from a racing center building to enter races.
 HOME_DOOR_RANGE = 40     # On foot, px from the house's front door to go inside.
+STORE_DOOR_RANGE = 40    # On foot, px from the General Store's door to go in.
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
                  "jungle": "grass"}
 
@@ -129,6 +132,10 @@ class Game:
         self.home_collisions = CollisionManager(None, self.home)
         self.inside = False
         self.resting = None     # The home Spot the player is sitting or sleeping on.
+        # The General Store: another little level, with its cart of unpaid items.
+        self.store = StoreInterior(world.seed)
+        self.store_collisions = CollisionManager(None, self.store)
+        self.in_store = False
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
@@ -227,6 +234,7 @@ class Game:
         """Jump to the region's edge in the car; only offered when no mission is running.
         The beach lands by the chosen fishing pier."""
         self.inside, self.resting = False, None
+        self._leave_store_by_travel()
         player = self.walker or self.car
         if region == "beach":
             landing = beach_destination(self.world, self.collisions, self.car, player.x, player.y, dock)
@@ -310,7 +318,12 @@ class Game:
             center, self.pending_center = self.pending_center, None
             giver, self.pending_offer = self.pending_offer, None
             if outcome == "accept":
-                if confirm:
+                if confirm == "store_pay":
+                    self._pay_at_store()
+                elif confirm == "store_leave":
+                    self.store.cart.empty()            # Put everything back and go.
+                    self._leave_store()
+                elif confirm:
                     self._give_up(confirm)
                 elif center:
                     self._start_center_race(center)
@@ -338,7 +351,9 @@ class Game:
                 self.fishing.press()   # Space: strike while the marker is in the green.
         elif action in ("reset", "island") and self.fishing:
             self.fishing = None        # Put the rod away first; press again to act.
-        elif self.inside and action in ("island", "call_car"):
+        elif self.in_store and action == "reset":
+            self.walker.respawn_nearby(self.store_collisions)
+        elif (self.inside or self.in_store) and action in ("island", "call_car"):
             pass                       # Nothing to travel to or call from inside the house.
         elif self.inside and action == "reset":
             self._stand_up()
@@ -361,6 +376,9 @@ class Game:
         if self.inside:
             self._interact_home()
             return
+        if self.in_store:
+            self._interact_store()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -368,6 +386,9 @@ class Game:
             return
         if self.fishing:
             self.fishing.cast()   # Casts again once the last fish is landed or gone.
+            return
+        if math.dist((self.walker.x, self.walker.y), self.world.general_store.door) <= STORE_DOOR_RANGE:
+            self._enter_store()
             return
         # Getting out of the car lands beside the house: E gets back in first; a step
         # toward the door (out of the car's reach) offers the house.
@@ -405,6 +426,7 @@ class Game:
     def _go_home(self):
         """GO HOME: in the car in the home parking lot, like opening the game."""
         self.inside, self.resting, self.fishing = False, None, None
+        self._leave_store_by_travel()
         self.car.x, self.car.y, self.car.heading = HOME_PARK
         self.car.speed = 0.0
         self.walker = None
@@ -490,6 +512,99 @@ class Game:
                         mission=("Sleeping...", "Zzz") if sleeping else None, toast=self._toast())
         if self.world_map.open:
             self.world_map.render(*HOME_HOUSE, self.guide_to)
+
+    # General Store ----------------------------------------------------------------
+
+    def _enter_store(self):
+        self.in_store = True
+        self.walker.x, self.walker.y = self.store.entry
+        self.walker.heading, self.walker.speed = 0.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_store(self):
+        self.in_store = False
+        shop = self.world.general_store
+        self.walker.x, self.walker.y = shop.door
+        self.walker.heading = 90.0 if shop.face > 0 else 270.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_store_by_travel(self):
+        """Fast travel or GO HOME from inside: the unpaid cart goes back on the shelves."""
+        if self.in_store:
+            self.store.cart.empty()
+            self.in_store = False
+
+    def _interact_store(self):
+        spot = self.store.spot_near(self.walker.x, self.walker.y)
+        cart = self.store.cart
+        if spot is None:
+            return
+        if spot.kind == "door":
+            if cart.count:
+                self.pending_confirm = "store_leave"
+                self.panel.show_confirm("Leaving?", "", (
+                    f"Your cart has {cart.count} item{'s' if cart.count != 1 else ''} ({cart.total:,} S).",
+                    "Empty the cart to leave,", "or stay and pay at the cashier first."),
+                    "EMPTY CART", "STAY")
+            else:
+                self._leave_store()
+        elif spot.kind == "cashier":
+            if not cart.count:
+                self.panel.show_message("Cashier", "Pick something from the aisles, then pay here.")
+                return
+            self.pending_confirm = "store_pay"
+            self.panel.show_confirm("Checkout", "", (
+                cart.summary(), f"Total {cart.total:,} S",
+                f"You have {self.missions.tokens:,} Sunside Tokens"), "PAY", "NOT YET")
+            self.panel.selected = 0            # PAY starts selected: that's what they came for.
+        else:
+            why = cart.take(spot.item, self.missions)
+            if why:
+                self.panel.show_message(BY_ID[spot.item].name, why)
+
+    def _pay_at_store(self):
+        cart = self.store.cart
+        total, summary = cart.total, cart.summary()
+        why = cart.pay(self.missions)
+        if why:
+            self.panel.show_message("Checkout", why)
+        else:
+            self.autosave.request()
+            self.panel.show_lines("Checkout", "Success", (f"Paid {total:,} S", summary,
+                                                          "It's all in your inventory (I)."))
+
+    def _store_prompt(self):
+        spot = self.store.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        if spot.kind == "door":
+            return "E   Leave the store"
+        if spot.kind == "cashier":
+            return f"E   Pay {self.store.cart.total:,} S" if self.store.cart.count else "E   Cashier"
+        item = BY_ID[spot.item]
+        return f"E   {item.name}  ·  {item.price:,} S"
+
+    def _update_store(self, dt):
+        walker = self.walker
+        walker.update(dt, *self.inputs.walking(), self.store_collisions)
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, walker.frame())
+        self.store.update(dt)
+        self._ease_zoom(dt)
+
+    def _render_store(self):
+        walker, zoom, store = self.walker, self.zoom, self.store
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (store.width, store.height))
+        self.state.render(store.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
+        cart = store.cart
+        panel = ((f"CART  ·  {cart.count} item{'s' if cart.count != 1 else ''}",
+                  f"{cart.total:,} S  ·  you have {self.missions.tokens:,} S") if cart.count else None)
+        self.hud.render(0.0, "General Store", store.aisle_at(walker.x, walker.y), self._store_prompt(),
+                        show_speed=False, mission=panel, toast=self._toast())
+        if self.world_map.open:
+            shop = self.world.general_store
+            self.world_map.render(shop.x, shop.y, self.guide_to)
 
     # Fishing ----------------------------------------------------------------------
 
@@ -689,6 +804,9 @@ class Game:
         if self.inside:
             self._update_home(dt)    # The city waits outside while the house is loaded.
             return
+        if self.in_store:
+            self._update_store(dt)   # Likewise the store.
+            return
         car, walker = self.car, self.walker
         player = walker or car
         if self.fishing and walker is None:
@@ -768,6 +886,8 @@ class Game:
             self._render_race()
         elif self.inside:
             self._render_home()
+        elif self.in_store:
+            self._render_store()
         else:
             self._render_world()
         if self.panel.open:
@@ -825,6 +945,8 @@ class Game:
             won = self.missions.progress.races[center_region]
             prompt = ("E   Racing center  ·  Champion" if won >= CENTER_RACES
                       else f"E   Racing center  ·  Race {won + 1}/{CENTER_RACES}")
+        elif walker and math.dist((walker.x, walker.y), self.world.general_store.door) <= STORE_DOOR_RANGE:
+            prompt = "E   Enter the General Store"
         elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Go inside"

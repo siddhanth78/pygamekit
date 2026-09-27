@@ -838,6 +838,13 @@
             0
           ],
           "source_row": 4
+        },
+        "general_store": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 4
         }
       }
     },
@@ -2273,6 +2280,102 @@
             0
           ],
           "source_row": 3
+        }
+      }
+    },
+    "store-atlas": {
+      "png": "store-atlas.png",
+      "bitmap": "../bitmap/store-atlas.json",
+      "cell_px": 64,
+      "atlas_grid": [
+        4,
+        3
+      ],
+      "tile_origin": "bottom-left, as used by shaders/tex.frag",
+      "sprites": {
+        "shelf": {
+          "tile": [
+            0,
+            2
+          ],
+          "source_row": 0
+        },
+        "counter": {
+          "tile": [
+            1,
+            2
+          ],
+          "source_row": 0
+        },
+        "ticket_board": {
+          "tile": [
+            2,
+            2
+          ],
+          "source_row": 0
+        },
+        "crate": {
+          "tile": [
+            3,
+            2
+          ],
+          "source_row": 0
+        },
+        "seeds_corn": {
+          "tile": [
+            0,
+            1
+          ],
+          "source_row": 1
+        },
+        "seeds_tomato": {
+          "tile": [
+            1,
+            1
+          ],
+          "source_row": 1
+        },
+        "seeds_lettuce": {
+          "tile": [
+            2,
+            1
+          ],
+          "source_row": 1
+        },
+        "super_fertilizer": {
+          "tile": [
+            3,
+            1
+          ],
+          "source_row": 1
+        },
+        "fair_ticket": {
+          "tile": [
+            0,
+            0
+          ],
+          "source_row": 2
+        },
+        "factory_pass": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 2
+        },
+        "island_pass": {
+          "tile": [
+            2,
+            0
+          ],
+          "source_row": 2
+        },
+        "store_mat": {
+          "tile": [
+            3,
+            0
+          ],
+          "source_row": 2
         }
       }
     }

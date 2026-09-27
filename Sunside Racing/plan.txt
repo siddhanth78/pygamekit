@@ -1379,3 +1379,49 @@ Mastery page COMPLETED columns (2026-09-27, built)
   with each region's count centered under its sub-header (was one line
   "Del n · Trial n · Drag n"). Counts at 0 show muted; the Beach row is blank.
   Test added. 197 passing.
+
+General Store (2026-09-27, built)
+- World: one city building, picked from the seed at least 2 blocks (sectors)
+  from the city racing center, becomes the General Store (world.general_store,
+  a StoreSite; structure-atlas "general_store": flat roof, purple awning,
+  shopping-bag sign, glass doors). With the default seed it is sector (25, 35),
+  door on the east. Its door faces the sidewalk the block's pedestrians walk,
+  and they duck in and out of it like other city buildings (none are
+  interactive). World map: purple diamond. GENERATOR_VERSION 10.
+- Inside (store.StoreInterior, its own level, city paused): a checkout
+  counter by the door with the cashier behind it; three aisles between four
+  shelf units: Seeds (corn 10 S, tomato 20 S, lettuce 30 S), Items (super
+  fertilizer 50 S), Tickets (fair ticket 100 S, factory pass 20,000 S, island
+  pass 100,000 S) with a ticket board. Three browsers and two shoppers who walk
+  in and out (they vanish at the door). The HUD names the aisle; a CART panel
+  shows count, total, and tokens.
+- E on a product puts one in the cart. Passes are one-time (max 1; can't take
+  one you own or already have in the cart); other stacks stop at 999. The
+  cashier: PAY (selected) takes the whole total in Sunside Tokens and moves
+  everything into the inventory, or says how short you are. The door: with an
+  unpaid cart, "Leaving?" EMPTY CART (put it all back and go) or STAY
+  (selected). Fast travel or GO HOME from inside puts the cart back.
+- Inventory: each item now has its own max_stack: tokens TOKEN_MAX = 999,999
+  (the passes cost up to 100,000; the old 999 cap would have made them
+  impossible), passes 1, everything else 999. The seven store items have
+  inventory icons (store-atlas).
+- Open: how tokens are earned (none yet, so nothing can be bought yet); what
+  seeds, fertilizer, tickets, and passes do; long carts may overflow the
+  checkout line.
+- Tests: test_store.py (placement and shoppers, prices and aisles, one-time
+  passes, paying and failing to pay, stack limits, walkable spots and paths,
+  aisle names, comers vanish at the door, walls) and flows (shop and pay, can't
+  leave unpaid then empty cart, go home clears the cart). 211 passing.
+
+Store prompts follow what you see (2026-09-27, built)
+- User: detection was off. Cause: product spots sat mid-aisle ~50 px from the
+  icons they belong to (40 px reach), the cashier spot was in open floor, and
+  the exit point was above the mat.
+- Now each spot is an area (store.Spot.area): a band along the shelf face
+  beside each icon reaching halfway to the next icon (no dead zones walking
+  the shelf; the nearer icon wins), a band along the counter's customer side
+  for the cashier, and the welcome mat itself for the exit. You arrive just
+  above the mat, so entering never offers to leave.
+- Tests: prompts from beside each icon, gap-free along a shelf, none across the
+  aisle, anywhere on the mat but not at the entry, the counter band; flows use
+  each spot's stand point. 212 passing.

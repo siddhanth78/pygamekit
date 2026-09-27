@@ -117,6 +117,30 @@ HOME_DOOR = (_HOME_X + 2.5 * TILE_SIZE, _HOME_Y + 2.2 * TILE_SIZE)      # Stand 
 # center's sector: east of the plaza, or (city) where the building east of it would be.
 CENTER_LOT_TILE = {"city": (5, 1), "other": (6, 3)}
 
+# The General Store: one city building, chosen from the seed, at least STORE_MIN_BLOCKS
+# sectors from the city's racing center. Its door faces the sidewalk the block's
+# pedestrians walk (west for a lot at local x 6, east for x 2).
+STORE_MIN_BLOCKS = 2
+STORE_DOOR_OUT = 64           # px from the building's center to stand at its door.
+
+
+@dataclass(frozen=True)
+class StoreSite:
+    sector: tuple[int, int]
+    lot: tuple[int, int]
+    x: float                  # Building center.
+    y: float
+    face: int                 # -1: door on the west wall, +1: east.
+
+    @property
+    def rotation(self) -> float:
+        """GL rotation turning the art's front (south) toward the door side."""
+        return -90.0 if self.face < 0 else 90.0
+
+    @property
+    def door(self) -> tuple[float, float]:
+        return self.x + self.face * STORE_DOOR_OUT, self.y
+
 # Encampments: offsets from the camp center (the sector's middle).
 CAMPS_PER_REGION = 5
 CAMP_TENTS = ((-88, -56), (84, -60), (6, 92))
@@ -185,6 +209,7 @@ class World:
         for route in DIRT_ROUTES:
             _route(self.dirt_roads, list(route))
         self.camps = self._choose_camps()
+        self.general_store = self._choose_store()
         # Ferry docks face each other across the channel on the island's row.
         self.mainland_dock = (max(sx for sx in range(SECTORS)
                                   if self._landmass(sx, ISLAND_ROW) == "mainland"), ISLAND_ROW)
@@ -215,6 +240,22 @@ class World:
         """The pier whose planks are under (x, y), if any."""
         entry = self.pier_tiles.get((int(x // TILE_SIZE), int(y // TILE_SIZE)))
         return entry[0] if entry and entry[0].contains(x, y) else None
+
+    def _choose_store(self) -> StoreSite:
+        city_center = next(s for s, name in CENTERS.items() if name == "center_city")
+        lots = []
+        for sy in range(CITY_SECTORS_Y[0], CITY_SECTORS_Y[1] + 1):
+            for sx in range(CITY_SECTORS_X[0], CITY_SECTORS_X[1] + 1):
+                if (max(abs(sx - city_center[0]), abs(sy - city_center[1])) < STORE_MIN_BLOCKS
+                        or (sx, sy) in CENTERS or (sx, sy) == HOME_SECTOR):
+                    continue
+                # Lots at local x 2 belong to the block to the west; the city's first column
+                # has none, so its pedestrians would never visit.
+                lots += [((sx, sy), lot) for lot in ((2, 2), (6, 2), (2, 6), (6, 6))
+                         if not (lot[0] == 2 and sx == CITY_SECTORS_X[0])]
+        (sx, sy), (lx, ly) = random.Random(f"{self.seed}-store").choice(sorted(lots))
+        return StoreSite((sx, sy), (lx, ly), sx * SECTOR_SIZE + lx * TILE_SIZE,
+                         sy * SECTOR_SIZE + ly * TILE_SIZE, -1 if lx == 6 else 1)
 
     def _choose_camps(self) -> dict[tuple[int, int], str]:
         """Spread a few encampments through the desert and jungle, clear of centers."""
@@ -417,6 +458,11 @@ class World:
             skip = {(2, 2)} if center or home else set()
             if center:
                 skip.add((6, 2))                  # The center's parking lot goes here.
+            shop = self.general_store
+            if (sx, sy) == shop.sector:
+                skip.add(shop.lot)
+                scenery.append(Sprite("structure-atlas", "general_store", shop.x, shop.y,
+                                      106, 106, shop.rotation, 82, 82))
             self._city_blocks(rng, grid, ground, scenery, prop, skip_lots=skip)
             if home:
                 scenery.append(Sprite("structure-atlas", "player_house", *HOME_HOUSE, 106, 106,
