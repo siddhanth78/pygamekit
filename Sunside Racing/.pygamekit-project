@@ -8,6 +8,7 @@
   ],
   "files": {
     "code": [
+      "arcade.py",
       "asset_sources.py",
       "autosave.py",
       "car.py",
@@ -17,6 +18,7 @@
       "fishing.py",
       "fishing_ui.py",
       "game_state.py",
+      "home.py",
       "hud.py",
       "input_handler.py",
       "main.py",
@@ -32,6 +34,8 @@
       "test_centers.py",
       "test_fishing.py",
       "test_game_flows.py",
+      "test_home.py",
+      "test_ice.py",
       "test_missions.py",
       "test_parking.py",
       "test_pedestrians.py",
@@ -53,6 +57,7 @@
       "assets/atlas-manifest.json",
       "assets/camp-atlas.png",
       "assets/canopy-atlas.png",
+      "assets/home-atlas.png",
       "assets/marker-atlas.png",
       "assets/people-atlas.png",
       "assets/prop-atlas.png",
@@ -65,6 +70,7 @@
     "bitmaps": [
       "bitmap/camp-atlas.json",
       "bitmap/canopy-atlas.json",
+      "bitmap/home-atlas.json",
       "bitmap/marker-atlas.json",
       "bitmap/people-atlas.json",
       "bitmap/prop-atlas.json",

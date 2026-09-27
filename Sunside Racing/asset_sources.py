@@ -143,10 +143,43 @@ def terrain() -> Atlas:
             if name == "shore_west": p.rect(0, 0, 7, 32, "#68bfca")
     for i, name in enumerate(PIER_TILES):
         pier_tile(a.tile(name, i, 4), name)
+    for i, name in enumerate(HOME_TILES, len(PIER_TILES)):
+        home_tile(a.tile(name, i, 4), name)
     return a
 
 
 PIER_TILES = ("pier_planks", "pier_end")
+HOME_TILES = ("home_lot", "floor_wood", "floor_bedroom", "wall", "wall_door", "wall_window")
+
+
+def home_tile(p: Painter, name: str):
+    """The home parking lot, and the house interior's floors and walls (32 px tiles)."""
+    if name == "home_lot":
+        # The public parking_lot art with its two stalls painted along the bottom and the
+        # aisle along the top, so the player's car sits facing up toward the aisle.
+        p.rect(0, 0, 32, 32, "#555d62")
+        p.flecks(128, 23, ("#747b7f", "#42494e"))
+        for x in (4, 16, 28):
+            p.rect(x, 17, x + 1, 28, "#cdd1c1")
+    elif name.startswith("floor"):
+        planks = (("#a0714a", "#8f6341", "#ad7c52") if name == "floor_wood"
+                  else ("#c49a6c", "#b58c5f", "#cfa678"))
+        for i, y in enumerate(range(0, 32, 8)):           # Planks with staggered joints.
+            p.rect(0, y, 32, y + 7, planks[i % 3])
+            p.rect(0, y + 7, 32, y + 8, "#6b4a30")
+            joint = (i * 11 + 5) % 28
+            p.rect(joint, y, joint + 1, y + 7, "#6b4a30")
+    else:                                                 # Walls seen from above.
+        p.rect(0, 0, 32, 32, "#3c3a3f")
+        p.rect(2, 2, 30, 30, "#e7dcc4")                   # Plaster cap,
+        p.rect(2, 2, 30, 5, "#f4ead0")
+        if name == "wall_door":
+            p.rect(6, 0, 26, 32, "#8a6440")               # a wooden door,
+            p.rect(8, 2, 24, 30, "#a47a4a")
+            p.rect(20, 15, 22, 18, "#f2ca57")             # with its handle.
+        elif name == "wall_window":
+            p.rect(6, 12, 26, 20, "#83b8c0")              # or a window.
+            p.rect(6, 15, 26, 16, "#c5e0d8")
 
 
 def pier_tile(p: Painter, name: str):
@@ -335,6 +368,18 @@ def building(p: Painter, roof: str, kind: str, seed: int):
         for x in (24, 46, 68): p.rect(x, 17, x + 3, 77, "#e2bb8b")
         p.rect(32, 62, 64, 78, "#503d36")
         p.rect(46, 62, 50, 78, "#dbb38a")
+    elif kind == "house":
+        # The player's house: a gabled roof (ridge north-south), a chimney, and the front
+        # door with its step on the east wall, facing the parking lot.
+        for y in range(18, 78, 6):                        # Shingle rows.
+            p.rect(18, y, 47, y + 5, "#b0503f")
+            p.rect(48, y, 77, y + 5, "#c8634c")
+            p.rect(18, y + 5, 77, y + 6, "#8a3a30")
+        p.rect(46, 14, 50, 82, "#6e2e27")                 # Ridge.
+        p.rect(58, 24, 68, 34, "#6b5a50")                 # Chimney.
+        p.rect(60, 26, 66, 32, "#2f2a26")
+        p.rect(85, 40, 96, 56, "#8a6440")                 # Door step toward the parking lot.
+        p.rect(86, 43, 89, 53, "#5a3d28")                 # Door.
     elif kind == "dock":
         p.rect(23, 27, 71, 67, "#896a4c")
         for x in range(27, 70, 9): p.rect(x, 27, x + 2, 67, "#c19a67")
@@ -349,7 +394,7 @@ def building(p: Painter, roof: str, kind: str, seed: int):
 
 
 def structures() -> Atlas:
-    a = Atlas("structure-atlas", 96, 4, 4)
+    a = Atlas("structure-atlas", 96, 4, 5)
     definitions = [
         ("city_apartment_red", "#ad756b", "office"), ("city_apartment_blue", "#698d9c", "office"),
         ("city_office_tower", "#5b798d", "office"), ("city_office_low", "#8d9a96", "office"),
@@ -359,6 +404,7 @@ def structures() -> Atlas:
         ("center_desert", "#c5a474", "center"), ("center_snow", "#8fa9b6", "center"),
         ("center_rural", "#a97f5d", "center"), ("center_island", "#748f81", "center"),
         ("rural_barn", "#ae5c4c", "barn"), ("beach_ferry_dock", "#a78259", "dock"),
+        ("player_house", "#b0503f", "house"),
     ]
     for i, (name, roof, kind) in enumerate(definitions):
         building(a.tile(name, i % 4, i // 4), roof, kind, i)
@@ -502,6 +548,106 @@ def props() -> Atlas:
     for i, name in enumerate(names): prop(a.tile(name, i % 8, i // 8), name, i)
     for i, name in enumerate(BEACH_GEAR, len(names)):
         beach_gear(a.tile(name, i % 8, i // 8), name)
+    return a
+
+
+HOME_FURNITURE = ("couch", "tv", "arcade", "bed", "lamp_off", "lamp_on", "dining_table",
+                  "chair", "coffee_table", "bookshelf", "rug", "plant", "wardrobe", "nightstand")
+WOOD, WOOD_DARK, SHADE = "#8a6440", "#5a3d28", "#3a2a22"
+
+
+def furniture(p: Painter, name: str):
+    """House furniture seen from above in 64 px cells (drawn at 2x, like floor tiles).
+    Each piece's front faces north; the engine turns it into place."""
+    if name == "couch":
+        p.rect(4, 22, 62, 50, SHADE)                      # Shadow,
+        p.rect(2, 18, 62, 46, "#3f6f9a")                  # frame,
+        p.rect(2, 36, 62, 46, "#2f5575")                  # backrest (south),
+        p.rect(2, 18, 8, 46, "#2f5575")                   # arms,
+        p.rect(56, 18, 62, 46, "#2f5575")
+        for x in (9, 32):                                 # and two seat cushions.
+            p.rect(x, 20, x + 22, 35, "#5a8fbf")
+            p.rect(x + 1, 21, x + 21, 23, "#7aaad4")
+    elif name == "tv":
+        p.rect(6, 26, 60, 40, WOOD_DARK)                  # Low stand,
+        p.rect(10, 28, 56, 32, "#1d2a30")                 # the set (screen faces north),
+        p.rect(12, 29, 54, 31, "#34454c")                 # switched off,
+        p.rect(30, 32, 36, 36, "#1d2a30")
+        p.dots([(52, 34)], "#d9453f")                     # standby light.
+    elif name == "arcade":
+        p.rect(18, 14, 48, 54, SHADE)
+        p.rect(16, 12, 46, 50, "#7a3fa0")                 # Purple cabinet,
+        p.rect(19, 13, 43, 22, "#1d2a30")                 # screen glow at the front,
+        p.rect(21, 14, 41, 20, "#3fb0c9")
+        p.rect(24, 15, 30, 18, "#f2ca57")
+        p.rect(18, 22, 44, 28, "#5a2f78")                 # control panel,
+        p.ellipse(24, 25, 2, 2, "#d9453f")                # joystick and buttons,
+        p.dots([(33, 25), (37, 24), (41, 25)], "#f2ca57")
+        p.rect(18, 40, 44, 44, "#f28fb0")                 # and a marquee stripe.
+    elif name == "bed":
+        p.rect(14, 4, 52, 62, SHADE)
+        p.rect(12, 2, 50, 60, WOOD)                       # Frame,
+        p.rect(14, 4, 48, 58, "#f4ead0")                  # sheets,
+        p.rect(16, 6, 46, 16, "#ffffff")                  # pillow (north end),
+        p.rect(14, 22, 48, 58, "#3f7fd0")                 # and a blue duvet.
+        p.rect(14, 22, 48, 25, "#6fa0e0")
+    elif name.startswith("lamp"):
+        if name == "lamp_on":
+            p.ellipse(32, 32, 28, 28, "#f6e7a8")           # Warm pool of light.
+            p.ellipse(32, 32, 20, 20, "#fbf1c4")
+        p.ellipse(33, 34, 10, 10, SHADE)
+        p.ellipse(32, 32, 10, 10, "#f2ca57" if name == "lamp_on" else "#d8c8a0")   # Shade,
+        p.ellipse(32, 32, 6, 6, "#fff4d6" if name == "lamp_on" else "#b5a680")
+        p.ellipse(32, 32, 2, 2, "#5d4a3a")                # and the bulb's finial.
+    elif name == "dining_table":
+        p.rect(18, 18, 50, 50, SHADE)
+        p.rect(16, 16, 48, 48, WOOD)
+        p.rect(18, 18, 46, 46, "#a47a4a")
+        p.ellipse(32, 32, 5, 5, "#f4ead0")                # A plate,
+        p.dots([(38, 26), (26, 38)], "#7fcf7a")           # and a sprig.
+    elif name == "chair":
+        p.rect(24, 24, 42, 42, SHADE)
+        p.rect(22, 22, 40, 40, WOOD)                      # Seat,
+        p.rect(22, 36, 40, 40, WOOD_DARK)                 # backrest (south).
+    elif name == "coffee_table":
+        p.rect(14, 26, 52, 42, SHADE)
+        p.rect(12, 24, 50, 40, WOOD)
+        p.rect(14, 26, 48, 38, "#a47a4a")
+        p.rect(20, 28, 28, 34, "#d9453f")                 # A magazine,
+        p.ellipse(40, 31, 3, 3, "#f4ead0")                # and a mug.
+    elif name == "bookshelf":
+        p.rect(4, 22, 62, 42, SHADE)
+        p.rect(2, 20, 60, 40, WOOD_DARK)
+        for i, x in enumerate(range(4, 58, 4)):           # Book spines facing north.
+            p.rect(x, 21, x + 3, 30, ("#d9453f", "#3f7fd0", "#f2ca57", "#4f9a5a")[i % 4])
+    elif name == "rug":
+        p.rect(4, 12, 60, 52, "#8f3a44")
+        p.rect(8, 16, 56, 48, "#c9a24a")
+        p.rect(12, 20, 52, 44, "#8f3a44")
+        p.rect(28, 28, 36, 36, "#c9a24a")
+    elif name == "plant":
+        p.ellipse(33, 34, 12, 12, SHADE)
+        p.ellipse(32, 32, 9, 9, "#b5503f")                # Pot,
+        for dx, dy in ((0, -8), (8, 0), (0, 8), (-8, 0), (6, -6), (-6, 6)):
+            p.ellipse(32 + dx, 32 + dy, 5, 4, "#4f9a5a")  # leaves.
+        p.ellipse(32, 32, 4, 4, "#62ad64")
+    elif name == "wardrobe":
+        p.rect(6, 20, 60, 46, SHADE)
+        p.rect(4, 18, 58, 44, WOOD)
+        p.rect(30, 18, 32, 44, WOOD_DARK)                 # Two doors,
+        p.dots([(27, 22), (34, 22)], "#f2ca57")           # with handles at the front.
+    elif name == "nightstand":
+        p.rect(22, 22, 44, 44, SHADE)
+        p.rect(20, 20, 42, 42, WOOD)
+        p.ellipse(31, 31, 6, 6, "#f2ca57")                # A small reading lamp.
+    else:
+        raise ValueError(name)
+
+
+def home() -> Atlas:
+    a = Atlas("home-atlas", 64, 4, 4)
+    for i, name in enumerate(HOME_FURNITURE):
+        furniture(a.tile(name, i % 4, i // 4), name)
     return a
 
 
@@ -723,7 +869,21 @@ def resting(p: Painter, pose: str, top: str, trim: str, head: str, head_color: s
             accent: str | None, skin: str):
     """A person lying on their back, feet north and head south, like the loungers and
     mats. lounge: hands behind the head; lie: arms at the sides, asleep (a sun hat over
-    the face if they wear one)."""
+    the face if they wear one). sit: seated facing north, legs out in front."""
+    if pose == "sit":
+        p.rect(12, 5, 15, 13, "#2f3f5f")                  # Legs out in front,
+        p.rect(17, 5, 20, 13, "#2f3f5f")
+        p.rect(12, 3, 15, 6, "#2a3238")                   # shoes,
+        p.rect(17, 3, 20, 6, "#2a3238")
+        p.rect(9, 15, 12, 20, top)                        # arms resting,
+        p.rect(20, 15, 23, 20, top)
+        p.rect(10, 12, 12, 15, skin)
+        p.rect(20, 12, 22, 15, skin)
+        p.ellipse(16, 18, 7, 3, top)                      # shoulders,
+        p.rect(15, 19, 17, 22, trim)
+        p.ellipse(16, 15, 4, 4, head_color)               # and the cap from above.
+        p.rect(13, 10, 19, 12, accent)
+        return
     p.rect(12, 3, 15, 13, skin)                           # Legs,
     p.rect(17, 3, 20, 13, skin)
     p.rect(12, 2, 15, 4, "#c68a5e" if skin != "#c68a5e" else "#8d5a3b")   # feet,
@@ -772,6 +932,7 @@ def people() -> Atlas:
     per_row = 4
     columns = per_row * len(PERSON_FRAMES)
     rest = [(f"{kind}_{pose}", kind, pose) for kind in BEACH_KINDS for pose in REST_POSES]
+    rest += [("player_sit", "player", "sit"), ("player_lie", "player", "lie")]
     cells = len(PEOPLE) * len(PERSON_FRAMES) + len(FISHING_SPRITES) + len(rest)
     rows = -(-cells // columns)
     a = Atlas("people-atlas", 32, columns, rows)
@@ -991,7 +1152,7 @@ def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies()]
+                markers(), track(), canopies(), home()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

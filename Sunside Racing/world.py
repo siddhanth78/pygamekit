@@ -98,6 +98,20 @@ class Dock:
         return (tx + 0.5 - 2 * dx) * TILE_SIZE, (ty + 0.5 - 2 * dy) * TILE_SIZE
 
 
+# The player's house: the corner lot of a quiet sector on the city's west edge (no
+# pedestrian block covers it), with a private two-stall parking lot on its east side:
+# one home_lot tile (the public lots' art with the stalls along the bottom and the aisle
+# along the top), opening onto the road. Only the player's car parks there, in the west
+# stall facing up toward the aisle; the east stall stays empty.
+HOME_SECTOR = (21, 31)
+HOME_LOT_TILE = (3, 1)                # Local tile of the two-stall lot.
+_HOME_X, _HOME_Y = HOME_SECTOR[0] * SECTOR_SIZE, HOME_SECTOR[1] * SECTOR_SIZE
+HOME_HOUSE = (_HOME_X + 1.6 * TILE_SIZE, _HOME_Y + 2 * TILE_SIZE)        # House center.
+HOME_PARK = (_HOME_X + HOME_LOT_TILE[0] * TILE_SIZE + 20,                  # Car: x, y, heading
+             _HOME_Y + (HOME_LOT_TILE[1] + 1) * TILE_SIZE - STALL_Y, 0.0)  # (facing up).
+HOME_DOOR = (_HOME_X + 2.5 * TILE_SIZE, _HOME_Y + 2.2 * TILE_SIZE)      # Stand here to go inside
+                                                                         # (beyond the car's reach).
+
 # Encampments: offsets from the camp center (the sector's middle).
 CAMPS_PER_REGION = 5
 CAMP_TENTS = ((-88, -56), (84, -60), (6, 92))
@@ -255,6 +269,11 @@ class World:
             return "sea"
         return self.region(int(x // SECTOR_SIZE), int(y // SECTOR_SIZE))
 
+    def is_ice(self, x: float, y: float) -> bool:
+        """The snow region's icy roads, where cars slide (see car.ICE_TRACTION)."""
+        tx, ty = int(x // TILE_SIZE), int(y // TILE_SIZE)
+        return self.region_at(x, y) == "snow" and self._road_style(tx, ty) == "ice"
+
     def is_drivable(self, x: float, y: float) -> bool:
         return self.region_at(x, y) != "sea"
 
@@ -385,7 +404,13 @@ class World:
             self._center_plaza(center, lot, center_xy, ground, occupied, scenery, prop)
 
         if region == "city":
-            self._city_blocks(rng, grid, ground, scenery, prop, skip_lot=(2, 2) if center else None)
+            home = (sx, sy) == HOME_SECTOR
+            self._city_blocks(rng, grid, ground, scenery, prop,
+                              skip_lot=(2, 2) if center or home else None)
+            if home:
+                scenery.append(Sprite("structure-atlas", "player_house", *HOME_HOUSE, 106, 106,
+                                      solid_width=82, solid_height=82))
+                ground[HOME_LOT_TILE] = "home_lot"
             if center_xy:
                 # Street poles from the road grid must not stand inside the plaza.
                 half = 2 * TILE_SIZE

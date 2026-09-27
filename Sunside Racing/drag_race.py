@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 import random
 
-from car import ACCELERATION, BRAKING, SURFACES, Car
+from car import ACCELERATION, BRAKING, ICE_SCRUB, ICE_TRACTION, SURFACES, Car
 from collision_manager import CollisionManager
 from progression import RATING_EDGE, SPEED_PER_LEVEL, rating_speed
 from track_gen import generate
@@ -168,6 +168,10 @@ class TrackLevel:
         on_track = (int(x // TILE_SIZE), int(y // TILE_SIZE)) in self.track
         return self.surface if on_track else OFF_TRACK
 
+    def is_ice(self, x, y):
+        """Snow tracks are ice: cars slide on them (rivals less than the player)."""
+        return self.surface == "snow" and (int(x // TILE_SIZE), int(y // TILE_SIZE)) in self.track
+
     def can_place_car(self, rect):
         return 0 <= rect[0] <= self.width and 0 <= rect[1] <= self.height
 
@@ -253,6 +257,17 @@ def best_line_length(level: TrackLevel) -> float:
     return lap * level.laps
 
 
+# Rivals slide on ice with the player's car physics (car.ICE_TRACTION, car.ICE_SCRUB):
+# the direction of travel lags the nose, and sliding sideways scrubs speed. They steer
+# sharper than the player on ice (RIVAL_ICE_STEER x the player's rate), so slides stay
+# modest. The slide carries them off their line as a world-space offset that builds and
+# fades smoothly (no jumps at corners); near the track's edge it is eased back in.
+RIVAL_ICE_STEER = 2.5
+RIVAL_ICE_RECOVER = 1.5        # Per second: steering back onto the line.
+RIVAL_ICE_ROOM = 72            # Largest offset from the line, px (held there, not snapped).
+RIVAL_ICE_EASE = 3.0           # px per frame it eases back in when near the track's edge.
+
+
 class Rival:
     """Drives a line fixed for the whole race: full throttle on straights, braking for
     every corner. It cuts each corner with probability cut_chance (seeded, so a race always
@@ -329,6 +344,8 @@ class Rival:
                 self.corners.append(run)
         self.distance, self.speed = 0.0, 0.0
         self._next_corner, self._segment = 0, 0
+        self.offset = (0.0, 0.0)           # Ice slide: world px off the line.
+        self.travel = self.heading         # Direction of motion; lags the nose on ice.
         self.x, self.y = x, y
         self.progress = (level.progress_of(x, y, -1.5 * TILE_SIZE) if level.closed
                          else x - level.start_x)
@@ -372,11 +389,40 @@ class Rival:
         i = self._segment
         a, b, length = self.points[i], self.points[i + 1], self.lengths[i]
         t = min(1.0, (self.distance - self._starts[i]) / length)
-        self.x, self.y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+        line_x, line_y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
         target = math.degrees(math.atan2(b[0] - a[0], -(b[1] - a[1]))) % 360
         turn = (target - self.heading + 180) % 360 - 180
-        step = AI_TURN_RATE * dt
+        icy = self.level.is_ice(line_x, line_y)
+        # On ice the rival steers sharper than the player can, keeping slides modest.
+        rate = (RIVAL_ICE_STEER * 135 * SURFACES[self.level.surface][0] * min(1.0, self.speed / 130)
+                if icy else AI_TURN_RATE)
+        step = rate * dt
         self.heading = (self.heading + max(-step, min(step, turn))) % 360
+        # Its travel lags its nose like the player's; moving along the travel instead of
+        # the line carries it off the line, as a world-space offset (continuous at corners).
+        ox, oy = self.offset
+        if icy and self.speed > 1:
+            slide = (self.heading - self.travel + 540) % 360 - 180
+            self.travel = (self.travel + slide * min(1.0, ICE_TRACTION * dt)) % 360
+            self.speed *= max(0.0, 1 - ICE_SCRUB * abs(math.sin(math.radians(slide))) * dt)
+            tr, ln = math.radians(self.travel), math.radians(target)
+            ox += self.speed * dt * (math.sin(tr) - math.sin(ln))
+            oy += self.speed * dt * (-math.cos(tr) + math.cos(ln))
+        else:
+            self.travel = self.heading
+        recover = min(1.0, RIVAL_ICE_RECOVER * dt)
+        ox, oy = ox * (1 - recover), oy * (1 - recover)           # Steering back to the line.
+        # Hold the slide at RIVAL_ICE_ROOM, and near the track's edge ease it back in a few
+        # px a frame: the offset only ever changes gradually, so the car never jumps.
+        size = math.hypot(ox, oy)
+        if size > RIVAL_ICE_ROOM:
+            ox, oy = ox * RIVAL_ICE_ROOM / size, oy * RIVAL_ICE_ROOM / size
+            size = RIVAL_ICE_ROOM
+        if size and (int((line_x + ox) // TILE_SIZE), int((line_y + oy) // TILE_SIZE)) not in self.level.track:
+            shrink = max(0.0, size - RIVAL_ICE_EASE) / size
+            ox, oy = ox * shrink, oy * shrink
+        self.offset = (ox, oy)
+        self.x, self.y = line_x + ox, line_y + oy
 
     def sprite(self):
         return Sprite("vehicle-atlas", self.name, self.x, self.y, 64, 64, -self.heading, 24, 44)
@@ -569,7 +615,7 @@ class DragRace:
     def countdown(self):
         return max(0, math.ceil(-self.clock)) if self.clock < 0 else 0
 
-    def update(self, dt, throttle, steer, handbrake):
+    def update(self, dt, throttle, steer):
         if self.result:
             self.car.speed *= max(0.0, 1 - 2 * dt)
             return
@@ -579,7 +625,7 @@ class DragRace:
         # The rival is solid to the player; it holds its line regardless.
         self.collisions.fixed = [self.rival.sprite()]
         before = self.car.speed
-        self.car.update(dt, throttle, steer, handbrake, self.level, self.collisions,
+        self.car.update(dt, throttle, steer, self.level, self.collisions,
                         self.speed_scale)
         if throttle > 0 and before > 0 and self.car.speed == 0 and self._blocked_only_by_rival():
             # Bumping the rival with the throttle down keeps a little momentum (walls don't).

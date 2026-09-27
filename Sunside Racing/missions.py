@@ -150,6 +150,10 @@ class Missions:
         # Universal mastery from traded fish, spent on any region whenever the player likes.
         unspent = data.get("unspent_mastery")
         self.unspent = unspent if type(unspent) is int and unspent >= 0 else 0
+        # Best arcade scores by game id (the cabinet at home).
+        arcade = data.get("arcade")
+        self.arcade = {k: v for k, v in arcade.items() if isinstance(k, str) and type(v) is int and v >= 0} \
+            if isinstance(arcade, dict) else {}
         self.counter = data.get("counter") if type(data.get("counter")) is int else 0
         self.givers = self._place_givers()
         self.by_id = {g.id: g for g in self.givers}
@@ -539,7 +543,8 @@ class Missions:
         # The ongoing mission is deliberately absent: its offer stays with its giver.
         return {"progress": self.progress.to_dict(), "counter": self.counter,
                 "offers": {gid: offer.to_dict() for gid, offer in self.offers.items()},
-                "fish": self.fish.to_dict(), "unspent_mastery": self.unspent}
+                "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
+                "arcade": dict(self.arcade)}
 
     def trade_fish(self):
         """Hand the whole bag to a jungle fish trader: returns (fish, points). The points

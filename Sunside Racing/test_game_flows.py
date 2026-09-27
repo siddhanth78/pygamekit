@@ -55,7 +55,7 @@ class GameFlowTests(unittest.TestCase):
         (self.folder / "player.json").write_text(json.dumps(
             {"version": 2, "mode": "drive", "car": {"x": 13600, "y": 16160, "heading": 0}}))
         self.game = main.Game(self.ctx)
-        self.game.inputs.driving = lambda: (0, 0, False)
+        self.game.inputs.driving = lambda: (0, 0)
 
     def press(self, *keys):
         for key in keys:
@@ -200,10 +200,10 @@ class GameFlowTests(unittest.TestCase):
         """Save and start a fresh game from the saved files, as if relaunched."""
         self.game.save()
         self.game = main.Game(self.ctx)
-        self.game.inputs.driving = lambda: (0, 0, False)
+        self.game.inputs.driving = lambda: (0, 0)
         return self.game
 
-    def test_quitting_the_game_mid_mission_returns_to_the_giver(self):
+    def test_quitting_the_game_mid_mission_reopens_at_home(self):
         g = self.game
         giver = g.missions.by_id["city-delivery"]
         g._step_out(Walker(giver.x + 20, giver.y))
@@ -213,12 +213,10 @@ class GameFlowTests(unittest.TestCase):
         g = self.reload()
         self.assertIsNone(g.missions.active)               # Quit, not resumed.
         self.assertIsNone(g.missions.status())
-        self.assertIsNotNone(g.walker)
-        self.assertLess(math.dist((g.walker.x, g.walker.y), (giver.x, giver.y)), 80)
-        self.assertLess(math.dist((g.car.x, g.car.y), (giver.x, giver.y)), 400)
+        self.assert_at_home(g)
         self.assertIn(giver.id, g.missions.offers)         # Same mission waits there.
 
-    def test_quitting_the_game_mid_race_returns_to_the_center(self):
+    def test_quitting_the_game_mid_race_reopens_at_home(self):
         g = self.game
         cx, cy = g.missions.center_position("city")
         g._step_out(Walker(cx, cy + 110))
@@ -228,7 +226,15 @@ class GameFlowTests(unittest.TestCase):
         g = self.reload()
         self.assertIsNone(g.race)
         self.assertEqual(g.missions.progress.races["city"], 0)
-        self.assertLess(math.dist((g.walker.x, g.walker.y), (cx, cy)), 250)
+        self.assert_at_home(g)
+
+    def assert_at_home(self, g):
+        """Every launch: sitting in the car on the home driveway."""
+        from world import HOME_PARK
+        self.assertIsNone(g.walker)
+        self.assertEqual((g.car.x, g.car.y, g.car.heading), HOME_PARK)
+        self.assertEqual(g.state.player_record(g.player_id)[9], -HOME_PARK[2])  # Drawn as parked.
+        self.assertFalse(g.inside)
 
     def test_autosave_mid_mission_saves_back_at_the_giver_without_interrupting(self):
         g = self.game
@@ -288,6 +294,118 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(len([s for s in title.sprites if s.atlas == "prop-atlas"]), 2)   # Trees.
         title.render()
 
+    # Home -------------------------------------------------------------------------------
+
+    def walk_to(self, x, y):
+        self.game.walker.x, self.game.walker.y = x, y
+
+    def test_opens_at_home_and_the_house_goes_in_and_out(self):
+        from world import HOME_DOOR
+        g = self.game
+        self.assert_at_home(g)                                      # Launch: in the car.
+        self.press(pygame.K_e)                                      # Get out on the driveway.
+        self.assertIsNotNone(g.walker)
+        self.walk_to(*HOME_DOOR)
+        g.render()
+        self.assertEqual(g.hud.prompt.text, "E   Go inside")
+        self.press(pygame.K_e)
+        self.assertTrue(g.inside)
+        g.render()
+        self.assertEqual(g.hud.prompt.text, "E   Go outside")        # Standing by the front door.
+        traffic_before = [(c.x, c.y) for c in g.traffic.cars[:5]] if hasattr(g.traffic, "cars") else []
+        g.inputs.walking = lambda: (0, 1, False)                    # Walk in a little.
+        for _ in range(30):
+            g.update(1 / 60)
+        g.inputs.walking = lambda: (0, 0, False)
+        self.assertGreater(g.walker.y, g.home.entry[1])
+        if traffic_before:                                          # The city waits outside.
+            self.assertEqual([(c.x, c.y) for c in g.traffic.cars[:5]], traffic_before)
+        self.walk_to(*g.home.entry)
+        self.press(pygame.K_e)                                      # Front door: back out.
+        self.assertFalse(g.inside)
+        self.assertEqual((g.walker.x, g.walker.y), HOME_DOOR)
+
+    def enter_home(self):
+        from world import HOME_DOOR
+        g = self.game
+        self.press(pygame.K_e)
+        self.walk_to(*HOME_DOOR)
+        self.press(pygame.K_e)
+        self.assertTrue(g.inside)
+        return g
+
+    def spot(self, g, kind, label=None):
+        return next(s for s in g.home.spots if s.kind == kind and (label is None or s.label == label))
+
+    def test_sit_sleep_lamp_and_tv(self):
+        g = self.enter_home()
+        couch = self.spot(g, "sit", "Sit on the couch")
+        self.walk_to(couch.x, couch.y)
+        self.assertEqual(g._home_prompt(), "E   Sit on the couch")
+        self.press(pygame.K_e)
+        self.assertIs(g.resting, couch)
+        self.assertEqual((g.walker.x, g.walker.y), (couch.px, couch.py))
+        tile = g.state._tile("people-atlas", "player_sit")
+        self.assertEqual(g.state.entities[g.walker_id]["record"][10:12], tile)
+        g.inputs.walking = lambda: (1, 0, False)                    # Moving gets up.
+        g.update(1 / 60)
+        g.inputs.walking = lambda: (0, 0, False)
+        self.assertIsNone(g.resting)
+        bed = self.spot(g, "sleep")
+        self.walk_to(bed.x, bed.y)
+        self.press(pygame.K_e)
+        self.assertIs(g.resting, bed)
+        g.render()
+        self.assertEqual(g.hud.mission_title.text, "Sleeping...")
+        self.press(pygame.K_e)                                      # E also gets up.
+        self.assertIsNone(g.resting)
+        lamp = self.spot(g, "lamp", "Lamp")
+        self.walk_to(lamp.x, lamp.y)
+        self.assertEqual(g._home_prompt(), "E   Turn off the lamp")
+        self.press(pygame.K_e)
+        self.assertFalse(g.home.lamps["living"])
+        tv = self.spot(g, "look", "TV")
+        self.walk_to(tv.x, tv.y)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.lines[0].text, "The TV is off.")
+
+    def test_arcade_plays_lane_dodge_and_keeps_the_best_score(self):
+        g = self.enter_home()
+        cab = self.spot(g, "arcade")
+        self.walk_to(cab.x, cab.y)
+        self.press(pygame.K_e)
+        self.assertTrue(g.arcade.open)
+        self.press(pygame.K_DOWN, pygame.K_RETURN)                  # Game 2 is locked.
+        self.assertEqual(g.arcade.mode, "menu")
+        self.press(pygame.K_UP, pygame.K_RETURN)                    # Lane Dodge.
+        self.assertEqual(g.arcade.mode, "play")
+        self.press(pygame.K_LEFT)
+        self.assertEqual(g.arcade.game.lane, 0)
+        for _ in range(60 * 60):                                    # Sit still until a crash.
+            g.update(1 / 60)
+            if g.arcade.game.over:
+                break
+        g.render()
+        score = g.arcade.game.score
+        self.assertTrue(g.arcade.game.over)
+        self.assertEqual(g.missions.arcade["lane_dodge"], score)
+        self.press(pygame.K_ESCAPE, pygame.K_ESCAPE)                # Games list, then walk away.
+        self.assertFalse(g.arcade.open)
+        g._autosave()
+        g.world_store.wait()
+        saved = json.loads((self.folder / "player.json").read_text())["missions"]
+        self.assertEqual(saved["arcade"]["lane_dodge"], score)
+
+    def test_go_home_from_the_pause_menu(self):
+        g = self.game
+        g.car.x, g.car.y = 13600, 16160                             # Somewhere else in the city.
+        self.press(pygame.K_ESCAPE)
+        self.assertIn("home", g.menu.items)
+        g.menu.selected = g.menu.items.index("home")
+        self.press(pygame.K_RETURN)
+        self.assertFalse(g.menu.open)
+        self.assert_at_home(g)
+
     # Veterans -----------------------------------------------------------------------
 
     def test_locked_veterans_show_their_badge_and_explain(self):
@@ -319,7 +437,7 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_m)
         self.assertTrue(g.world_map.open)
         start = (g.car.x, g.car.y)
-        g.inputs.driving = lambda: (1, 0, False)
+        g.inputs.driving = lambda: (1, 0)
         for _ in range(20):
             g.update(1 / 60)
         self.assertEqual((g.car.x, g.car.y), start)                   # Paused while open.

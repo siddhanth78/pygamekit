@@ -73,8 +73,8 @@ class PauseMenuInputTests(unittest.TestCase):
 
     def test_give_up_option_matches_what_is_ongoing(self):
         menu = self.menu()
-        self.assertEqual(menu.items, ("resume", "mastery", "help", "exit"))
-        menu.set_ongoing("mission")
+        self.assertEqual(menu.items, ("resume", "mastery", "help", "home", "exit"))
+        menu.set_ongoing("mission")                 # GO HOME would abandon it: gone.
         self.assertEqual(menu.items, ("resume", "abort", "mastery", "help", "exit"))
         menu.set_ongoing("race")
         self.assertEqual(menu.items, ("resume", "quit_race", "mastery", "help", "exit"))
@@ -84,10 +84,9 @@ class PauseMenuInputTests(unittest.TestCase):
         menu.set_ongoing(None)                      # Race ended: Help stays selected.
         self.assertEqual(menu.items[menu.selected], "help")
         centers = menu._button_centers()
-        self.assertEqual(len(centers), 4)
-        menu.set_ongoing("mission")
-        self.assertEqual(len(menu._button_centers()), 5)
-        self.assertLess(menu._button_centers()[0][1], centers[0][1])  # Column stays centered.
+        self.assertEqual(len(centers), 5)
+        menu.set_ongoing("mission")                 # ABORT takes GO HOME's place:
+        self.assertEqual(menu._button_centers(), centers)   # same five, same column.
         menu.selected = menu.items.index("help")
         menu.handle("confirm", None)
         menu.handle("pause", None)                  # Back from Help lands on Help.
@@ -107,10 +106,12 @@ class PauseMenuInputTests(unittest.TestCase):
 
     def test_keyboard_navigation_and_confirm(self):
         menu = self.menu()
-        self.assertEqual(menu.items, ("resume", "mastery", "help", "exit"))
+        self.assertEqual(menu.items, ("resume", "mastery", "help", "home", "exit"))
         self.assertEqual(menu.handle("confirm", None), "resume")
         for _ in range(3):
             menu.handle("menu_down", None)
+        self.assertEqual(menu.handle("confirm", None), "home")
+        menu.handle("menu_down", None)
         self.assertEqual(menu.handle("confirm", None), "exit")
         menu.handle("menu_down", None)
         self.assertEqual(menu.selected, 0)
@@ -132,9 +133,9 @@ class PauseMenuInputTests(unittest.TestCase):
 
     def test_mouse_hover_and_click(self):
         menu = self.menu()
-        (rx, ry), _, _, (ex, ey) = menu._button_centers()
+        (rx, ry), _, _, _, (ex, ey) = menu._button_centers()
         self.assertIsNone(menu.handle("pointer", (ex, ey)))
-        self.assertEqual(menu.selected, 3)
+        self.assertEqual(menu.selected, 4)
         self.assertEqual(menu.handle("click", (rx + 100, ry)), "resume")
         self.assertIsNone(menu.handle("click", (5, 5)))
 
@@ -166,10 +167,10 @@ class HudAndHandlingTests(unittest.TestCase):
         collisions = CollisionManager(None, world)
         car = Car()
         for _ in range(30):  # Half a second of full throttle.
-            car.update(1 / 60, 1, 0, False, world, collisions)
+            car.update(1 / 60, 1, 0, world, collisions)
         self.assertLess(car.speed, TOP_SPEED * 0.3)
         for _ in range(120):
-            car.update(1 / 60, 1, 0, False, world, collisions)
+            car.update(1 / 60, 1, 0, world, collisions)
         self.assertAlmostEqual(car.speed, TOP_SPEED, delta=1)
 
 

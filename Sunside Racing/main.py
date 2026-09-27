@@ -33,6 +33,9 @@ from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
 from world_map import WorldMap, guide_line, landmarks
+from arcade import ArcadeCabinet
+from home import HomeInterior
+from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
 from player_save import PlayerSave
 from traffic import Traffic
 from walker import CALL_PROMPT_DISTANCE, Walker, call_spot, exit_spot
@@ -48,6 +51,7 @@ ZOOM_TIME = 0.3     # Seconds to zoom in or out when getting out of or into the 
 EXIT_SPEED = 15.0   # The car must be nearly stopped to get out.
 RACE_OVER_DELAY = 2.0  # Seconds a win's banner shows before returning (losses end at once).
 CENTER_TALK_RANGE = 130  # On foot, px from a racing center building to enter races.
+HOME_DOOR_RANGE = 40     # On foot, px from the house's front door to go inside.
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
                  "jungle": "grass"}
 
@@ -93,8 +97,11 @@ class Game:
         self.inputs = InputHandler(self.state)
         self.collisions = CollisionManager(self.state, world)
         self.player_save = PlayerSave()
-        saved_car, self.walker = self.player_save.load_state(self.collisions)
-        self.car = saved_car or Car()
+        # The save keeps progress, fish, and points; the game always opens at home, the
+        # player sitting in their car in the home parking lot (no resuming the last position).
+        self.player_save.load_state(self.collisions)
+        self.car = Car(x=HOME_PARK[0], y=HOME_PARK[1], heading=HOME_PARK[2])
+        self.walker = None
         self.missions = Missions(world, world.seed, self.player_save.missions_data)
         self.traffic = Traffic(world, world.seed)
         self.collisions.traffic = self.traffic
@@ -115,7 +122,15 @@ class Game:
         self.guide_to = None
         self.strike_bar = StrikeBar(ctx, TOOLKIT_ROOT, viewport)
         self.fishing: FishingSession | None = None   # On foot at a pier's end, rod out.
+        # The house: its own little level, loaded while the player is inside.
+        self.home = HomeInterior()
+        self.home_collisions = CollisionManager(None, self.home)
+        self.inside = False
+        self.resting = None     # The home Spot the player is sitting or sleeping on.
+        self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
+        # Face the way it's parked from the first frame (getting out at once kept it north).
+        self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
         self.walker_id = None
         self._snap_zoom(DRIVE_ZOOM)
         self.race: DragRace | None = None
@@ -126,12 +141,6 @@ class Game:
         self.pending_confirm = None  # "abort" or "quit_race" while the panel asks to confirm.
         self.center_race = None     # (region, race number) while a center race runs.
         self.autosave = Autosave()
-        if self.walker:
-            # Resume a session saved on foot: parked car solid, camera already zoomed in.
-            self._spawn_walker_entity()
-            self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
-            self.collisions.fixed = [self.car.obstacle()]
-            self._snap_zoom(WALK_ZOOM)
 
     # Helpers --------------------------------------------------------------------
 
@@ -214,6 +223,7 @@ class Game:
     def _fast_travel(self, region, dock=None):
         """Jump to the region's edge in the car; only offered when no mission is running.
         The beach lands by the chosen fishing pier."""
+        self.inside, self.resting = False, None
         player = self.walker or self.car
         if region == "beach":
             landing = beach_destination(self.world, self.collisions, self.car, player.x, player.y, dock)
@@ -242,6 +252,10 @@ class Game:
         """Apply one input intent; returns False to quit."""
         if action == "quit":
             return False
+        if self.arcade.open:
+            if self.arcade.handle(action, value) == "close":
+                self.autosave.request()   # Keep a new best score.
+            return True
         if self.world_map.open:
             outcome = self.world_map.handle(action, value)
             if isinstance(outcome, tuple):
@@ -258,6 +272,9 @@ class Game:
             elif choice in ("abort", "quit_race"):
                 self.menu.toggle()
                 self._confirm_give_up(choice)
+            elif choice == "home":
+                self.menu.toggle()
+                self._go_home()
             elif choice == "spend":
                 self.menu.toggle()
                 self.spend_menu.show(self.missions)
@@ -313,6 +330,11 @@ class Game:
                 self.fishing.press()   # Space: strike while the marker is in the green.
         elif action in ("reset", "island") and self.fishing:
             self.fishing = None        # Put the rod away first; press again to act.
+        elif self.inside and action in ("island", "call_car"):
+            pass                       # Nothing to travel to or call from inside the house.
+        elif self.inside and action == "reset":
+            self._stand_up()
+            self.walker.respawn_nearby(self.home_collisions)
         elif action == "reset":
             (self.walker or self.car).respawn_nearby(self.collisions)
         elif action == "interact":
@@ -328,6 +350,9 @@ class Game:
         return True
 
     def _interact(self):
+        if self.inside:
+            self._interact_home()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -335,6 +360,12 @@ class Game:
             return
         if self.fishing:
             self.fishing.cast()   # Casts again once the last fish is landed or gone.
+            return
+        # Getting out of the car lands beside the house: E gets back in first; a step
+        # toward the door (out of the car's reach) offers the house.
+        if (math.dist((self.walker.x, self.walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
+                and not self.walker.can_enter(self.car)):
+            self._enter_home()
             return
         giver = self.missions.giver_near(self.walker.x, self.walker.y)
         center = self._center_near(self.walker.x, self.walker.y)
@@ -360,6 +391,97 @@ class Game:
         elif self.walker.can_enter(self.car):
             self.walker = None
             self.collisions.fixed = []
+
+    # Home -------------------------------------------------------------------------
+
+    def _go_home(self):
+        """GO HOME: in the car in the home parking lot, like opening the game."""
+        self.inside, self.resting, self.fishing = False, None, None
+        self.car.x, self.car.y, self.car.heading = HOME_PARK
+        self.car.speed = 0.0
+        self.walker = None
+        self.collisions.fixed = []
+        self._snap_zoom(DRIVE_ZOOM)
+        self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
+
+    def _enter_home(self):
+        if self.missions.active:
+            self.panel.show_message("Home", "Finish your current mission first.")
+            return
+        self.inside = True
+        self.walker.x, self.walker.y = self.home.entry
+        self.walker.heading, self.walker.speed = 180.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_home(self):
+        self._stand_up()
+        self.inside = False
+        self.walker.x, self.walker.y = HOME_DOOR
+        self.walker.heading = 90.0
+        self.collisions.fixed = [self.car.obstacle()]   # The parked car stays solid.
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _stand_up(self):
+        if self.resting:
+            self.walker.x, self.walker.y = self.resting.x, self.resting.y
+            self.resting = None
+
+    def _interact_home(self):
+        if self.resting:
+            self._stand_up()
+            return
+        spot = self.home.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return
+        if spot.kind == "door":
+            self._leave_home()
+        elif spot.kind in ("sit", "sleep"):
+            self.resting = spot
+            self.walker.x, self.walker.y, self.walker.heading = spot.px, spot.py, spot.heading
+            self.walker.speed = 0.0
+        elif spot.kind == "lamp":
+            self.home.toggle_lamp(spot.key)
+        elif spot.kind == "arcade":
+            self.arcade.show(self.missions.arcade)
+        else:
+            self.panel.show_message(spot.label, spot.key)
+
+    def _home_prompt(self):
+        if self.resting:
+            return "Move to get up"
+        spot = self.home.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        if spot.kind == "lamp":
+            return f"E   Turn {'off' if self.home.lamps[spot.key] else 'on'} the lamp"
+        return f"E   {spot.label}" if spot.kind != "look" else f"E   Look  ·  {spot.label}"
+
+    def _update_home(self, dt):
+        walker = self.walker
+        move_x, move_y, run = self.inputs.walking()
+        if self.resting and (move_x or move_y):
+            self._stand_up()               # Moving gets the player up.
+        if self.resting:
+            pose = "player_lie" if self.resting.kind == "sleep" else "player_sit"
+        else:
+            walker.update(dt, move_x, move_y, run, self.home_collisions)
+            pose = walker.frame()
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, pose)
+        self._ease_zoom(dt)
+
+    def _render_home(self):
+        walker, zoom = self.walker, self.zoom
+        home = self.home
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (home.width, home.height))
+        self.state.render(home.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
+        room = "Bedroom" if walker.x > 9 * 64 else "Living room"
+        sleeping = self.resting is not None and self.resting.kind == "sleep"
+        self.hud.render(0.0, "Home", room, self._home_prompt(), show_speed=False,
+                        mission=("Sleeping...", "Zzz") if sleeping else None, toast=self._toast())
+        if self.world_map.open:
+            self.world_map.render(*HOME_HOUSE, self.guide_to)
 
     # Fishing ----------------------------------------------------------------------
 
@@ -540,6 +662,9 @@ class Game:
         # Runs even while paused; drag races are skipped (they save when they end).
         if self.autosave.tick(dt, allowed=self.race is None):
             self._autosave()
+        if self.arcade.open:
+            self.arcade.update(dt)
+            return
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
         if self.race:
@@ -548,6 +673,9 @@ class Game:
             self._update_world(dt)
 
     def _update_world(self, dt):
+        if self.inside:
+            self._update_home(dt)    # The city waits outside while the house is loaded.
+            return
         car, walker = self.car, self.walker
         player = walker or car
         if self.fishing and walker is None:
@@ -570,9 +698,9 @@ class Game:
             self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
             self.state.set_frame(self.walker_id, walker.frame())
         else:
-            throttle, steer, handbrake = self.inputs.driving()
+            throttle, steer = self.inputs.driving()
             scale = self.missions.progress.speed_scale(self.world.region_at(car.x, car.y))
-            car.update(dt, throttle, steer, handbrake, self.world, self.collisions, scale)
+            car.update(dt, throttle, steer, self.world, self.collisions, scale)
             self.state.set_player_pose(self.player_id, car.x, car.y, car.heading)
             self.collisions.update(self.player_id, car.collision_record())
         player = self.walker or car
@@ -580,6 +708,9 @@ class Game:
                                       abs(car.speed) > 5, car.crashed and self.walker is None)
         if result:
             self._show_result(result)
+        self._ease_zoom(dt)
+
+    def _ease_zoom(self, dt):
         target_zoom = WALK_ZOOM if self.walker else DRIVE_ZOOM
         if target_zoom != self.zoom_to:   # Got in or out: ease from wherever the zoom is.
             self.zoom_from, self.zoom_to, self.zoom_time = self.zoom, target_zoom, 0.0
@@ -622,12 +753,16 @@ class Game:
         self.ctx.clear(0.10, 0.25, 0.36, 1.0)
         if self.race:
             self._render_race()
+        elif self.inside:
+            self._render_home()
         else:
             self._render_world()
         if self.panel.open:
             self.panel.render()
         if self.spend_menu.open:
             self.spend_menu.render()
+        if self.arcade.open:
+            self.arcade.render()
         if self.menu.open:
             if self.menu.page in ("mastery", "docks"):
                 self._refresh_mastery()
@@ -675,6 +810,9 @@ class Game:
             won = self.missions.progress.races[center_region]
             prompt = ("E   Racing center  ·  Champion" if won >= CENTER_RACES
                       else f"E   Racing center  ·  Race {won + 1}/{CENTER_RACES}")
+        elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
+              and not walker.can_enter(car)):
+            prompt = "E   Go inside"
         elif walker and (self.fishing or self._fishing_prompt(walker)):
             prompt = self._fishing_prompt(walker)
         elif walker and walker.can_enter(car):

@@ -2,29 +2,29 @@
   "version": 3,
   "mode": "walk",
   "car": {
-    "x": 12968.0,
-    "y": 15668.0,
+    "x": 6440.0,
+    "y": 24982.0,
     "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
         "level": 4,
-        "mastery": 10,
+        "mastery": 38,
         "completed": {
-          "delivery": 4,
-          "speed": 8,
-          "drag": 13
+          "delivery": 5,
+          "speed": 10,
+          "drag": 16
         },
         "races": 4
       },
       "jungle": {
-        "level": 2,
-        "mastery": 4,
+        "level": 3,
+        "mastery": 10,
         "completed": {
           "delivery": 0,
-          "speed": 0,
-          "drag": 3
+          "speed": 1,
+          "drag": 4
         },
         "races": 1
       },
@@ -39,14 +39,14 @@
         "races": 0
       },
       "snow": {
-        "level": 1,
-        "mastery": 1,
+        "level": 2,
+        "mastery": 8,
         "completed": {
           "delivery": 0,
           "speed": 0,
           "drag": 0
         },
-        "races": 0
+        "races": 1
       },
       "rural": {
         "level": 1,
@@ -59,25 +59,25 @@
         "races": 0
       }
     },
-    "counter": 39,
+    "counter": 48,
     "offers": {
-      "city-delivery": {
-        "type": "delivery",
-        "scale": 0.833,
-        "target": [
-          9995.343855302515,
-          7147.539039052919
-        ],
-        "track": null,
-        "seed": 664414652,
+      "city-drag": {
+        "type": "drag",
+        "scale": 1.0,
+        "target": null,
+        "track": {
+          "kind": "straight",
+          "theme": "city"
+        },
+        "seed": 219943959,
         "levels": {
-          "city": 3,
-          "jungle": 1,
+          "city": 4,
+          "jungle": 3,
           "desert": 1,
-          "snow": 1,
+          "snow": 2,
           "rural": 1
         },
-        "rating": null,
+        "rating": 133,
         "declines": 0
       }
     },
@@ -89,17 +89,20 @@
         "epic": 0
       },
       "caught": {
-        "common": 7,
-        "uncommon": 1,
-        "rare": 0,
+        "common": 29,
+        "uncommon": 7,
+        "rare": 1,
         "epic": 0
       }
     },
-    "unspent_mastery": 0
+    "unspent_mastery": 0,
+    "arcade": {
+      "lane_dodge": 39
+    }
   },
   "walker": {
-    "x": 12928.0,
-    "y": 15638.0,
+    "x": 6400.0,
+    "y": 24982.0,
     "heading": 0.0
   }
 }

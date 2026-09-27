@@ -24,6 +24,12 @@ SURFACES = {
     "island": (0.90, 155), "track": (1.0, TOP_SPEED),
 }
 OFF_SURFACE = (0.75, 110)
+# Ice (the snow region's icy roads and the snow race tracks): the car keeps sliding the
+# way it was going and only gradually follows where it points. Traction is how fast the
+# direction of travel catches up with the heading (per second); sliding sideways scrubs
+# a little speed. Rivals slip less (see drag_race.RIVAL_ICE_*).
+ICE_TRACTION = 1.8
+ICE_SCRUB = 0.9
 CRASH_SPEED = 40.0         # A hit that stops the car from above this counts as a crash.
 RESPAWN_STEP = 8        # Search ring spacing in pixels.
 RESPAWN_CLEARANCE = 16  # Extra width and length so the car is not left wedged.
@@ -36,6 +42,7 @@ class Car:
     heading: float = 0.0  # Degrees clockwise from north.
     speed: float = 0.0
     crashed: bool = False
+    travel: float | None = None  # Direction of motion; differs from heading while sliding on ice.
 
     def reset(self):
         self.x, self.y, self.heading, self.speed = START_X, START_Y, 0.0, 0.0
@@ -59,8 +66,8 @@ class Car:
         return [self.x if x is None else x, self.y if y is None else y,
                 255, 255, 255, 255, 0, 24, 44, -self.heading]
 
-    def update(self, dt: float, throttle: int, steer: int, handbrake: bool,
-               world, collisions, speed_scale: float = 1.0):
+    def update(self, dt: float, throttle: int, steer: int, world, collisions,
+               speed_scale: float = 1.0):
         """Drive one step. speed_scale multiplies top speed (region level upgrades).
 
         Sets self.crashed when a collision stops the car from above CRASH_SPEED.
@@ -76,22 +83,29 @@ class Car:
         elif throttle < 0:
             self.speed -= (BRAKING if self.speed > 0 else REVERSE_ACCELERATION) * grip * dt
         else:
-            drag = (180 if handbrake else 95) * dt
+            drag = 95 * dt
             self.speed = math.copysign(max(0.0, abs(self.speed) - drag), self.speed)
         self.speed = max(-80 * grip, min(max_speed, self.speed))
 
         if steer and abs(self.speed) > 4:
             turn = 135 * grip * min(1.0, abs(self.speed) / 130)
-            if handbrake:
-                turn *= 1.45
-                self.speed *= max(0.0, 1 - 1.2 * dt)
             self.heading = (self.heading + steer * turn * dt *
                             (1 if self.speed > 0 else -1)) % 360
+
+        # Where the car actually goes: the way it points, except on ice, where the
+        # direction of travel lags behind the heading (a slide), scrubbing some speed.
+        is_ice = getattr(world, "is_ice", None)
+        if self.travel is None or abs(self.speed) < 1 or not (is_ice and is_ice(self.x, self.y)):
+            self.travel = self.heading
+        else:
+            slide = (self.heading - self.travel + 540) % 360 - 180
+            self.travel = (self.travel + slide * min(1.0, ICE_TRACTION * dt)) % 360
+            self.speed *= max(0.0, 1 - ICE_SCRUB * abs(math.sin(math.radians(slide))) * dt)
 
         distance = self.speed * dt
         if not distance:
             return
-        direction = math.radians(self.heading)
+        direction = math.radians(self.travel)
         dx, dy = math.sin(direction) * distance, -math.cos(direction) * distance
         steps = max(1, math.ceil(abs(distance) / 12))
         for _ in range(steps):

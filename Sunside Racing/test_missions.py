@@ -392,7 +392,7 @@ class DragRaceTests(unittest.TestCase):
         race = DragRace(track, scale, 1.0, 3)
         for _ in range(60 * 120):
             throttle, steer = drive(race)
-            race.update(1 / 60, throttle, steer, False)
+            race.update(1 / 60, throttle, steer)
             if race.result:
                 return race
         self.fail("race never finished")
@@ -412,7 +412,7 @@ class DragRaceTests(unittest.TestCase):
         for player, result in ((120, "lose"), (129, "lose"), (131, "win")):
             race = DragRace(straight, None, rating_speed(player), 1, rival_rating=131, rival_off_day=0.0)
             for _ in range(60 * 60):
-                race.update(1 / 60, 1, 0, False)
+                race.update(1 / 60, 1, 0)
                 if race.result:
                     break
             self.assertEqual(race.result, result, player)
@@ -448,10 +448,10 @@ class DragRaceTests(unittest.TestCase):
         car = race.car
         race.rival.x, race.rival.y, race.rival.heading = car.x + 45, car.y, car.heading  # Nose to tail.
         car.speed = 150.0
-        race.update(1 / 60, 1, 0, False)
+        race.update(1 / 60, 1, 0)
         self.assertEqual(car.speed, RIVAL_BUMP_SPEED)
         car.speed = 150.0
-        race.update(1 / 60, 0, 0, False)                   # Off the throttle: a dead stop.
+        race.update(1 / 60, 0, 0)                   # Off the throttle: a dead stop.
         self.assertEqual(car.speed, 0.0)
         race = DragRace(straight, None, 1.0, 3, rival_rating=100, rival_off_day=0.0)
         race.clock, race.rival.reaction = 0.0, 1e9
@@ -460,7 +460,7 @@ class DragRaceTests(unittest.TestCase):
         stopped = False
         for _ in range(120):
             before = car.speed
-            race.update(1 / 60, 1, 0, False)
+            race.update(1 / 60, 1, 0)
             if before > 0 and car.speed == 0:
                 stopped = True
                 break

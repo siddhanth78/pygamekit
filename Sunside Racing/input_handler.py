@@ -61,7 +61,7 @@ class InputHandler:
             bool(keys & {pygame.K_s, pygame.K_DOWN}))
         steer = int(bool(keys & {pygame.K_d, pygame.K_RIGHT})) - int(
             bool(keys & {pygame.K_a, pygame.K_LEFT}))
-        return throttle, steer, pygame.K_SPACE in keys
+        return throttle, steer
 
     def walking(self):
         """On foot, keys move in screen directions: W/Up is north, D/Right is east."""

@@ -1179,3 +1179,132 @@ Veterans out in the regions (2026-09-27, built)
   unlocks (no "Lvl 4").
 - Tests: veterans spread and stable, badges while locked, locked panel then
   an offer at level 5, 15 veteran landmarks and their color. 163 passing.
+
+Player's house, driveway, and arcade (2026-09-27, built)
+- House: the corner lot of city sector (21, 31) on the city's west edge
+  (world.HOME_SECTOR; a quiet spot no pedestrian block covers). The
+  structure-atlas "player_house" (gabled roof, chimney, front door on the east
+  wall) replaces the city building there. East of it, a private concrete
+  driveway (terrain "driveway", 2 tiles) opens onto the road; only the
+  player's car ever parks there. world_save GENERATOR_VERSION 6 regenerates
+  cached sectors (identical elsewhere).
+- Every launch opens at home: in the car on the driveway, nose to the road
+  (world.HOME_PARK). The save still keeps progress, fish, points, offers, and
+  arcade scores, but no longer resumes the last position. Pause menu GO HOME
+  (above EXIT, hidden while a mission or race is under way) does the same.
+- Inside (home.HomeInterior, its own small level; the city pauses outside):
+  E at the front door (world.HOME_DOOR) goes in (not during a mission) and the
+  inside door brings you back out. Wood floors, a living room (couch facing the
+  TV, coffee table, rug, floor lamp, bookshelf, dining table with two chairs,
+  arcade cabinet, plants) and a bedroom through a doorway (bed, nightstand
+  lamp, wardrobe, plant). Couch and chairs: sit (player_sit); bed: sleep
+  (player_lie, "Sleeping... Zzz"); moving or E gets up. Lamps toggle. TV: "The
+  TV is off." Bookshelf, wardrobe, plant: short remarks. R unsticks inside;
+  T and Q do nothing inside.
+- Arcade (arcade.ArcadeCabinet): a 3-game menu. Lane Dodge is playable (three
+  lanes, falling cones speed up, one hit ends the run, best score saved as
+  missions.arcade). Games 2 and 3 show "LOCKED  ·  Unlocks later"; their unlock
+  rules go in ArcadeCabinet.unlocked (open decision).
+- Art: player_house; terrain driveway, floor_wood, floor_bedroom, wall,
+  wall_door, wall_window (terrain-atlas is now full, 40/40); new home-atlas
+  (couch, tv, arcade, bed, lamp_off/on, dining_table, chair, coffee_table,
+  bookshelf, rug, plant, wardrobe, nightstand), drawn before people; player_sit
+  and player_lie poses.
+- Tests: test_home.py (house and driveway in the world, the car pulls out
+  onto the road, door reachable, every interior spot reachable, walls hold,
+  bedroom reachable, lamps, sprites, Lane Dodge rules) and real-key flows
+  (launch at home, in and out, sit/sleep/lamp/TV, arcade best score saved, GO
+  HOME). Reload tests now expect home. 177 passing.
+
+House parking lot redo (2026-09-27, built)
+- User: the concrete driveway looked bad; wanted a two-slot version of the
+  public parking lots. The driveway tiles are gone (terrain "driveway" art
+  removed). The home lot is one parking_lot tile (world.HOME_LOT_TILE, local
+  (3, 1)) east of the house: two painted stalls in its top half, the aisle in
+  its bottom half opening onto the road. Only the player's car parks there,
+  backed into the west stall (world.HOME_PARK, heading 180) the way public
+  cars park, nose to the aisle: drive forward, then turn onto the road. The
+  east stall stays empty; getting out lands in it, not on the road.
+  GENERATOR_VERSION 7.
+- Fixed: the car's sprite now takes its parked heading on the first frame
+  (getting straight out used to leave it drawn facing north).
+- Tests: one lot tile with the car in the west stall, forward into the aisle
+  and out onto the road, getting out off the road, the drawn heading. 177
+  passing.
+
+Lane Dodge fairness fix (2026-09-27, built)
+- User: couldn't pass score ~6; no time for two taps from one edge lane to
+  the other. Cause: rows were spaced a fixed 150-260 px while the speed kept
+  rising, so the gap between rows at the car shrank to ~0.2 s.
+- Now rows are spaced in time (arcade.CLEAR_TIME = 0.6-0.95 s between one row
+  leaving the car and the next arriving, at any speed; the pixel gap grows with
+  speed). Speed-up and the one-hit rule are unchanged.
+- Measured with a simulated human-paced player (0.25 s reaction, a tap every
+  0.12 s at most): old spacing crashed at 13-59 s; new spacing survives 3 min
+  at top speed (scores 235-272). Test: the window between rows stays above
+  0.48 s up to top speed. 178 passing.
+
+Home lot faces up (2026-09-27, built)
+- User QoL: drive up out of the home lot. New terrain tile "home_lot" (the
+  public lot art redrawn with its two stalls along the bottom and the aisle
+  along the top; the only other change). The car parks in the west stall
+  facing up (world.HOME_PARK heading 0): press Up to pull out, then turn
+  onto the road. GENERATOR_VERSION 8. The terrain sheet is full again (40/40).
+- Getting out now lands on the house side, so E prefers getting back in the
+  car while it's in reach; the door spot (world.HOME_DOOR) moved a little
+  south along the east wall, out of the car's reach, where "E Go inside"
+  shows. 179 passing.
+
+No handbrake; ice is slippery (2026-09-27, built)
+- Space no longer brakes or sharpens turns: InputHandler.driving returns
+  (throttle, steer), Car.update and DragRace.update lost the handbrake
+  argument. Space stays confirm and fishing strike (help updated).
+- Ice = the snow region's icy roads (World.is_ice) and snow race tracks
+  (TrackLevel.is_ice). Snow powder off-road is unchanged. On ice the car's
+  direction of travel lags its heading (car.ICE_TRACTION = 1.8/s) and sliding
+  sideways scrubs speed (ICE_SCRUB = 0.9). Measured: a 0.67 s hard turn at
+  speed ends still sliding 26 degrees behind, at 128 vs 170 px/s on the road.
+- Rivals slide less (drag_race.RIVAL_ICE_*): they swing up to 18 px wide of
+  their line in corners (measured 11-13 px), angle into the slide, and scrub
+  a little speed (0.35), never leaving the track. Their snow race times grow
+  0.2-2.9%. Rival calibration is unchanged, so snow races will feel harder
+  for the player than their rating label says (open: re-tune if so).
+- Tests: test_ice.py (slide and grip, catching up, player slides farther than
+  any rival drift, which tiles are ice, rivals drift on snow only and stay on
+  the track, no handbrake). 186 passing.
+
+Snow rivals slip like the player (2026-09-27, built)
+- Supersedes "Rivals slide less" above. Rivals now use the player's ice
+  physics (car.ICE_TRACTION and car.ICE_SCRUB): on ice their travel lags the
+  nose and sliding scrubs speed. They also steer no faster than the player
+  can on snow (135 x grip deg/s at speed). The sideways part of the slide
+  carries them off their line (drift, relative to the line), which they
+  recover at RIVAL_ICE_RECOVER = 1.2/s, clamped so they never leave the
+  track. Measured on snow center races 1/3/5/8/10: slides up to 31-39
+  degrees, up to 52-129 px off the line; time +0.8%, +2.1%, +3.1%, +12.5%,
+  +27.3% vs dry.
+- Rating assumption: with identical physics, the player's clean lap on ice
+  loses the same share of time as the rival, so labels stay as fair as on
+  dry tracks. The center-race calibration test now applies the rival's own
+  ice/dry ratio to the clean-lap model on snow. Rival calibration itself is
+  unchanged. Open: if snow still feels off in play, tune ICE_TRACTION (both
+  cars) or re-calibrate snow rivals on ice.
+- Tests: rivals slide at least as much as the player's hard turn, stay on the
+  track, share the player's ice constants; no slide on other tracks. 186
+  passing.
+
+Smooth rival slides on ice (2026-09-27, built)
+- User: rivals visibly jumped on ice. Measured before: up to 105 px in one
+  frame (races 8 and 10 worst), from two causes: the off-track clamp snapped
+  them back, and the slide was stored relative to the line so it swung round
+  at every corner.
+- Now rivals steer sharper than the player on ice (RIVAL_ICE_STEER = 2.5 x
+  the player's rate) with the same ice traction and scrub. The slide is a
+  world-space offset that builds and fades smoothly, held at RIVAL_ICE_ROOM
+  = 72 px, and eased back in at most RIVAL_ICE_EASE = 3 px a frame near the
+  track's edge.
+- Measured on snow races 1/3/5/8/10: no frame moves more than 2.8 px beyond
+  the rival's speed (was up to 105); 38-72 px off the line; one frame off the
+  track in race 10; time +1.9/+3.5/+7.1/+12.7/+27.4% vs dry.
+- Tests: no jumps on races 1, 5, 10 and the offset stays within the room.
+  187 passing.

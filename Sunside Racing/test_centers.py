@@ -79,9 +79,16 @@ class RivalTests(unittest.TestCase):
                 race = center_race(region, number)
                 seconds = rival_time(race)
                 rated = RIVAL_RATINGS[number - 1]
+                # On ice both cars slide under the same physics, so the player's clean lap
+                # loses the same share of time the rival does there.
+                ice = 1.0
+                if region == "snow":
+                    dry = center_race(region, number)
+                    dry.level.is_ice = lambda x, y: False
+                    ice = seconds / rival_time(dry)
                 # A clean human lap (CLEAN_LAP off the flat-out model) 10 below always wins,
                 # 20 below never does (running wide at half the corners costs rivals < 10 points).
-                clean = lambda rated: flawless_time(race.level, multiplier=rating_speed(rated)) * CLEAN_LAP
+                clean = lambda rated: flawless_time(race.level, multiplier=rating_speed(rated)) * CLEAN_LAP * ice
                 self.assertLess(clean(rated - 10), seconds, (region, number))
                 self.assertGreater(clean(rated - 20), seconds, (region, number))
         self.assertEqual(rival("snow", 10)[0], "The Glacier")

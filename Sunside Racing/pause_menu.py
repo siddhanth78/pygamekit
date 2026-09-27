@@ -16,7 +16,7 @@ CONTROLS = (
     ("W  /  UP", "Accelerate  ·  walk north"),
     ("S  /  DOWN", "Brake, reverse  ·  walk south"),
     ("A  D  /  LEFT  RIGHT", "Steer  ·  walk west, east"),
-    ("SPACE", "Handbrake  ·  strike a hooked fish"),
+    ("SPACE", "Confirm  ·  strike a hooked fish"),
     ("SHIFT", "Run while on foot"),
     ("E", "Get in/out  ·  talk  ·  fish  ·  trade"),
     ("Q", "Call your car (on foot)"),
@@ -37,6 +37,7 @@ LABELS = {
     "exit": ("EXIT", 36, True, "center"),
     "back": ("BACK", 36, True, "center"),
     "spend": ("SPEND POINTS", 32, True, "center"),
+    "home": ("GO HOME", 36, True, "center"),
     "docks_title": ("CHOOSE A PIER", 52, True, "center"),
     **{f"dock:{name}": (f"PIER {PIERS[name][0]}  ·  {name.upper()}", 30, True, "center")
        for name, _, _ in DOCK_SITES},
@@ -168,9 +169,11 @@ class PauseMenu:
                          if row["travel"] == "ready") + spend + ("back",)
         if self.page == "main":
             # While a mission or race is under way, offer to abandon it under Resume.
-            ongoing = {"mission": ("abort",), "race": ("quit_race",)}.get(
-                getattr(self, "ongoing", None), ())
-            return PAGES["main"][:1] + ongoing + PAGES["main"][1:]
+            # GO HOME (above EXIT) only when nothing is under way, since it would abandon it.
+            ongoing = getattr(self, "ongoing", None)
+            give_up = {"mission": ("abort",), "race": ("quit_race",)}.get(ongoing, ())
+            home = () if ongoing else ("home",)
+            return PAGES["main"][:1] + give_up + PAGES["main"][1:-1] + home + PAGES["main"][-1:]
         return PAGES[self.page]
 
     def set_ongoing(self, kind):

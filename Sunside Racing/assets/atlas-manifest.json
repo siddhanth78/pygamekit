@@ -249,6 +249,48 @@
             0
           ],
           "source_row": 4
+        },
+        "home_lot": {
+          "tile": [
+            2,
+            0
+          ],
+          "source_row": 4
+        },
+        "floor_wood": {
+          "tile": [
+            3,
+            0
+          ],
+          "source_row": 4
+        },
+        "floor_bedroom": {
+          "tile": [
+            4,
+            0
+          ],
+          "source_row": 4
+        },
+        "wall": {
+          "tile": [
+            5,
+            0
+          ],
+          "source_row": 4
+        },
+        "wall_door": {
+          "tile": [
+            6,
+            0
+          ],
+          "source_row": 4
+        },
+        "wall_window": {
+          "tile": [
+            7,
+            0
+          ],
+          "source_row": 4
         }
       }
     },
@@ -674,121 +716,128 @@
       "cell_px": 96,
       "atlas_grid": [
         4,
-        4
+        5
       ],
       "tile_origin": "bottom-left, as used by shaders/tex.frag",
       "sprites": {
         "city_apartment_red": {
           "tile": [
             0,
-            3
+            4
           ],
           "source_row": 0
         },
         "city_apartment_blue": {
           "tile": [
             1,
-            3
+            4
           ],
           "source_row": 0
         },
         "city_office_tower": {
           "tile": [
             2,
-            3
+            4
           ],
           "source_row": 0
         },
         "city_office_low": {
           "tile": [
             3,
-            3
+            4
           ],
           "source_row": 0
         },
         "city_shop_red": {
           "tile": [
             0,
-            2
+            3
           ],
           "source_row": 1
         },
         "city_shop_blue": {
           "tile": [
             1,
-            2
+            3
           ],
           "source_row": 1
         },
         "city_warehouse": {
           "tile": [
             2,
-            2
+            3
           ],
           "source_row": 1
         },
         "city_parking_deck": {
           "tile": [
             3,
-            2
+            3
           ],
           "source_row": 1
         },
         "center_city": {
           "tile": [
             0,
-            1
+            2
           ],
           "source_row": 2
         },
         "center_jungle": {
           "tile": [
             1,
-            1
+            2
           ],
           "source_row": 2
         },
         "center_desert": {
           "tile": [
             2,
-            1
+            2
           ],
           "source_row": 2
         },
         "center_snow": {
           "tile": [
             3,
-            1
+            2
           ],
           "source_row": 2
         },
         "center_rural": {
           "tile": [
             0,
-            0
+            1
           ],
           "source_row": 3
         },
         "center_island": {
           "tile": [
             1,
-            0
+            1
           ],
           "source_row": 3
         },
         "rural_barn": {
           "tile": [
             2,
-            0
+            1
           ],
           "source_row": 3
         },
         "beach_ferry_dock": {
           "tile": [
             3,
-            0
+            1
           ],
           "source_row": 3
+        },
+        "player_house": {
+          "tile": [
+            0,
+            0
+          ],
+          "source_row": 4
         }
       }
     },
@@ -1076,597 +1125,611 @@
       "cell_px": 32,
       "atlas_grid": [
         12,
-        7
+        8
       ],
       "tile_origin": "bottom-left, as used by shaders/tex.frag",
       "sprites": {
         "player_idle": {
           "tile": [
             0,
-            6
+            7
           ],
           "source_row": 0
         },
         "player_walk_a": {
           "tile": [
             1,
-            6
+            7
           ],
           "source_row": 0
         },
         "player_walk_b": {
           "tile": [
             2,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_a_idle": {
           "tile": [
             3,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_a_walk_a": {
           "tile": [
             4,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_a_walk_b": {
           "tile": [
             5,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_b_idle": {
           "tile": [
             6,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_b_walk_a": {
           "tile": [
             7,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_b_walk_b": {
           "tile": [
             8,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_c_idle": {
           "tile": [
             9,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_c_walk_a": {
           "tile": [
             10,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_c_walk_b": {
           "tile": [
             11,
-            6
+            7
           ],
           "source_row": 0
         },
         "city_d_idle": {
           "tile": [
             0,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_d_walk_a": {
           "tile": [
             1,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_d_walk_b": {
           "tile": [
             2,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_e_idle": {
           "tile": [
             3,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_e_walk_a": {
           "tile": [
             4,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_e_walk_b": {
           "tile": [
             5,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_f_idle": {
           "tile": [
             6,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_f_walk_a": {
           "tile": [
             7,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_f_walk_b": {
           "tile": [
             8,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_g_idle": {
           "tile": [
             9,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_g_walk_a": {
           "tile": [
             10,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_g_walk_b": {
           "tile": [
             11,
-            5
+            6
           ],
           "source_row": 1
         },
         "city_h_idle": {
           "tile": [
             0,
-            4
+            5
           ],
           "source_row": 2
         },
         "city_h_walk_a": {
           "tile": [
             1,
-            4
+            5
           ],
           "source_row": 2
         },
         "city_h_walk_b": {
           "tile": [
             2,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_a_idle": {
           "tile": [
             3,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_a_walk_a": {
           "tile": [
             4,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_a_walk_b": {
           "tile": [
             5,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_b_idle": {
           "tile": [
             6,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_b_walk_a": {
           "tile": [
             7,
-            4
+            5
           ],
           "source_row": 2
         },
         "farmer_b_walk_b": {
           "tile": [
             8,
-            4
+            5
           ],
           "source_row": 2
         },
         "snow_a_idle": {
           "tile": [
             9,
-            4
+            5
           ],
           "source_row": 2
         },
         "snow_a_walk_a": {
           "tile": [
             10,
-            4
+            5
           ],
           "source_row": 2
         },
         "snow_a_walk_b": {
           "tile": [
             11,
-            4
+            5
           ],
           "source_row": 2
         },
         "snow_b_idle": {
           "tile": [
             0,
-            3
+            4
           ],
           "source_row": 3
         },
         "snow_b_walk_a": {
           "tile": [
             1,
-            3
+            4
           ],
           "source_row": 3
         },
         "snow_b_walk_b": {
           "tile": [
             2,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_a_idle": {
           "tile": [
             3,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_a_walk_a": {
           "tile": [
             4,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_a_walk_b": {
           "tile": [
             5,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_b_idle": {
           "tile": [
             6,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_b_walk_a": {
           "tile": [
             7,
-            3
+            4
           ],
           "source_row": 3
         },
         "nomad_b_walk_b": {
           "tile": [
             8,
-            3
+            4
           ],
           "source_row": 3
         },
         "explorer_a_idle": {
           "tile": [
             9,
-            3
+            4
           ],
           "source_row": 3
         },
         "explorer_a_walk_a": {
           "tile": [
             10,
-            3
+            4
           ],
           "source_row": 3
         },
         "explorer_a_walk_b": {
           "tile": [
             11,
-            3
+            4
           ],
           "source_row": 3
         },
         "explorer_b_idle": {
           "tile": [
             0,
-            2
+            3
           ],
           "source_row": 4
         },
         "explorer_b_walk_a": {
           "tile": [
             1,
-            2
+            3
           ],
           "source_row": 4
         },
         "explorer_b_walk_b": {
           "tile": [
             2,
-            2
+            3
           ],
           "source_row": 4
         },
         "fish_trader_idle": {
           "tile": [
             3,
-            2
+            3
           ],
           "source_row": 4
         },
         "fish_trader_walk_a": {
           "tile": [
             4,
-            2
+            3
           ],
           "source_row": 4
         },
         "fish_trader_walk_b": {
           "tile": [
             5,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_a_idle": {
           "tile": [
             6,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_a_walk_a": {
           "tile": [
             7,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_a_walk_b": {
           "tile": [
             8,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_b_idle": {
           "tile": [
             9,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_b_walk_a": {
           "tile": [
             10,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_b_walk_b": {
           "tile": [
             11,
-            2
+            3
           ],
           "source_row": 4
         },
         "beach_c_idle": {
           "tile": [
             0,
-            1
+            2
           ],
           "source_row": 5
         },
         "beach_c_walk_a": {
           "tile": [
             1,
-            1
+            2
           ],
           "source_row": 5
         },
         "beach_c_walk_b": {
           "tile": [
             2,
-            1
+            2
           ],
           "source_row": 5
         },
         "beach_d_idle": {
           "tile": [
             3,
-            1
+            2
           ],
           "source_row": 5
         },
         "beach_d_walk_a": {
           "tile": [
             4,
-            1
+            2
           ],
           "source_row": 5
         },
         "beach_d_walk_b": {
           "tile": [
             5,
-            1
+            2
           ],
           "source_row": 5
         },
         "player_fish_cast": {
           "tile": [
             6,
-            1
+            2
           ],
           "source_row": 5
         },
         "player_fish_hold": {
           "tile": [
             7,
-            1
+            2
           ],
           "source_row": 5
         },
         "player_fish_reel": {
           "tile": [
             8,
-            1
+            2
           ],
           "source_row": 5
         },
         "fishing_bobber": {
           "tile": [
             9,
-            1
+            2
           ],
           "source_row": 5
         },
         "fishing_bobber_bite": {
           "tile": [
             10,
-            1
+            2
           ],
           "source_row": 5
         },
         "fish_common": {
           "tile": [
             11,
-            1
+            2
           ],
           "source_row": 5
         },
         "fish_uncommon": {
           "tile": [
             0,
-            0
+            1
           ],
           "source_row": 6
         },
         "fish_rare": {
           "tile": [
             1,
-            0
+            1
           ],
           "source_row": 6
         },
         "fish_epic": {
           "tile": [
             2,
-            0
+            1
           ],
           "source_row": 6
         },
         "fishing_line": {
           "tile": [
             3,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_a_lounge": {
           "tile": [
             4,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_a_lie": {
           "tile": [
             5,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_b_lounge": {
           "tile": [
             6,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_b_lie": {
           "tile": [
             7,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_c_lounge": {
           "tile": [
             8,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_c_lie": {
           "tile": [
             9,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_d_lounge": {
           "tile": [
             10,
-            0
+            1
           ],
           "source_row": 6
         },
         "beach_d_lie": {
           "tile": [
             11,
-            0
+            1
           ],
           "source_row": 6
+        },
+        "player_sit": {
+          "tile": [
+            0,
+            0
+          ],
+          "source_row": 7
+        },
+        "player_lie": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 7
         }
       }
     },
@@ -2086,6 +2149,116 @@
             0
           ],
           "source_row": 0
+        }
+      }
+    },
+    "home-atlas": {
+      "png": "home-atlas.png",
+      "bitmap": "../bitmap/home-atlas.json",
+      "cell_px": 64,
+      "atlas_grid": [
+        4,
+        4
+      ],
+      "tile_origin": "bottom-left, as used by shaders/tex.frag",
+      "sprites": {
+        "couch": {
+          "tile": [
+            0,
+            3
+          ],
+          "source_row": 0
+        },
+        "tv": {
+          "tile": [
+            1,
+            3
+          ],
+          "source_row": 0
+        },
+        "arcade": {
+          "tile": [
+            2,
+            3
+          ],
+          "source_row": 0
+        },
+        "bed": {
+          "tile": [
+            3,
+            3
+          ],
+          "source_row": 0
+        },
+        "lamp_off": {
+          "tile": [
+            0,
+            2
+          ],
+          "source_row": 1
+        },
+        "lamp_on": {
+          "tile": [
+            1,
+            2
+          ],
+          "source_row": 1
+        },
+        "dining_table": {
+          "tile": [
+            2,
+            2
+          ],
+          "source_row": 1
+        },
+        "chair": {
+          "tile": [
+            3,
+            2
+          ],
+          "source_row": 1
+        },
+        "coffee_table": {
+          "tile": [
+            0,
+            1
+          ],
+          "source_row": 2
+        },
+        "bookshelf": {
+          "tile": [
+            1,
+            1
+          ],
+          "source_row": 2
+        },
+        "rug": {
+          "tile": [
+            2,
+            1
+          ],
+          "source_row": 2
+        },
+        "plant": {
+          "tile": [
+            3,
+            1
+          ],
+          "source_row": 2
+        },
+        "wardrobe": {
+          "tile": [
+            0,
+            0
+          ],
+          "source_row": 3
+        },
+        "nightstand": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 3
         }
       }
     }
