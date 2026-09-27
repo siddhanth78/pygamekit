@@ -22,7 +22,7 @@ from world import CENTERS, SECTOR_SIZE, SECTORS, WORLD_SIZE
 
 CELL = 9                       # Screen px per sector: 64 sectors -> a 576 px map.
 DIAMOND = 16                   # Diamond size, px.
-PLAYER_DOT = (255, 128, 0)     # You: a bright orange dot, round where piers are diamonds.
+PLAYER_DOT = (60, 150, 255)    # You: a bright blue dot with a dark rim.
 DOT_RADIUS, DOT_RIM = 6, 3
 DOT_SIDES = 20
 REGION_COLORS = {
@@ -30,11 +30,11 @@ REGION_COLORS = {
     "jungle": (51, 115, 76), "desert": (214, 172, 104), "snow": (224, 237, 240),
     "rural": (138, 162, 83), "island": (113, 170, 107),
 }
-# Landmark kinds: (diamond color on the map, guide arrow color, legend text).
+# Landmark kinds: (color of both the map diamond and the guide arrow, legend text).
 KINDS = {
-    "center": ((212, 80, 66), (212, 80, 66), "Racing center"),
-    "dock": ((242, 150, 60), (70, 140, 220), "Fishing pier"),
-    "camp": ((236, 120, 170), (236, 120, 170), "Fish trader camp"),
+    "center": ((212, 80, 66), "Racing center"),
+    "dock": ((242, 150, 60), "Fishing pier"),
+    "camp": ((236, 120, 170), "Fish trader camp"),
 }
 PANEL = (20, 32, 40, 235)
 ACCENT = (242, 202, 87)
@@ -52,7 +52,7 @@ class Landmark:
 
     @property
     def arrow_color(self):
-        return KINDS[self.kind][1]
+        return KINDS[self.kind][0]
 
 
 def landmarks(world) -> list[Landmark]:
@@ -109,7 +109,7 @@ class WorldMap:
         self.hint = DynamicLabel(ctx, (700, 24), 18, align="center")
         self.hint.set("Click a diamond to set the guide  ·  C clear  ·  M close")
         self.legend = [DynamicLabel(ctx, (220, 26), 20, bold=True) for _ in range(len(KINDS) + 1)]
-        for label, text in zip(self.legend, ["You"] + [text for _, _, text in KINDS.values()]):
+        for label, text in zip(self.legend, ["You"] + [text for _, text in KINDS.values()]):
             label.set(text)
         # The player's dot: filled circles (convex polygons) drawn with the line program.
         self.line_program = load_program(ctx, str(shaders / "line.vert"), str(shaders / "line.frag"))
@@ -181,7 +181,7 @@ class WorldMap:
             rects.append(_rect(x, y, outline, outline, (255, 255, 255, 255) if chosen else (*INK, 255), 45.0))
             rects.append(_rect(x, y, DIAMOND, DIAMOND, (*KINDS[mark.kind][0], 255), 45.0))
         legend_x, legend_y = left - 250, height // 2 - 70
-        for i, (color, _, _) in enumerate(KINDS.values(), 1):
+        for i, (color, _) in enumerate(KINDS.values(), 1):
             rects.append(_rect(legend_x, legend_y + i * 40, DIAMOND + 4, DIAMOND + 4, (*INK, 255), 45.0))
             rects.append(_rect(legend_x, legend_y + i * 40, DIAMOND, DIAMOND, (*color, 255), 45.0))
         self._draw_rects(rects)

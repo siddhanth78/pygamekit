@@ -2,9 +2,9 @@
   "version": 3,
   "mode": "drive",
   "car": {
-    "x": 6577.2999859669235,
-    "y": 7280.404357814953,
-    "heading": 333.1598093556924
+    "x": 6501.245942533025,
+    "y": 7240.25881471409,
+    "heading": 328.0420066929226
   },
   "missions": {
     "progress": {
@@ -20,7 +20,7 @@
       },
       "jungle": {
         "level": 2,
-        "mastery": 0,
+        "mastery": 4,
         "completed": {
           "delivery": 0,
           "speed": 0,
@@ -102,7 +102,7 @@
     },
     "fish": {
       "bag": {
-        "common": 4,
+        "common": 0,
         "uncommon": 0,
         "rare": 0,
         "epic": 0

@@ -1141,7 +1141,7 @@ Beachgoers (2026-09-26, built)
 
 World map and landmark guide (2026-09-26, built)
 - M toggles a world map (world_map.WorldMap): every sector as a flat region
-  color, the player as a round orange dot (dark rim; "You" in the legend),
+  color, the player as a round blue dot (dark rim; "You" in the legend),
   and clickable landmark diamonds. The
   game pauses while it is open; Escape or M closes it; not available during
   races. A legend on the left; the hovered or selected landmark's name below.
@@ -1151,8 +1151,8 @@ World map and landmark guide (2026-09-26, built)
 - Clicking a diamond selects it as the guide; C (map open) clears it.
   Overlapping diamonds pick the one nearest the pointer.
 - Guide arrow: nothing is selected at launch and the selection is not saved,
-  so there is no arrow until one is picked. Colors: center red, camp pink,
-  pier blue. The top-left guide line shows "<landmark> · <distance> <dir>".
+  so there is no arrow until one is picked. The arrow matches its diamond:
+  center red, pier orange, camp pink. The top-left guide line shows "<landmark> · <distance> <dir>".
   During an in-world mission the arrow still points at the mission target in
   yellow; the landmark arrow returns afterwards. With nothing selected and no
   mission, the guide line still names the nearest racing center (text only).

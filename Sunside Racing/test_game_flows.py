@@ -311,7 +311,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertFalse(g.world_map.open)
         g.render()
         self.assertEqual(drawn[-1][:2], (dock.x, dock.y))
-        self.assertEqual(drawn[-1][-1], (70, 140, 220))              # Piers: blue arrow.
+        self.assertEqual(drawn[-1][-1], (242, 150, 60))              # Piers: orange, like the diamond.
         self.press(pygame.K_m, pygame.K_c, pygame.K_ESCAPE)          # Clear, then Esc closes.
         self.assertIsNone(g.guide_to)
         self.assertFalse(g.world_map.open)
@@ -327,9 +327,10 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(kinds.count("center"), 6)
         self.assertEqual(kinds.count("dock"), 3)
         self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
-        self.assertEqual({k: v[1] for k, v in KINDS.items()},
-                         {"center": (212, 80, 66), "dock": (70, 140, 220), "camp": (236, 120, 170)})
-        self.assertEqual({k: v[0] for k, v in KINDS.items()}["dock"], (242, 150, 60))   # Orange on the map.
+        self.assertEqual({k: v[0] for k, v in KINDS.items()},
+                         {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170)})
+        for mark in g.landmarks:                                      # Arrow matches the diamond.
+            self.assertEqual(mark.arrow_color, KINDS[mark.kind][0])
         g.world_map.toggle()
         camp = next(m for m in g.landmarks if m.kind == "camp")
         g.handle("pointer", g.world_map.to_screen(camp.x, camp.y))
