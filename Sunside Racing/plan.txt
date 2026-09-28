@@ -2060,3 +2060,21 @@ Tow Train, arcade game 3 (built, 2026-09-28)
   chain end it, the one-time unlock (not in the inventory, saved, refused
   again), and the stand is reachable. 273 passing.
 
+Unity port (future; agreed idea, not started)
+- User: after the island is complete, the game may be rebuilt in Unity (with
+  Unity MCP). Not a line-for-line translation: the same game and gameplay
+  mechanics, using the existing assets (no new assets generated).
+- Deliverable when it starts: one plan per component, each saved as its own
+  file, each naming exactly which existing assets it uses. Components (draft):
+  driving and walking (car feel, surfaces, ice, camera), the world and map
+  (regions, roads, highway, landmarks, guide), progression (mastery, levels,
+  ratings, unlocks, fast travel, saves), missions and races (givers,
+  veterans, racing centers, rivals), fishing and trading, the store,
+  inventory, and orders, the farm (house, plot, animals, buyers), the Snow
+  Fair (booths, rides, tickets, F1 prize), the Mining Factory (depot, stone
+  machine, market, dock), the home and arcade (Lane Dodge, Pit Stop, Tow
+  Train), the island, and the UI (HUD, menus, popups).
+- Open when it starts: 2D or 3D and the camera; the Unity version and render
+  pipeline.
+- Order: finish the island first.
+
