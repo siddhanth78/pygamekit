@@ -2,7 +2,8 @@
 tournaments), two lanes of four rows behind the line.
 
 Each AI is a rated Rival (drag_race): it drives exactly like a car of its rating on the
-racing line, cutting half the corners. The race ends when the player finishes (everyone
+racing line, cutting half the corners. The player drives through the other racers (no
+car-to-car collisions); walls and tire stacks still stop them. The race ends when the player finishes (everyone
 still on track is behind them) or when all seven AIs have finished (the player is last).
 Finishing order: finished cars by time, then everyone else by distance covered.
 """
@@ -15,8 +16,7 @@ from dataclasses import dataclass
 
 from car import Car
 from collision_manager import CollisionManager
-from drag_race import (CLEAN_LAP, COUNTDOWN, RIVAL_BUMP_SPEED, RIVAL_CUT, TrackLevel, Rival, calibrated_corner,
-                       flawless_time)
+from drag_race import CLEAN_LAP, COUNTDOWN, RIVAL_CUT, TrackLevel, Rival, calibrated_corner, flawless_time
 from progression import RATING_EDGE, rating_speed
 from track_gen import generate
 from world import TILE_SIZE
@@ -26,6 +26,10 @@ ROWS, LANES = 4, (-1, 1)
 ROW_GAP = 0.95                 # Tiles between grid rows (a start straight has 4 tiles behind the line).
 FIRST_ROW = 1.0
 PLAYER_SLOT = 4                # Third row, left lane.
+# The grid alternates like a chessboard (slots front row first, left then right):
+#   row 1: teammate, opponent   row 2: opponent, teammate
+#   row 3: player,   opponent   row 4: opponent, teammate
+TEAM_SLOTS = {"home": (0, 3, 7), "away": (1, 2, 5, 6)}
 
 
 @dataclass
@@ -51,9 +55,16 @@ def grid_slots(level: TrackLevel):
     return slots
 
 
+# On ice, tournament racers slide more than one-on-one rivals: they steer a little
+# softer, drift further off their line, and take longer to recover (about 40 px off the
+# line on average, against 25). The room still keeps them on the 3-tile track.
+TOURNEY_ICE = {"ice_steer": 1.6, "ice_recover": 0.6, "ice_room": 84}
+
+
 def rated_rival(level: TrackLevel, rating: float, seed: int, sprite: str, start) -> Rival:
     """A rival that drives like a car of `rating` (see DragRace._rated_rival)."""
-    rival = Rival(level, 1.0, random.Random(seed), sprite, RIVAL_CUT, wide_misses=True, start=start)
+    rival = Rival(level, 1.0, random.Random(seed), sprite, RIVAL_CUT, wide_misses=True, start=start,
+                  **TOURNEY_ICE)
     rival.rate(rating_speed(rating), math.inf)
     target = flawless_time(level, multiplier=rating_speed(rating - RATING_EDGE)) * CLEAN_LAP * 1.005
     rival.rate(rating_speed(rating), calibrated_corner(rival, target))
@@ -70,11 +81,22 @@ class GridRace:
         self.speed_scale = speed_scale
         self.entrants = entrants
         slots = grid_slots(self.level)
-        order = list(range(len(slots)))
-        order.remove(PLAYER_SLOT)
         self.car = Car(*slots[PLAYER_SLOT][:2], heading=slots[PLAYER_SLOT][2], f1=f1)
+        # Each team fills its own squares of the chessboard, in a random order.
+        free = {team: rng.sample(TEAM_SLOTS[team], len(TEAM_SLOTS[team])) for team in TEAM_SLOTS}
+        taken = {PLAYER_SLOT}
+        self.slots = []
+        for e in entrants:
+            own = [s for s in free.get(e.team, []) if s not in taken]
+            if not own:                              # A team with more cars than squares:
+                reserved = {s for team in free.values() for s in team}
+                own = ([s for s in range(len(slots)) if s not in taken | reserved]
+                       or [s for s in range(len(slots)) if s not in taken])
+            slot = own[-1]
+            taken.add(slot)
+            self.slots.append(slot)
         self.rivals = [rated_rival(self.level, e.rating, rng.randrange(1 << 30), e.sprite, slots[slot])
-                       for e, slot in zip(entrants, order)]
+                       for e, slot in zip(entrants, self.slots)]
         self.collisions = CollisionManager(None, self.level)
         self.clock = -COUNTDOWN
         self.player_progress = self.level.progress_of(self.car.x, self.car.y, -2 * TILE_SIZE)
@@ -94,11 +116,10 @@ class GridRace:
         self.clock += dt
         if self.clock < 0:
             return
-        self.collisions.fixed = [r.sprite() for r in self.rivals]
-        before = self.car.speed
+        # The other seven racers are ghosts to the player (eight cars on a 3-tile track is
+        # a pileup): only the track's walls and tire stacks stop the car.
+        self.collisions.fixed = []
         self.car.update(dt, throttle, steer, self.level, self.collisions, self.speed_scale)
-        if throttle > 0 and before > 0 and self.car.speed == 0:
-            self.car.speed = min(before, RIVAL_BUMP_SPEED)    # Bumping a racer keeps a little way.
         length = self.level.race_length
         for i, rival in enumerate(self.rivals):
             rival.update(dt, self.clock)

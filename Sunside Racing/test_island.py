@@ -73,11 +73,31 @@ class TournamentTests(unittest.TestCase):
             entrants = tour.entrants(progress)
             self.assertEqual([e.team for e in entrants].count("home"), 3)
             self.assertEqual([e.team for e in entrants].count("away"), 4)
-            self.assertTrue(all(base - 5 <= e.rating <= base + 10 for e in entrants), theme)
+            self.assertTrue(all(base - 5 <= e.rating <= base + 8 for e in entrants), theme)
+            home = sorted(e.rating - base for e in entrants if e.team == "home")
+            away = sorted(e.rating - base for e in entrants if e.team == "away")
+            # Teammates: one -5..0, two +1..+8. Rivals: one -5..0, two +1..+5, one +2..+8.
+            self.assertTrue(-5 <= home[0] <= 0 and all(1 <= d <= 8 for d in home[1:]), home)
+            self.assertTrue(-5 <= away[0] <= 0 and all(1 <= d <= 5 for d in away[1:3]) and 2 <= away[3] <= 8, away)
+            offsets = [e.rating - base for e in entrants]
+            if tour.race:
+                self.assertEqual(offsets, first)                     # Same for every track.
+            else:
+                first = offsets
             tour.record([-1, 0, 1, 2, 3, 4, 5, 6], entrants)
         self.assertTrue(tour.over)
         self.assertEqual(tour.points["home"], 4 * (10 + 8 + 6 + 5))
         self.assertEqual(tour.winner(), "home")
+
+    def test_the_offset_mix_over_many_tournaments(self):
+        from island import AWAY_OFFSETS, HOME_OFFSETS
+        self.assertEqual(HOME_OFFSETS, ((-5, 0), (1, 8), (1, 8)))
+        self.assertEqual(AWAY_OFFSETS, ((-5, 0), (1, 5), (1, 5), (2, 8)))
+        for seed in range(200):
+            offsets = Tournament("tide", seed).offsets
+            self.assertEqual(sum(d <= 0 for d in offsets["home"]), 1)
+            self.assertEqual(sum(d <= 0 for d in offsets["away"]), 1)
+            self.assertTrue(all(-5 <= d <= 8 for d in offsets["home"] + offsets["away"]))
 
     def test_a_tie_goes_to_the_best_finisher_of_the_last_race(self):
         tour = Tournament("reef", 1)
@@ -127,6 +147,46 @@ class GridRaceTests(unittest.TestCase):
             self.assertLess(x, race.level.start_x)
         pts = [(x, y) for x, y, _ in slots]
         self.assertTrue(all(math.dist(a, b) > 40 for i, a in enumerate(pts) for b in pts[i + 1:]))
+
+    def test_the_player_drives_through_the_other_racers_but_not_walls(self):
+        race = self.race()
+        race.clock = 0.0
+        rival = race.rivals[0]
+        rival.x, rival.y = race.car.x + 30, race.car.y                # Right on the nose.
+        race.car.heading = 90.0
+        x0 = race.car.x
+        for _ in range(30):
+            race.update(1 / 30, 1, 0)
+            rival.x, rival.y = race.car.x + 30, race.car.y            # Keep it in the way.
+        self.assertGreater(race.car.x, x0 + 20)                       # Straight through.
+        self.assertEqual(race.collisions.fixed, [])
+        self.assertTrue(race.level.obstacles)                        # Walls are still solid.
+        wall = race.level.obstacles[0]
+        self.assertFalse(race.collisions.can_move(race.car.collision_record(wall.x, wall.y)))
+
+    def test_racers_slide_on_ice_more_than_one_on_one_rivals(self):
+        from drag_race import RIVAL_ICE_ROOM
+        entrants = [Entrant(f"R{i}", 400, "home" if i < 3 else "away", "racer_cyan") for i in range(7)]
+        race = GridRace({"theme": "snow", "seed": "ice1", "size": 7, "laps": 2}, 1.9, 5, entrants)
+        self.assertTrue(race.level.is_ice(*race.level.path[1]))
+        slides = []
+        for _ in range(900):
+            race.update(1 / 30, 0, 0)
+            slides += [math.hypot(*r.offset) for r in race.rivals]
+        self.assertGreater(sum(slides) / len(slides), 30)
+        self.assertGreater(max(slides), RIVAL_ICE_ROOM)               # Wider than a one-on-one rival.
+
+    def test_the_grid_alternates_like_a_chessboard(self):
+        from grid_race import PLAYER_SLOT
+        race = self.race()
+        teams = {PLAYER_SLOT: "player"}
+        for entrant, slot in zip(race.entrants, race.slots):
+            teams[slot] = entrant.team
+        rows = [(teams[2 * r], teams[2 * r + 1]) for r in range(4)]
+        self.assertEqual(rows, [("home", "away"), ("away", "home"), ("player", "away"), ("away", "home")])
+        slots = grid_slots(race.level)
+        for rival, slot in zip(race.rivals, race.slots):             # Each car really starts there.
+            self.assertAlmostEqual(math.dist((rival.x, rival.y), slots[slot][:2]), 0, places=3)
 
     def test_idle_player_finishes_last_and_quitting_is_last(self):
         race = self.race()

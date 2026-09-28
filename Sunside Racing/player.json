@@ -1,16 +1,16 @@
 {
   "version": 3,
-  "mode": "drive",
+  "mode": "walk",
   "car": {
-    "x": 10964.0,
-    "y": 15976.0,
+    "x": 28968.0,
+    "y": 16308.0,
     "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
         "level": 27,
-        "mastery": 0,
+        "mastery": 295,
         "completed": {
           "delivery": 5,
           "speed": 10,
@@ -133,7 +133,7 @@
         "epic": 0
       }
     },
-    "unspent_mastery": 245,
+    "unspent_mastery": 150,
     "arcade": {
       "lane_dodge": 50,
       "tow_train": 17
@@ -142,7 +142,7 @@
       "tow_train"
     ],
     "inventory": {
-      "sunside_tokens": 6897,
+      "sunside_tokens": 214897,
       "fair_ticket": 9
     },
     "farm": {
@@ -271,9 +271,14 @@
     "island": {
       "crossed": true,
       "races": 1,
-      "club": null,
-      "played": 0,
-      "won": 0
+      "club": "palm",
+      "played": 6,
+      "won": 4
     }
+  },
+  "walker": {
+    "x": 28928.0,
+    "y": 16308.0,
+    "heading": 0.0
   }
 }

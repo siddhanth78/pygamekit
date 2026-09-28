@@ -275,8 +275,12 @@ class Rival:
 
     def __init__(self, level: TrackLevel, scale: float, rng: random.Random,
                  sprite: str | None = None, cut_chance: float = 0.0, wide_misses: bool = False,
-                 start=None):
+                 start=None, ice_steer: float = None, ice_recover: float = None, ice_room: float = None):
         self.level = level
+        # How it handles ice (see RIVAL_ICE_*): tournament racers slide more than the rest.
+        self.ice_steer = RIVAL_ICE_STEER if ice_steer is None else ice_steer
+        self.ice_recover = RIVAL_ICE_RECOVER if ice_recover is None else ice_recover
+        self.ice_room = RIVAL_ICE_ROOM if ice_room is None else ice_room
         self.name = sprite or rng.choice(RIVALS)
         self.reaction = rng.uniform(0.2, 0.6)
         self.set_scale(scale)
@@ -396,7 +400,7 @@ class Rival:
         turn = (target - self.heading + 180) % 360 - 180
         icy = self.level.is_ice(line_x, line_y)
         # On ice the rival steers sharper than the player can, keeping slides modest.
-        rate = (RIVAL_ICE_STEER * 135 * SURFACES[self.level.surface][0] * min(1.0, self.speed / 130)
+        rate = (self.ice_steer * 135 * SURFACES[self.level.surface][0] * min(1.0, self.speed / 130)
                 if icy else AI_TURN_RATE)
         step = rate * dt
         self.heading = (self.heading + max(-step, min(step, turn))) % 360
@@ -412,14 +416,14 @@ class Rival:
             oy += self.speed * dt * (-math.cos(tr) + math.cos(ln))
         else:
             self.travel = self.heading
-        recover = min(1.0, RIVAL_ICE_RECOVER * dt)
+        recover = min(1.0, self.ice_recover * dt)
         ox, oy = ox * (1 - recover), oy * (1 - recover)           # Steering back to the line.
         # Hold the slide at RIVAL_ICE_ROOM, and near the track's edge ease it back in a few
         # px a frame: the offset only ever changes gradually, so the car never jumps.
         size = math.hypot(ox, oy)
-        if size > RIVAL_ICE_ROOM:
-            ox, oy = ox * RIVAL_ICE_ROOM / size, oy * RIVAL_ICE_ROOM / size
-            size = RIVAL_ICE_ROOM
+        if size > self.ice_room:
+            ox, oy = ox * self.ice_room / size, oy * self.ice_room / size
+            size = self.ice_room
         if size and (int((line_x + ox) // TILE_SIZE), int((line_y + oy) // TILE_SIZE)) not in self.level.track:
             shrink = max(0.0, size - RIVAL_ICE_EASE) / size
             ox, oy = ox * shrink, oy * shrink

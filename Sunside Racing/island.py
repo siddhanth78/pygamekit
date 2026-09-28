@@ -57,7 +57,11 @@ TOURNEY_PASS_PRICE = 2_000
 TOURNEY_RACES = 4
 TOURNEY_LAPS = 2
 POINTS = (10, 8, 6, 5, 4, 3, 2, 1)
-RATING_SPREAD = (-5, 10)       # AI ratings: the player's rating on that track's region, plus this.
+# AI ratings: the player's rating in each track's region plus an offset rolled once when
+# the tournament starts (kept for all four tracks). Teammates: one -5..0, two +1..+8.
+# Rivals: one -5..0, two +1..+5, one +2..+8.
+HOME_OFFSETS = ((-5, 0), (1, 8), (1, 8))
+AWAY_OFFSETS = ((-5, 0), (1, 5), (1, 5), (2, 8))
 
 
 def league_name(league: int) -> str:
@@ -141,20 +145,25 @@ class Tournament:
         self.points = {"home": 0, "away": 0}
         self.results: list[list[str]] = []  # Per race: team of each place, first to last.
         self.last_order = []
+        # Each AI racer's rating offset, fixed for the whole tournament (shuffled so the
+        # strong and weak racers aren't always the same names).
+        home_offsets = [rng.randint(*r) for r in HOME_OFFSETS]
+        away_offsets = [rng.randint(*r) for r in AWAY_OFFSETS]
+        rng.shuffle(home_offsets)
+        rng.shuffle(away_offsets)
+        self.offsets = {"home": home_offsets, "away": away_offsets}
 
     @property
     def over(self) -> bool:
         return self.race >= TOURNEY_RACES
 
     def entrants(self, progress) -> list[Entrant]:
-        """The next race's 7 AI racers: 3 teammates, then 4 rivals, rated around the
-        player's rating on that track's region (RATING_SPREAD)."""
-        theme = self.tracks[self.race].theme
-        base = progress.rating(theme)
+        """The next race's 7 AI racers: 3 teammates, then 4 rivals, each rated the
+        player's rating in that track's region plus their tournament offset."""
+        base = progress.rating(self.tracks[self.race].theme)
         home, away = CLUB[self.home], CLUB[self.away]
-        low, high = RATING_SPREAD
-        out = [Entrant(name, base + self.rng.randint(low, high), "home", home[4]) for name in home[5][:3]]
-        out += [Entrant(name, base + self.rng.randint(low, high), "away", away[4]) for name in away[5]]
+        out = [Entrant(name, base + off, "home", home[4]) for name, off in zip(home[5][:3], self.offsets["home"])]
+        out += [Entrant(name, base + off, "away", away[4]) for name, off in zip(away[5], self.offsets["away"])]
         return out
 
     def record(self, order: list[int], entrants: list[Entrant]):

@@ -2226,3 +2226,34 @@ Island map diamonds hidden until the first crossing (built, 2026-09-28)
   island.crossed (the same flag that shows the club camps). The map test
   counts 5 centers before the crossing. 283 passing.
 
+No car collisions in tournaments (built, 2026-09-28)
+- User: 8 cars in a tournament race were a pain. In island tournament races
+  (grid_race.GridRace) the other seven racers are now ghosts to the player:
+  no car-to-car collisions, while walls and tire stacks still stop the car.
+  Other races (mission drag races, racing centers, island center races) keep
+  the solid rival. Test: the player drives through a racer parked on their
+  nose, and walls are still solid. 284 passing.
+
+Tournament balance and AI ice slides (built, 2026-09-28)
+- Ratings (supersedes "-5 to +10 around the player"): each AI racer gets an
+  offset rolled once when the tournament starts and kept for all four tracks
+  (shuffled among the names). Each race it is added to the player's rating
+  in that track's region.
+  - Teammates: one -5..0, two +1..+8 (island.HOME_OFFSETS).
+  - Rivals: one -5..0, two +1..+5, one +2..+8 (island.AWAY_OFFSETS).
+- Ice: tournament racers slide more (grid_race.TOURNEY_ICE: steer 1.6x the
+  player's rate instead of 2.5x, recover to the line at 0.6/s instead of 1.5,
+  up to 84 px off it instead of 72). On a snow track they average about 40
+  px off the line against 25, with the same finish times. Rival takes
+  ice_steer / ice_recover / ice_room (defaults unchanged for other races).
+- Tests: the offsets per team, kept across tracks, over 200 tournaments; AIs
+  slide wider on ice. 286 passing.
+
+Chessboard starting grid (built, 2026-09-28)
+- User: the starting placement wasn't fair. The 8-car grid now alternates
+  like a chessboard, front row first (left, right): teammate / opponent,
+  opponent / teammate, player / opponent, opponent / teammate
+  (grid_race.TEAM_SLOTS: home 0, 3, 7; away 1, 2, 5, 6; the player in slot
+  4). Which racer takes each of their team's squares is random per race.
+  Test: the rows alternate and every car starts on its square. 287 passing.
+
