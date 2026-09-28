@@ -1532,7 +1532,33 @@ F1 car (agreed; the fair's grand prize)
 
 Rural Farm (agreed)
 - One abandoned farmhouse in the rural region. At rural level 6 it becomes
-  the player's, and they are given 200 S to start.
+  the player's, and they are given 500 S to start (user, 2026-09-27: was
+  200 S).
+- Build order (user): the farmhouse first, because it gives the starting
+  money; then the rest of the farm, then the factory and the fair.
+- Placement (user: "a valid area in the middle of rural"): the rural region
+  spans sectors x 27-46, y 31-56, and its middle is about sector (36, 43).
+  That spot sits on the highway's bottom straight (loop y = 44), so the
+  farmhouse goes on the valid sector nearest that middle. Valid means rural
+  (not beach), outside RoadIndex.covered (the highway and ramps), off the
+  rural dirt road, and at least a sector from the rural racing center
+  (40, 48). The sector is picked the same way every time (fixed by the rules,
+  not the seed). The farmhouse, its 5 x 5 mud plot and yard use that
+  sector, and no random farmstead is generated there. This needs a
+  GENERATOR_VERSION bump so cached worlds regenerate.
+- Built (2026-09-27): the farmhouse, the plot with crops, and the animals.
+  See "Farmhouse, plot and animals (built)" below; deliveries remain.
+- Agreed for the farmhouse step (user: "yes these are right", then "and the
+  new crops", so planting was built too):
+  - Before rural level 6 it looks abandoned (boarded windows); E shows "An
+    abandoned farmhouse. Reach rural level 6." At level 6 it's the player's
+    the next time E is pressed there, with a message and +500 S, paid once
+    and saved.
+  - A map landmark "Farmhouse" with its own diamond color.
+  - The first build covers the house (inside: 2 cows and 4 hens, feeding
+    included if the store's cow and hen feed come with it) and the empty
+    mud plot. Planting, buyers and deliveries come after. (Superseded: the
+    user added the crops to this build.)
 - A 5 x 5 mud plot: up to 25 crops. Each crop needs a store seed (corn 10 S,
   tomato 20 S, lettuce 30 S) and one super fertilizer (50 S), which grows it
   instantly ("revolutionary fertilizer").
@@ -1559,6 +1585,94 @@ Rural Farm (agreed)
   crop (15 max); proposed: each order mixes up to 3 kinds, up to 5 of each,
   still 15 max. Awaiting the user's answer.
 - Biofuel from crops: see the factory.
+
+Farmhouse, plot and animals (built, 2026-09-27)
+- Site: world.FarmSite, chosen by World._choose_farm (rules only, the same
+  on every seed): the valid sector nearest the rural middle, which is sector
+  (35, 41). It sits just inside the highway loop, with the rural dirt road
+  one sector west and south. Valid: rural in all 9 sectors around it, none
+  of them highway-covered, no dirt road in it or on its edge, and at least 2
+  sectors from the rural center. Local layout: the house (structure-atlas
+  "farmhouse", 136 px, solid 112 x 104) on the northwest lawn, with its
+  porch door facing south onto a gravel yard (west strip and north strip,
+  three hay bales), and the 5 x 5 farm_mud plot in the southeast. No random
+  farmstead is placed there. GENERATOR_VERSION is now 14.
+- farm.py: Farm (saved as missions "farm": {owned, plot of 25 cells, each
+  None or [crop, "sprout" | "ripe"]}). FARM_LEVEL = 6, FARM_GIFT = 500.
+  Farm.claim pays once. Until the farm is owned, "farmhouse_abandoned" is
+  drawn over the house (grey patched roof, holes, planks across the door,
+  weeds). The door prompt reads "E Abandoned farmhouse" (user: no level in
+  the prompt; the panel E opens still says to reach rural level 6), then
+  "Claim the farmhouse", then "Go inside the farmhouse".
+- Plot (once owned): standing on a tile, E plants a seed (when the player
+  has two or three kinds, the panel's new show_choice asks CORN / TOMATO /
+  LETTUCE; with one kind, it plants at once). E on a sprout uses one super
+  fertilizer and it's ripe; E on a ripe crop harvests one corn, tomato or
+  lettuce into the inventory (a full stack leaves it ripe). While the player
+  stands on the plot, E tends it; step off to get into the car. Crops are
+  drawn over the mud (farm-atlas sprout and plant_* sprites).
+- Inside (FarmInterior, like the house and the store): straw plank floor,
+  with Daisy and Clover in stalls on the west facing their troughs, and a
+  fenced hen coop on the east (gate in the fence, three nest boxes, a
+  feeder) where four hens wander. There is also hay, and the door in the
+  bottom wall. E at a cow's trough uses one cow feed for one milk; E next
+  to a hen uses one hen feed for one egg. The top-right HUD shows feed,
+  milk, and eggs. Missions block entry, as at home.
+- Store: cow feed and hen feed, 10 S each, on the Items aisle with the
+  fertilizer. New items: cow_feed, hen_feed, corn, tomato, lettuce, milk,
+  eggs (999 each). The inventory grid is now 5 x 4 (20 slots, exactly
+  all items), and the panel is 960 px wide.
+- Map: a brown (176, 122, 72) "Farmhouse" diamond at the door.
+- Art: terrain-atlas gained a row (farm_mud, floor_straw); structure-atlas
+  gained farmhouse and farmhouse_abandoned; store-atlas is 4 x 4 (feed
+  sacks); new farm-atlas (64 px cells, 4 x 5): cows, hens, trough, feeder,
+  nest box, fence rail, hay pile, milk, eggs, sprout, three plants, three
+  crop icons. GameState draws farm-atlas after the store.
+- Tests: test_farm.py (site rules and determinism, sector contents,
+  walkable door and plot, boards and crop sprites, claim once and saved,
+  plant/fertilize/harvest, bad saves, feeding, interior reachability and
+  hens staying in the coop) and a real-key flow (locked, claim, go in, feed
+  a cow and a hen, leave, choose a seed, fertilize, harvest, save).
+  236 passing.
+- Remaining for the farm: biofuel from crops (factory). Buyers and
+  deliveries: built, see below.
+
+Farm buyers and deliveries (built, 2026-09-27; user: "continue build")
+- The two open questions were settled with the proposals in this plan (the
+  user said build without answering them; change later if wanted): each
+  order mixes 1-3 kinds of goods, 1-5 of each (15 max), and a mastery payer
+  gives 1 point per 20 S of the order's value (at least 1).
+- farm_orders.py: FarmOrders keeps one Order per mainland region (city,
+  jungle, desert, snow, rural), saved as missions "farm_orders" {counter,
+  active, orders}. The positions are fixed when an order is made, and bad
+  saved orders are replaced. An order's value is its goods' prices (corn
+  100, tomato 120, lettuce 140, milk 40, eggs 25) plus 10% per km from the
+  farm door, rounded to 5 S. Each buyer pays Sunside Tokens or mastery,
+  50/50, seeded.
+- Buyer spots (Missions._buyer_spot): a random sector of the region that
+  isn't highway-covered, a camp, or the farm, and is at least 2 sectors from
+  every center. Then an open, off-road spot away from givers and the other
+  buyers.
+- Buyers appear only once the farm is owned: an NPC (region-specific
+  people sprite) with a new crate-of-produce badge (marker-atlas
+  "icon_order"), or the drop-off arrow for the order being worked on. They
+  are also "Farm buyer" diamonds (232, 196, 120) on the map. WorldMap has
+  set_marks, and main._refresh_landmarks rebuilds the landmarks after
+  claiming and after each delivery.
+- Flow: E at a buyer (prompt "E Talk · Farm buyer"). If the player has
+  everything: DELIVER / NOT NOW. Otherwise, if not yet taken: TAKE ORDER /
+  NOT NOW. This makes it the one active order (another active order stays
+  open, and the panel says so) and points the guide arrow at the buyer.
+  While taken: "Still waiting for ...". The HUD's top-right panel shows
+  "FARM ORDER · <REGION>" with have/need per good whenever no mission is
+  running. Delivering takes the goods and pays: tokens, or mastery points
+  into the inventory via Missions.add_universal. It is refused if tokens or
+  points would overflow. A new buyer then appears elsewhere in that region
+  and the guide clears. Blocked while a mission runs. No load limit.
+- Tests: test_farm_orders.py (one valid buyer per region, seeded, prices
+  and distance bonus, mastery rate, deliver for both payers, full points
+  block, save/bad saves) and a real-key flow (claim, 5 buyers on the map,
+  take order, guide set, waiting, deliver, paid, new buyer). 242 passing.
 
 Desert Mining Factory (mostly agreed)
 - On the desert's shoreline, so stones can be shipped. A biofuel depot stands
@@ -1617,3 +1731,52 @@ curve (2026-09-27, built)
 - Tests: late curve, veterans' circuits only and Medium with no decline,
   center offers ACCEPT only, add_universal cap and partial spend, the trade
   -> inventory -> spend flow with keys, "Available points". 226 passing.
+
+Orders view, order card, itemized bill (built, 2026-09-27)
+- User: while any order is ongoing (farm orders now; depot orders later), show
+  it top-left wherever the player is ("I entered the store and forgot what to
+  do"), add an orders view, and list checkout items on separate lines like a
+  real bill. Also reset the player's inventory to only 500 S (player.json:
+  inventory {"sunside_tokens": 500}, fish bag emptied, unspent mastery 0; a
+  backup was kept outside the project).
+- Order card: Hud.render(order=(title, lines)) draws a card under the
+  top-left panel on every screen except race levels (world, home, store,
+  farmhouse). Its title is "FARM ORDER · <BUYER>", with one line per good
+  ("Corn 1 / 3", green with "ready" once enough is carried), then "Pays ... ·
+  O all orders". FarmOrders.card replaces the old top-right status (the
+  top-right panel is for missions again). main._order_card is the single
+  place later order kinds (e.g. depot) plug in.
+- Orders view (O, new "orders" intent; Help lists "I / O"): orders_ui.
+  OrdersMenu lists every open order, nearest first (the distance and compass
+  are measured from the building when indoors). Each row shows the buyer,
+  what they want, the pay, the distance, and a WORKING ON or READY (have
+  everything) chip. ENTER or a click works on the chosen order (the guide
+  arrow goes to the buyer), and it starts on the order being worked on. O
+  or ESC closes it. It pauses the game like the inventory. Before the farm
+  is owned it says that buyers come at rural level 6.
+- Bill: MissionPanel.show_bill(title, rows, total, note, buttons, chip)
+  shows one line per item (name and "n x price" on the left, the amount
+  right-aligned), a rule, TOTAL, and a note. The panel grows with its lines
+  (8 lines, then "...and N more"). Checkout uses it (PAY / NOT YET, PAY
+  selected), and paying shows a "Receipt" bill (Success, "... S PAID").
+  Cart.bill() gives the lines. DynamicLabel gained align="right".
+- Tests: bill lines and receipt in the shopping flow, and an orders flow (no
+  orders before the farm, five nearest first, work on one, the card shows
+  in the store, ESC only closes the orders). 243 passing.
+
+Orders wait during missions (built, 2026-09-27)
+- User agreed: no order work mid-mission. While a mission runs, the order card
+  is hidden (and races never show it). O answers "Finish your current mission
+  first." (O does nothing in races). Buyers already refused, and so does the
+  farmhouse door. The plot ignores E and shows no prompt, so E still gets the
+  player into the car there. When the mission ends, everything comes back.
+- Test: orders_wait_while_a_mission_runs. 244 passing.
+
+Order card removed (built, 2026-09-27)
+- User: "screen too cluttered". The top-left order card is gone (hud.py is
+  back as it was, FarmOrders.card and main._order_card were removed). This
+  supersedes the "Order card" notes above. The Orders view (O) is unchanged
+  and is the way to check orders from anywhere: the list, WORKING ON and
+  READY chips, the pay and distance, and ENTER to work on one. It is still
+  blocked during missions (O says to finish first) and does nothing in races.
+  244 passing.

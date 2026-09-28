@@ -441,7 +441,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g.inventory.name.text, "Empty slot")
         for _ in range(5):
             self.press(pygame.K_DOWN, pygame.K_RIGHT)               # Stays inside the grid.
-        self.assertEqual(g.inventory.selected, 15)
+        self.assertEqual(g.inventory.selected, 19)                  # 5 x 4.
         x, y = g.inventory.slot_centers()[0]
         g.handle("pointer", (x, y))
         self.assertEqual(g.inventory.selected, 0)
@@ -490,11 +490,17 @@ class GameFlowTests(unittest.TestCase):
         g.render()
         self.assertEqual(g.hud.mission_title.text, "CART  ·  3 items")
         self.at_spot(g, "cashier")
-        self.press(pygame.K_e, pygame.K_RETURN)                       # PAY.
+        self.press(pygame.K_e)                                        # An itemized bill.
+        self.assertEqual(g.panel.buttons, ("PAY", "NOT YET"))
+        self.assertEqual([(g.panel.bill_left[i].text, g.panel.bill_right[i].text) for i in range(2)],
+                         [("Corn seeds  2 x 10 S", "20 S"), ("Super fertilizer  1 x 50 S", "50 S")])
+        self.assertEqual((g.panel.bill_left[-1].text, g.panel.bill_right[-1].text), ("TOTAL", "70 S"))
+        self.press(pygame.K_RETURN)                                   # PAY.
         self.assertEqual(g.store.cart.count, 0)
         self.assertEqual((g.missions.tokens, g.missions.items["seeds_corn"],
                           g.missions.items["super_fertilizer"]), (30, 2, 1))
-        self.assertEqual(g.panel.chip_name, "Success")
+        self.assertEqual((g.panel.chip_name, g.panel.title.text), ("Success", "Receipt"))
+        self.assertEqual(g.panel.bill_right[-1].text, "70 S  PAID")
         self.press(pygame.K_RETURN)
         self.at_spot(g, "door")
         self.press(pygame.K_e)                                        # Empty cart: out.
@@ -592,8 +598,11 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
                          {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
-                          "veteran": (150, 226, 140), "store": (160, 96, 220)})
+                          "veteran": (150, 226, 140), "store": (160, 96, 220), "farm": (176, 122, 72),
+                          "buyer": (232, 196, 120)})
         self.assertEqual(kinds.count("store"), 1)
+        self.assertEqual(kinds.count("farm"), 1)
+        self.assertEqual(kinds.count("buyer"), 0)                    # Until the farm is owned.
         self.assertEqual(kinds.count("veteran"), 15)
         for mark in g.landmarks:                                      # Arrow matches the diamond.
             self.assertEqual(mark.arrow_color, KINDS[mark.kind][0])
@@ -788,6 +797,170 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(saved["unspent_mastery"], 4)
         self.assertEqual(sum(saved["fish"]["bag"].values()), 0)
         self.assertEqual(saved["fish"]["caught"]["epic"], 2)
+
+    def test_farm_claim_feed_animals_and_grow_crops_with_keys(self):
+        from farm import FARM_LEVEL
+        g = self.game
+        farm = g.world.farm
+        g._step_out(Walker(*farm.door))
+        self.assertEqual(g._farm_door_prompt(), "E   Abandoned farmhouse")
+        self.press(pygame.K_e)                                        # Locked: says why.
+        self.assertEqual((g.panel.chip_name, g.missions.farm.owned), ("Locked", False))
+        self.press(pygame.K_RETURN)
+        g.missions.progress.add("rural", mastery_to_reach(FARM_LEVEL))
+        self.assertEqual(g._farm_door_prompt(), "E   Claim the farmhouse")
+        self.press(pygame.K_e)
+        self.assertTrue(g.missions.farm.owned)
+        self.assertEqual((g.missions.tokens, g.panel.lines[1].text),
+                         (500, "+500 Sunside Tokens to get you started."))
+        self.press(pygame.K_RETURN, pygame.K_e)                       # Now E goes inside.
+        self.assertTrue(g.in_farm)
+        self.assertEqual(g.missions.tokens, 500)                      # Paid once.
+        # Feed Daisy: without feed the panel says so; with it, milk.
+        cow = next(s for s in g.farmhouse.spots if s.kind == "cow")
+        g.walker.x, g.walker.y = cow.x, cow.y
+        self.press(pygame.K_e)
+        self.assertIn("cow feed", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("cow_feed", 2)
+        self.press(pygame.K_e, pygame.K_e)
+        self.assertEqual((g.missions.items.get("cow_feed", 0), g.missions.items["milk"]), (0, 2))
+        g.missions.add_item("hen_feed", 1)
+        hen = g.farmhouse.hens[0]
+        g.walker.x, g.walker.y = hen.x, hen.y
+        self.press(pygame.K_e)
+        self.assertEqual(g.missions.items["eggs"], 1)
+        door = next(s for s in g.farmhouse.spots if s.kind == "door")
+        g.walker.x, g.walker.y = door.x, door.y
+        self.press(pygame.K_e)
+        self.assertFalse(g.in_farm)
+        self.assertEqual((g.walker.x, g.walker.y), farm.door)
+        # The plot: two kinds of seed ask which one; E fertilizes, then harvests.
+        g.missions.add_item("seeds_corn", 1)
+        g.missions.add_item("seeds_tomato", 1)
+        g.missions.add_item("super_fertilizer", 1)
+        tx, ty = farm.plot_tiles()[0]
+        g.walker.x, g.walker.y = (tx + 0.5) * 64, (ty + 0.5) * 64
+        self.assertEqual(g._plot_prompt(g.walker), "E   Plant a seed")
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("CORN", "TOMATO"))
+        self.press(pygame.K_RIGHT, pygame.K_RETURN)
+        self.assertEqual(g.missions.farm.plot[0], ["tomato", "sprout"])
+        self.assertEqual(g.missions.items.get("seeds_tomato", 0), 0)
+        self.press(pygame.K_e)
+        self.assertEqual(g.missions.farm.plot[0], ["tomato", "ripe"])
+        from farm import outdoor_sprites
+        self.assertEqual([s.name for s in outdoor_sprites(farm, g.missions.farm)], ["plant_tomato"])
+        self.assertEqual(g._plot_prompt(g.walker), "E   Harvest  ·  Tomato")
+        self.press(pygame.K_e)
+        self.assertEqual((g.missions.farm.plot[0], g.missions.items["tomato"]), (None, 1))
+        g._autosave()
+        g.world_store.wait()
+        saved = json.loads((self.folder / "player.json").read_text())["missions"]
+        self.assertTrue(saved["farm"]["owned"])
+        self.assertEqual((saved["inventory"]["tomato"], saved["inventory"]["milk"]), (1, 2))
+
+    def test_farm_buyer_order_taken_then_delivered_with_keys(self):
+        from farm import FARM_LEVEL
+        g = self.game
+        g.missions.progress.add("rural", mastery_to_reach(FARM_LEVEL))
+        g._step_out(Walker(*g.world.farm.door))
+        self.press(pygame.K_e, pygame.K_RETURN)                       # Claim the farm.
+        self.assertEqual([m.kind for m in g.landmarks].count("buyer"), 5)
+        orders = g.missions.orders
+        order = orders.orders["city"]
+        g.walker.x, g.walker.y = order.x, order.y + 20
+        g.collisions.fixed = []
+        self.press(pygame.K_e)                                        # Take the order.
+        self.assertEqual(g.panel.buttons, ("TAKE ORDER", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertEqual(orders.active, "city")
+        self.assertEqual((g.guide_to.kind, (g.guide_to.x, g.guide_to.y)), ("buyer", (order.x, order.y)))
+        self.press(pygame.K_e)                                        # Nothing yet: still waiting.
+        self.assertTrue(g.panel.lines[0].text.startswith("Still waiting for"))
+        self.press(pygame.K_RETURN)
+        for good, n in order.goods.items():
+            g.missions.add_item(good, n)
+        tokens, points = g.missions.tokens, g.missions.unspent
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("DELIVER", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertEqual(g.panel.chip_name, "Success")
+        if order.pay == "tokens":
+            self.assertEqual(g.missions.tokens, tokens + order.value)
+        else:
+            self.assertEqual(g.missions.unspent, points + order.points)
+        self.assertTrue(all(g.missions.items.get(good, 0) == 0 for good in order.goods))
+        self.assertIsNone(orders.active)
+        self.assertIsNone(g.guide_to)                                 # That buyer has gone.
+        new = orders.orders["city"]
+        self.assertNotEqual((new.x, new.y), (order.x, order.y))
+        self.assertEqual(g.world.region_at(new.x, new.y), "city")
+        self.assertIn((new.x, new.y), [(m.x, m.y) for m in g.landmarks if m.kind == "buyer"])
+
+    def test_orders_view_from_anywhere(self):
+        from farm import FARM_LEVEL
+        g = self.game
+        self.press(pygame.K_o)                                        # Before the farm: none.
+        self.assertTrue(g.orders_menu.open)
+        self.assertEqual(g.orders_menu.rows, [])
+        self.assertIn("rural level 6", g.orders_menu.empty)
+        self.press(pygame.K_o)
+        self.assertFalse(g.orders_menu.open)
+        g.missions.progress.add("rural", mastery_to_reach(FARM_LEVEL))
+        g.missions.farm.claim(g.missions)
+        g._refresh_landmarks()
+        self.press(pygame.K_o)                                        # Five orders, nearest first.
+        rows = g.orders_menu.rows
+        self.assertEqual(len(rows), 5)
+        here = g._where()
+        near = [math.dist(here, (g.missions.orders.orders[r["region"]].x,
+                                 g.missions.orders.orders[r["region"]].y)) for r in rows]
+        self.assertEqual(near, sorted(near))
+        self.press(pygame.K_DOWN, pygame.K_RETURN)                    # Work on the second.
+        region = rows[1]["region"]
+        self.assertFalse(g.orders_menu.open)
+        self.assertEqual(g.missions.orders.active, region)
+        self.assertEqual(g.guide_to.kind, "buyer")
+        # O works from inside buildings too, e.g. the store.
+        g._step_out(Walker(*g.world.general_store.door))
+        g._enter_store()
+        self.press(pygame.K_o)
+        self.assertEqual([r["active"] for r in g.orders_menu.rows].count(True), 1)
+        self.assertTrue(g.orders_menu.rows[g.orders_menu.selected]["active"])  # Starts on it.
+        self.press(pygame.K_ESCAPE)
+        self.assertFalse(g.orders_menu.open)
+        self.assertFalse(g.menu.open)                                  # ESC only closed the orders.
+
+    def test_orders_wait_while_a_mission_runs(self):
+        from farm import FARM_LEVEL
+        g = self.game
+        g.missions.progress.add("rural", mastery_to_reach(FARM_LEVEL))
+        g.missions.farm.claim(g.missions)
+        g._refresh_landmarks()
+        g.missions.orders.take("city")
+        g.missions.add_item("seeds_corn", 1)
+        g._accept(g.missions.by_id["city-delivery"])                 # A mission starts:
+        self.press(pygame.K_o)                                        # O says to finish first,
+        self.assertFalse(g.orders_menu.open)
+        self.assertIn("Finish your current mission", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        order = g.missions.orders.orders["city"]                      # buyers wait,
+        g._step_out(Walker(order.x, order.y + 20))
+        g.collisions.fixed = []
+        self.press(pygame.K_e)
+        self.assertIn("Finish your current mission", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        tx, ty = g.world.farm.plot_tiles()[0]                         # and the plot ignores E.
+        g.walker.x, g.walker.y = (tx + 0.5) * 64, (ty + 0.5) * 64
+        self.assertEqual(g._plot_prompt(g.walker), "")
+        self.press(pygame.K_e)
+        self.assertIsNone(g.missions.farm.plot[0])
+        self.assertEqual(g.missions.items["seeds_corn"], 1)
+        g.missions.abort()                                            # Mission over: all back.
+        self.assertEqual(g._plot_prompt(g.walker), "E   Plant a seed")
+        self.press(pygame.K_o)
+        self.assertTrue(g.orders_menu.open)
 
     def test_beach_travel_picks_a_pier_with_keys(self):
         g = self.game

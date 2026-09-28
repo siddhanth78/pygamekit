@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from car import OFF_SURFACE, SURFACES, TOP_SPEED
 from collision_manager import CollisionManager, nearest_clear_spot
 from fishing import FishLog
+from farm import Farm
+from farm_orders import FarmOrders
 from inventory import BY_ID, STACK_MAX, room
 from progression import (FAST_TRAVEL_LEVEL, FISHING_LEVEL, RATING_EDGE, REGIONS, SPEED_PER_LEVEL, Progress,
                          mastery_to_next, rating,
@@ -162,8 +164,11 @@ class Missions:
         self.arcade = {k: v for k, v in arcade.items() if isinstance(k, str) and type(v) is int and v >= 0} \
             if isinstance(arcade, dict) else {}
         self.counter = data.get("counter") if type(data.get("counter")) is int else 0
+        self.farm = Farm(data.get("farm"))    # The farmhouse (owned?) and its plot.
         self.givers = self._place_givers()
         self.by_id = {g.id: g for g in self.givers}
+        # Farm buyers (shown once the farm is owned): one open order per mainland region.
+        self.orders = FarmOrders(world.farm.door, seed, data.get("farm_orders"), self._buyer_spot)
         self.offers: dict[str, Offer] = {}
         for giver_id, offer in (data.get("offers") or {}).items():
             if giver_id in self.by_id:
@@ -228,6 +233,34 @@ class Missions:
                     if len(chosen) == len(TYPES):
                         return chosen
         return chosen
+
+    def _buyer_spot(self, region, rng):
+        """A farm buyer's spot: somewhere open in the region, away from its center, the
+        farm, camps, the highway, and the other people."""
+        world = self.world
+        if not hasattr(self, "_buyer_sectors"):
+            self._buyer_sectors = {}
+            self._buyer_probe = CollisionManager(None, world)
+        if region not in self._buyer_sectors:
+            near_highway = world.roads.sectors()
+            self._buyer_sectors[region] = [
+                (sx, sy) for sy in range(SECTORS) for sx in range(SECTORS)
+                if world.region(sx, sy) == region and (sx, sy) not in world.camps
+                and (sx, sy) not in near_highway and (sx, sy) != world.farm.sector
+                and all(math.dist((sx, sy), c) >= 2 for c in CENTERS)]
+        sectors = self._buyer_sectors[region]
+        orders = getattr(self, "orders", None)
+        others = list(self.givers) + (list(orders.orders.values()) if orders else [])
+        for _ in range(12):
+            if not sectors:
+                return None
+            sx, sy = rng.choice(sectors)
+            x = (sx + rng.uniform(0.2, 0.8)) * SECTOR_SIZE
+            y = (sy + rng.uniform(0.2, 0.8)) * SECTOR_SIZE
+            spot = self._open_spot(self._buyer_probe, x, y, region, others)
+            if spot:
+                return spot
+        return None
 
     def _open_spot(self, collisions, x, y, region=None, others=(), clearance=24):
         """Nearest clear, off-road spot a person can stand on (and a car can reach)."""
@@ -556,7 +589,8 @@ class Missions:
         return {"progress": self.progress.to_dict(), "counter": self.counter,
                 "offers": {gid: offer.to_dict() for gid, offer in self.offers.items()},
                 "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
-                "arcade": dict(self.arcade), "inventory": dict(self.items)}
+                "arcade": dict(self.arcade), "inventory": dict(self.items), "farm": self.farm.to_dict(),
+                "farm_orders": self.orders.to_dict()}
 
     def add_universal(self, points: int) -> int:
         """Universal mastery (fish trades now; farm deliveries and factory stones later)

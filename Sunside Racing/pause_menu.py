@@ -22,7 +22,7 @@ CONTROLS = (
     ("Q", "Call your car (on foot)"),
     ("T", "Travel to or from Elite Island"),
     ("M", "World map  ·  pick a guide  ·  C clears it"),
-    ("I", "Inventory"),
+    ("I  /  O", "Inventory  ·  orders"),
     ("R", "Unstick yourself nearby"),
     ("ESC", "Pause menu"),
 )

@@ -142,6 +142,41 @@ class StoreSite:
     def door(self) -> tuple[float, float]:
         return self.x + self.face * STORE_DOOR_OUT, self.y
 
+# The farmhouse: one per world, on the valid rural sector nearest the region's middle
+# (the middle itself is on the highway). Valid: rural all around, no highway within a
+# sector, no dirt road in it or on its edge, and clear of the rural racing center. It
+# is chosen by these rules alone, so every seed has it in the same place. Local tiles:
+# the house on the northwest, a gravel yard down the west side and along the north,
+# and the 5 x 5 mud plot in the southeast corner.
+FARM_HOUSE_TILE = (1.5, 1.5)          # House center, local tiles.
+FARM_HOUSE_SIZE, FARM_HOUSE_SOLID = 136, (112, 104)
+FARM_DOOR_TILE = (1.5, 3.05)          # Stand here (south of the house) to go in.
+FARM_PLOT = (3, 3, 5, 5)              # Local tile x, y, width, height.
+FARM_YARD = [(x, y) for x in range(3) for y in range(3, 8)] + [(x, y) for x in range(3, 8) for y in range(3)]
+
+
+@dataclass(frozen=True)
+class FarmSite:
+    sector: tuple[int, int]
+
+    def at(self, lx: float, ly: float) -> tuple[float, float]:
+        return (self.sector[0] * TILES_PER_SECTOR + lx) * TILE_SIZE, (self.sector[1] * TILES_PER_SECTOR + ly) * TILE_SIZE
+
+    @property
+    def house(self) -> tuple[float, float]:
+        return self.at(*FARM_HOUSE_TILE)
+
+    @property
+    def door(self) -> tuple[float, float]:
+        return self.at(*FARM_DOOR_TILE)
+
+    def plot_tiles(self) -> list[tuple[int, int]]:
+        """World tiles of the mud plot, row by row."""
+        x0, y0, w, h = FARM_PLOT
+        tx, ty = self.sector[0] * TILES_PER_SECTOR, self.sector[1] * TILES_PER_SECTOR
+        return [(tx + x0 + i, ty + y0 + j) for j in range(h) for i in range(w)]
+
+
 # Encampments: offsets from the camp center (the sector's middle).
 CAMPS_PER_REGION = 5
 CAMP_TENTS = ((-88, -56), (84, -60), (6, 92))
@@ -219,6 +254,7 @@ class World:
                     Sprite("highway-atlas", name, x, y, width, length, rotation))
         self.camps = self._choose_camps()
         self.general_store = self._choose_store()
+        self.farm = self._choose_farm()
         # Ferry docks face each other across the channel on the island's row.
         self.mainland_dock = (max(sx for sx in range(SECTORS)
                                   if self._landmass(sx, ISLAND_ROW) == "mainland"), ISLAND_ROW)
@@ -265,6 +301,25 @@ class World:
         (sx, sy), (lx, ly) = random.Random(f"{self.seed}-store").choice(sorted(lots))
         return StoreSite((sx, sy), (lx, ly), sx * SECTOR_SIZE + lx * TILE_SIZE,
                          sy * SECTOR_SIZE + ly * TILE_SIZE, -1 if lx == 6 else 1)
+
+    def _choose_farm(self) -> FarmSite:
+        rural = [(sx, sy) for sy in range(SECTORS) for sx in range(SECTORS) if self.region(sx, sy) == "rural"]
+        mid_x = sum(sx + 0.5 for sx, _ in rural) / len(rural)
+        mid_y = sum(sy + 0.5 for _, sy in rural) / len(rural)
+        center = next(s for s, name in CENTERS.items() if name == "center_rural")
+        near_highway = self.roads.sectors()
+
+        def valid(sx, sy):
+            around = [(sx + dx, sy + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)]
+            return (all(self.region(*s) == "rural" for s in around)
+                    and not any(s in near_highway or s in self.camps for s in around)
+                    and max(abs(sx - center[0]), abs(sy - center[1])) >= 2
+                    and not any(self._road_style(sx * TILES_PER_SECTOR + i, sy * TILES_PER_SECTOR + j)
+                                for i in range(-1, TILES_PER_SECTOR + 1) for j in range(-1, TILES_PER_SECTOR + 1)))
+
+        best = min((s for s in rural if valid(*s)),
+                   key=lambda s: ((s[0] + 0.5 - mid_x) ** 2 + (s[1] + 0.5 - mid_y) ** 2, s))
+        return FarmSite(best)
 
     def _choose_camps(self) -> dict[tuple[int, int], str]:
         """Spread a few encampments through the desert and jungle, clear of centers."""
@@ -498,6 +553,8 @@ class World:
                 scenery[:] = [item for item in scenery if not (
                     item.name in ("street_lamp", "traffic_light")
                     and abs(item.x - center_xy[0]) < half and abs(item.y - center_xy[1]) < half)]
+        elif region == "rural" and (sx, sy) == self.farm.sector:
+            self._farmhouse(grid, ground, occupied, scenery, prop)
         elif region == "rural" and not center and rng.random() < 0.5 and (sx, sy) not in self.roads.sectors():
             self._farmstead(rng, tx0, ty0, grid, ground, occupied, scenery, prop)
         elif region == "beach" and (sx, sy) in (self.mainland_dock, self.island_dock):
@@ -688,6 +745,21 @@ class World:
             prop(name, cx + dx, cy + dy, 52)
         prop("street_lamp", cx + 42, grid(0, 0.5)[1], 52)
         prop("street_lamp", grid(0.5, 0)[0], cy - 42, 52)
+
+    def _farmhouse(self, grid, ground, occupied, scenery, prop):
+        """The player's farm: the house (drawn abandoned over this until it's theirs),
+        a gravel yard, and the empty mud plot."""
+        occupied |= {(x, y) for x in range(TILES_PER_SECTOR) for y in range(TILES_PER_SECTOR)}
+        for tile in FARM_YARD:
+            ground[tile] = "dirt_gravel"
+        x0, y0, w, h = FARM_PLOT
+        for i in range(w):
+            for j in range(h):
+                ground[(x0 + i, y0 + j)] = "farm_mud"
+        scenery.append(Sprite("structure-atlas", "farmhouse", *grid(*FARM_HOUSE_TILE),
+                              FARM_HOUSE_SIZE, FARM_HOUSE_SIZE, 0.0, *FARM_HOUSE_SOLID))
+        for x, y, name in ((3.6, 0.6, "hay_a"), (4.5, 0.75, "hay_b"), (7.4, 0.6, "hay_a")):
+            prop(name, *grid(x, y), 52, solid=(30, 30))
 
     def _farmstead(self, rng, tx0, ty0, grid, ground, occupied, scenery, prop):
         """Barn and gravel yard, a fenced plowed field, and hay bales, clear of roads."""

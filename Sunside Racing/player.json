@@ -2,15 +2,15 @@
   "version": 3,
   "mode": "drive",
   "car": {
-    "x": 15426.552026093703,
-    "y": 16373.085026174258,
-    "heading": 259.11757557692243
+    "x": 13140.0,
+    "y": 15464.0,
+    "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
         "level": 5,
-        "mastery": 22,
+        "mastery": 38,
         "completed": {
           "delivery": 5,
           "speed": 10,
@@ -29,7 +29,7 @@
         "races": 1
       },
       "desert": {
-        "level": 1,
+        "level": 3,
         "mastery": 1,
         "completed": {
           "delivery": 0,
@@ -49,8 +49,8 @@
         "races": 1
       },
       "rural": {
-        "level": 2,
-        "mastery": 19,
+        "level": 6,
+        "mastery": 0,
         "completed": {
           "delivery": 0,
           "speed": 0,
@@ -59,7 +59,7 @@
         "races": 0
       }
     },
-    "counter": 54,
+    "counter": 55,
     "offers": {
       "city-drag-hard": {
         "type": "drag",
@@ -98,6 +98,25 @@
         },
         "rating": null,
         "declines": 0
+      },
+      "rural-delivery-hard": {
+        "type": "delivery",
+        "scale": 0.812,
+        "target": [
+          17724.319863404107,
+          14649.927848693918
+        ],
+        "track": null,
+        "seed": 291408596,
+        "levels": {
+          "city": 5,
+          "jungle": 3,
+          "desert": 1,
+          "snow": 3,
+          "rural": 6
+        },
+        "rating": null,
+        "declines": 0
       }
     },
     "fish": {
@@ -118,6 +137,94 @@
     "arcade": {
       "lane_dodge": 39
     },
-    "inventory": {}
+    "inventory": {
+      "sunside_tokens": 75
+    },
+    "farm": {
+      "owned": true,
+      "plot": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "farm_orders": {
+      "counter": 7,
+      "active": null,
+      "orders": {
+        "city": {
+          "x": 11101.409136613085,
+          "y": 16705.39010481614,
+          "goods": {
+            "milk": 2,
+            "eggs": 5
+          },
+          "pay": "mastery",
+          "value": 220
+        },
+        "jungle": {
+          "x": 6453.965399017441,
+          "y": 8300.708480374535,
+          "goods": {
+            "corn": 2,
+            "milk": 3
+          },
+          "pay": "tokens",
+          "value": 375
+        },
+        "snow": {
+          "x": 11926.745448541034,
+          "y": 21781.54679688744,
+          "goods": {
+            "corn": 4
+          },
+          "pay": "mastery",
+          "value": 425
+        },
+        "rural": {
+          "x": 21847.84773003846,
+          "y": 18158.315286632867,
+          "goods": {
+            "corn": 5,
+            "lettuce": 5
+          },
+          "pay": "tokens",
+          "value": 1260
+        },
+        "desert": {
+          "x": 18700.75703373023,
+          "y": 9487.706970837678,
+          "goods": {
+            "corn": 3,
+            "tomato": 4,
+            "milk": 2
+          },
+          "pay": "tokens",
+          "value": 960
+        }
+      }
+    }
   }
 }

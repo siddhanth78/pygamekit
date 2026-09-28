@@ -1,4 +1,4 @@
-"""The player's inventory: a 4 x 4 grid of item stacks, each capped at its item's max
+"""The player's inventory: a 5 x 4 grid of item stacks, each capped at its item's max
 (999 unless the item says otherwise: Sunside Tokens go to TOKEN_MAX, one-time passes
 to 1).
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 STACK_MAX = 999
 TOKEN_MAX = 999_999             # The currency: store passes cost up to 100,000.
-GRID = (4, 4)                       # Columns, rows.
+GRID = (5, 4)                       # Columns, rows.
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,17 @@ ITEMS = (
     Item("seeds_lettuce", "Lettuce seeds", "store-atlas", "seeds_lettuce",
          "A packet of lettuce seeds.", price=30, aisle="seeds"),
     Item("super_fertilizer", "Super fertilizer", "store-atlas", "super_fertilizer",
-         "A sack of super fertilizer.", price=50, aisle="items"),
+         "Grows a planted seed into a crop at once.", price=50, aisle="items"),
+    Item("cow_feed", "Cow feed", "store-atlas", "cow_feed",
+         "Feed a cow at the farmhouse: one milk.", price=10, aisle="items"),
+    Item("hen_feed", "Hen feed", "store-atlas", "hen_feed",
+         "Feed a hen at the farmhouse: one egg.", price=10, aisle="items"),
+    # From the farm (for deliveries, coming soon).
+    Item("corn", "Corn", "farm-atlas", "corn", "Grown on your farm's plot."),
+    Item("tomato", "Tomatoes", "farm-atlas", "tomato", "Grown on your farm's plot."),
+    Item("lettuce", "Lettuce", "farm-atlas", "lettuce", "Grown on your farm's plot."),
+    Item("milk", "Milk", "farm-atlas", "milk", "From your cows."),
+    Item("eggs", "Eggs", "farm-atlas", "eggs", "From your hens."),
     Item("fair_ticket", "Fair ticket", "store-atlas", "fair_ticket",
          "Entry to the fair.", price=100, aisle="tickets"),
     Item("factory_pass", "Factory pass", "store-atlas", "factory_pass",

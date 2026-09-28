@@ -84,7 +84,7 @@ class Painter:
 
 
 def terrain() -> Atlas:
-    a = Atlas("terrain-atlas", 32, 8, 5)
+    a = Atlas("terrain-atlas", 32, 8, 6)
     tiles = [
         ("grass", "#4c9758", ("#66ab64", "#3d824c")),
         ("jungle_ground", "#285a3d", ("#39774b", "#204b35")),
@@ -145,7 +145,29 @@ def terrain() -> Atlas:
         pier_tile(a.tile(name, i, 4), name)
     for i, name in enumerate(HOME_TILES, len(PIER_TILES)):
         home_tile(a.tile(name, i, 4), name)
+    for i, name in enumerate(FARM_TILES):
+        farm_tile(a.tile(name, i, 5), name)
     return a
+
+
+FARM_TILES = ("farm_mud", "floor_straw")
+
+
+def farm_tile(p: Painter, name: str):
+    """The farm's mud plot (dark, tilled) and the farmhouse's straw-strewn plank floor."""
+    if name == "farm_mud":
+        p.rect(0, 0, 32, 32, "#5e4630")
+        p.flecks(311, 20, ("#6f553a", "#4b3825"))
+        for y in (5, 13, 21, 29):                         # Tilled furrows.
+            p.rect(1, y, 31, y + 2, "#4a3522")
+            p.rect(1, y - 1, 31, y, "#76593c")
+    else:
+        for i, y in enumerate(range(0, 32, 8)):           # Weathered planks,
+            p.rect(0, y, 32, y + 7, ("#9c8058", "#8f7450", "#a88a60")[i % 3])
+            p.rect(0, y + 7, 32, y + 8, "#5f4a32")
+        p.flecks(317, 26, ("#e6c96a", "#d4b457", "#c9a94c"))   # strewn with straw.
+        for x, y in ((4, 3), (18, 11), (9, 20), (24, 26), (27, 4)):
+            p.rect(x, y, x + 4, y + 1, "#ecd27a")
 
 
 PIER_TILES = ("pier_planks", "pier_end")
@@ -398,6 +420,41 @@ def building(p: Painter, roof: str, kind: str, seed: int):
         p.rect(60, 26, 66, 32, "#2f2a26")
         p.rect(85, 40, 96, 56, "#8a6440")                 # Door step toward the parking lot.
         p.rect(86, 43, 89, 53, "#5a3d28")                 # Door.
+    elif kind in ("farmhouse", "farmhouse_abandoned"):
+        # A gabled roof (ridge east-west) over a porch along the front (south) with the
+        # door in its middle and a chimney on the north slope. Abandoned: faded, patched,
+        # holes in the roof, and planks nailed across the door.
+        old = kind == "farmhouse_abandoned"
+        north, south, eave = (("#6c6a62", "#7d7a70", "#4d4b45") if old
+                              else ("#3f6f55", "#4f8566", "#2c4d3c"))
+        p.rect(8, 8, 88, 76, "#233840")                   # Roof outline and shadow.
+        for y in range(10, 42, 5):                        # North slope shingles,
+            p.rect(10, y, 86, y + 4, north)
+            p.rect(10, y + 4, 86, y + 5, eave)
+        for y in range(42, 74, 5):                        # south slope.
+            p.rect(10, y, 86, y + 4, south)
+            p.rect(10, y + 4, 86, y + 5, eave)
+        p.rect(8, 40, 88, 44, "#2a2622")                  # Ridge.
+        p.rect(62, 16, 72, 28, "#7a5a44")                 # Chimney.
+        p.rect(64, 18, 70, 26, "#2f2a26")
+        p.rect(14, 74, 82, 90, "#6b4a30")                 # Porch floor,
+        for x in range(14, 82, 6):
+            p.rect(x, 74, x + 5, 90, "#8a6440")
+        for x in (14, 46, 78):                            # posts,
+            p.rect(x, 74, x + 4, 92, "#4f3a28")
+        p.rect(40, 70, 56, 78, "#5a3d28")                 # and the door.
+        p.rect(52, 73, 54, 75, "#f2ca57")
+        if old:
+            for x, y in ((24, 20), (48, 54), (70, 60), (30, 62)):
+                p.rect(x, y, x + 7, y + 4, "#1d1a18")     # Holes in the roof,
+            for x, y in ((56, 30), (20, 48)):
+                p.rect(x, y, x + 9, y + 5, "#9a8f78")     # patches,
+            for y, x0, x1 in ((71, 36, 60), (75, 38, 58)):
+                p.rect(x0, y, x1, y + 2, "#a58a62")       # boards across the door,
+                p.rect(x0, y + 2, x1, y + 3, "#4f3a28")
+            for x, y in ((18, 86), (30, 88), (64, 86), (74, 88)):
+                p.rect(x, y, x + 2, y + 5, "#6f8b48")     # and weeds by the porch.
+                p.rect(x - 2, y + 2, x + 4, y + 3, "#8aa253")
     elif kind == "dock":
         p.rect(23, 27, 71, 67, "#896a4c")
         for x in range(27, 70, 9): p.rect(x, 27, x + 2, 67, "#c19a67")
@@ -423,6 +480,7 @@ def structures() -> Atlas:
         ("center_rural", "#a97f5d", "center"), ("center_island", "#748f81", "center"),
         ("rural_barn", "#ae5c4c", "barn"), ("beach_ferry_dock", "#a78259", "dock"),
         ("player_house", "#b0503f", "house"), ("general_store", "#9da8a4", "store"),
+        ("farmhouse", "#3f6f55", "farmhouse"), ("farmhouse_abandoned", "#6c6a62", "farmhouse_abandoned"),
     ]
     for i, (name, roof, kind) in enumerate(definitions):
         building(a.tile(name, i % 4, i // 4), roof, kind, i)
@@ -704,7 +762,7 @@ def highway() -> Atlas:
 
 STORE_ART = ("shelf", "counter", "ticket_board", "crate", "seeds_corn", "seeds_tomato",
              "seeds_lettuce", "super_fertilizer", "fair_ticket", "factory_pass", "island_pass",
-             "store_mat")
+             "store_mat", "cow_feed", "hen_feed")
 
 
 def seed_packet(p: Painter, color: str, mark: str):
@@ -766,6 +824,24 @@ def store_art(p: Painter, name: str):
         p.rect(30, 25, 34, 39, "#4f9a5a")                 # showing a sprout
         p.rect(26, 28, 30, 31, "#4f9a5a")
         p.rect(34, 30, 38, 33, "#4f9a5a")
+    elif name in ("cow_feed", "hen_feed"):
+        sack, band = ("#d8c8a0", "#3f7fd0") if name == "cow_feed" else ("#e8d49a", "#d9453f")
+        p.rect(20, 12, 48, 54, "#1d2a30")
+        p.rect(18, 10, 46, 52, sack)                      # A feed sack,
+        p.rect(18, 10, 46, 14, "#a58a62")                 # tied at the top,
+        p.rect(18, 20, 46, 26, band)                      # with a colored band
+        if name == "cow_feed":                            # and a cow's head,
+            p.ellipse(32, 38, 7, 6, "#f4ead0")
+            p.rect(27, 35, 30, 38, "#27353d")
+            p.rect(35, 40, 38, 43, "#27353d")
+            p.rect(29, 42, 36, 45, "#f28fb0")
+            p.rect(23, 32, 26, 34, "#27353d")
+            p.rect(38, 32, 41, 34, "#27353d")
+        else:                                             # or a hen.
+            p.ellipse(32, 39, 6, 6, "#f4ead0")
+            p.rect(30, 30, 34, 33, "#d9453f")
+            p.rect(37, 38, 41, 40, "#f2ca57")
+            p.dots([(34, 36)], "#27353d")
     elif name in ("fair_ticket", "factory_pass", "island_pass"):
         base, ink = {"fair_ticket": ("#f2ca57", "#d9453f"), "factory_pass": ("#8a8f8f", "#3a3a3a"),
                      "island_pass": ("#3fb0c9", "#f4ead0")}[name]
@@ -792,7 +868,7 @@ def store_art(p: Painter, name: str):
 
 
 def store() -> Atlas:
-    a = Atlas("store-atlas", 64, 4, 3)
+    a = Atlas("store-atlas", 64, 4, 4)
     for i, name in enumerate(STORE_ART):
         store_art(a.tile(name, i % 4, i // 4), name)
     return a
@@ -1234,6 +1310,13 @@ def marker(p: Painter, name: str):
         p.dots(star(11.5, 5.2), "#b8862a")
         p.dots(star(9.5, 4.0), "#f2ca57")
         p.dots([(14, 10), (15, 10), (14, 11)], "#fff4d6")                # Shine.
+    elif kind == "order":
+        p.rect(9, 12, 23, 22, "#a47a4a")                  # A crate of produce:
+        p.rect(9, 16, 23, 17, "#7a5638")
+        p.rect(15, 12, 16, 22, "#7a5638")
+        p.ellipse(12, 10, 2, 2, "#d9453f")                # a tomato,
+        p.ellipse(17, 9, 2, 2, "#7fcf7a")                 # lettuce,
+        p.rect(20, 6, 22, 11, "#f2ca57")                  # and corn on top.
     elif kind == "finish":
         for i in range(4):
             for j in range(4):
@@ -1243,7 +1326,7 @@ def marker(p: Painter, name: str):
 
 MARKERS = ("icon_delivery", "icon_speed", "icon_drag", "icon_dropoff",
            "icon_delivery_hard", "icon_speed_hard", "icon_drag_hard", "icon_finish",
-           "icon_fishing", "icon_points")
+           "icon_fishing", "icon_points", "icon_order")
 
 
 def markers() -> Atlas:
@@ -1330,11 +1413,155 @@ def track() -> Atlas:
     return a
 
 
+FARM_ART = ("cow_a", "cow_b", "hen_white", "hen_brown", "trough", "feeder", "nest_box", "fence_rail",
+            "hay_pile", "milk", "eggs", "sprout", "plant_corn", "plant_tomato", "plant_lettuce",
+            "corn", "tomato", "lettuce")
+
+
+def farm_art(p: Painter, name: str):
+    """The farm in 64 px cells: animals and fixtures (drawn at 2x inside the farmhouse;
+    animals face north), plot crops (drawn 1:1 on mud tiles), and item icons."""
+    if name in ("cow_a", "cow_b"):
+        patch = "#27272b" if name == "cow_a" else "#8a5a3a"
+        p.ellipse(33, 38, 12, 21, "#1d2a30")              # Shadow.
+        p.ellipse(32, 36, 11, 20, "#f4f0e6")              # Body,
+        for x, y, rx, ry in ((27, 30, 4, 6), (37, 42, 5, 5), (30, 48, 3, 3)):
+            p.ellipse(x, y, rx, ry, patch)                # with patches.
+        p.rect(31, 55, 33, 60, "#e6ddc8")                 # Tail,
+        p.rect(30, 59, 34, 62, patch)
+        p.ellipse(32, 13, 7, 7, "#f4f0e6")                # head,
+        p.ellipse(32, 14, 4, 3, patch)
+        p.rect(28, 5, 36, 10, "#f2a8b8")                  # muzzle,
+        p.dots([(30, 7), (34, 7)], "#8a4a58")
+        p.rect(22, 12, 26, 15, patch)                     # ears,
+        p.rect(38, 12, 42, 15, patch)
+        p.rect(25, 8, 27, 11, "#e8d8b0")                  # and horns.
+        p.rect(37, 8, 39, 11, "#e8d8b0")
+    elif name in ("hen_white", "hen_brown"):
+        body, wing = ("#f4f0e6", "#d8d2c4") if name == "hen_white" else ("#b0703f", "#8a5530")
+        p.ellipse(33, 36, 10, 12, "#1d2a30")
+        p.rect(28, 43, 37, 50, wing)                      # Tail feathers,
+        p.ellipse(32, 34, 9, 11, body)                    # body,
+        p.ellipse(25, 35, 3, 6, wing)                     # wings,
+        p.ellipse(39, 35, 3, 6, wing)
+        p.ellipse(32, 22, 5, 5, body)                     # head,
+        p.rect(31, 18, 34, 22, "#d9453f")                 # comb,
+        p.rect(31, 14, 33, 18, "#f2ca57")                 # and beak.
+        p.dots([(29, 21), (35, 21)], "#27353d")
+    elif name == "trough":
+        p.rect(5, 26, 61, 42, "#1d2a30")
+        p.rect(4, 24, 60, 40, "#7a5638")                  # A long wooden trough
+        p.rect(7, 27, 57, 37, "#4a3522")
+        for i, x in enumerate(range(8, 56, 3)):           # full of feed.
+            p.rect(x, 28 + (i * 5) % 8, x + 2, 29 + (i * 5) % 8, ("#d9c07a", "#b89a58")[i % 2])
+        p.rect(7, 27, 57, 28, "#3a2a1c")
+    elif name == "feeder":
+        p.ellipse(33, 34, 13, 13, "#1d2a30")
+        p.ellipse(32, 32, 12, 12, "#8a8f8f")              # A round metal feeder
+        p.ellipse(32, 32, 9, 9, "#5d6366")
+        p.ellipse(32, 32, 7, 7, "#d9c07a")                # with grain,
+        p.ellipse(32, 32, 2, 2, "#8a8f8f")                # around its hopper.
+    elif name == "nest_box":
+        p.rect(10, 20, 56, 48, "#1d2a30")
+        p.rect(8, 18, 54, 46, "#8a6440")                  # Three nest boxes,
+        for i, x in enumerate((11, 26, 41)):
+            p.rect(x, 21, x + 11, 43, "#5a3d28")
+            p.rect(x + 1, 24, x + 10, 42, "#e0c46a")      # lined with straw,
+            if i != 1:
+                p.ellipse(x + 5, 33, 2, 3, "#f4ead0")     # two with an egg.
+    elif name == "fence_rail":
+        p.rect(0, 28, 64, 31, "#8a6440")                  # Two rails
+        p.rect(0, 34, 64, 37, "#8a6440")
+        p.rect(0, 31, 64, 32, "#5a3d28")
+        p.rect(0, 37, 64, 38, "#5a3d28")
+        for x in (1, 30, 59):
+            p.rect(x, 25, x + 4, 41, "#5a3d28")           # on posts.
+            p.rect(x + 1, 26, x + 3, 28, "#a47a4a")
+    elif name == "hay_pile":
+        p.ellipse(33, 35, 22, 13, "#1d2a30")
+        p.ellipse(32, 32, 21, 12, "#d4b457")
+        p.ellipse(30, 30, 15, 8, "#e6c96a")
+        for x, y in ((16, 30), (24, 26), (36, 34), (44, 29), (28, 37), (40, 25)):
+            p.rect(x, y, x + 6, y + 1, "#f2dc8a")         # Loose strands.
+    elif name == "milk":
+        p.rect(24, 14, 42, 54, "#1d2a30")
+        p.rect(22, 12, 40, 52, "#dfe8ea")                 # A milk bottle
+        p.rect(24, 22, 38, 50, "#fbfbf6")
+        p.rect(25, 6, 37, 13, "#dfe8ea")                  # with its neck
+        p.rect(24, 4, 38, 8, "#3f7fd0")                   # and a blue cap,
+        p.rect(24, 30, 38, 38, "#3f7fd0")                 # and label.
+        p.rect(27, 33, 35, 35, "#fbfbf6")
+    elif name == "eggs":
+        p.rect(10, 34, 56, 50, "#1d2a30")
+        p.rect(8, 32, 54, 48, "#a47a4a")                  # A basket
+        for x in (10, 18, 26, 34, 42, 50):
+            p.rect(x, 32, x + 2, 48, "#7a5638")
+        for x, y, c in ((19, 28, "#f4ead0"), (32, 26, "#e8c79a"), (45, 28, "#f4ead0")):
+            p.ellipse(x, y, 6, 8, "#1d2a30")              # of three eggs.
+            p.ellipse(x, y - 1, 5, 7, c)
+            p.dots([(x - 2, y - 4)], "#ffffff")
+    elif name == "sprout":
+        for x, y in ((18, 20), (44, 22), (22, 44), (44, 44), (32, 32)):
+            p.rect(x, y, x + 1, y + 5, "#3f7a3f")         # Little sprouts.
+            p.rect(x - 3, y, x, y + 2, "#6fbf5f")
+            p.rect(x + 1, y - 1, x + 4, y + 1, "#6fbf5f")
+    elif name == "plant_corn":
+        for x in (14, 30, 46):                            # Tall stalks
+            p.rect(x, 6, x + 3, 60, "#3f7a3f")
+            p.rect(x - 6, 20, x, 22, "#5a9a4a")           # with leaves
+            p.rect(x + 3, 34, x + 9, 36, "#5a9a4a")
+            p.rect(x - 6, 46, x, 48, "#5a9a4a")
+            p.ellipse(x + 5, 27, 2, 5, "#f2ca57")         # and ears.
+            p.rect(x + 4, 21, x + 6, 23, "#8aa253")
+    elif name == "plant_tomato":
+        for cx, cy in ((20, 20), (44, 22), (22, 44), (44, 44)):
+            p.ellipse(cx, cy, 10, 9, "#2f6a36")           # Bushy plants
+            p.ellipse(cx - 2, cy - 2, 6, 5, "#4f9a5a")
+            for dx, dy in ((-5, 2), (4, -3), (3, 5)):
+                p.ellipse(cx + dx, cy + dy, 2, 2, "#d9453f")   # with red tomatoes.
+    elif name == "plant_lettuce":
+        for cx, cy in ((18, 18), (46, 18), (32, 32), (18, 46), (46, 46)):
+            p.ellipse(cx, cy, 8, 8, "#3f8a3f")           # Round heads,
+            p.ellipse(cx, cy, 6, 6, "#7fcf7a")
+            p.ellipse(cx, cy, 3, 3, "#b5e6a0")           # pale hearts.
+    elif name == "corn":
+        p.ellipse(33, 34, 10, 22, "#1d2a30")
+        p.ellipse(32, 32, 9, 21, "#f2ca57")               # An ear of corn,
+        for y in range(15, 50, 4):
+            p.rect(24, y, 41, y + 1, "#d9a83a")          # its kernels,
+        p.rect(31, 12, 33, 52, "#d9a83a")
+        p.rect(18, 36, 24, 56, "#4f9a5a")                 # and husk leaves.
+        p.rect(40, 36, 46, 56, "#4f9a5a")
+        p.rect(24, 50, 40, 58, "#3f7a3f")
+    elif name == "tomato":
+        p.ellipse(33, 36, 18, 16, "#1d2a30")
+        p.ellipse(32, 34, 17, 15, "#d9453f")              # A red tomato,
+        p.ellipse(26, 29, 4, 3, "#f28a7a")                # shiny,
+        p.rect(29, 17, 35, 21, "#3f7a3f")                 # with its stem
+        p.rect(24, 20, 40, 22, "#4f9a5a")                 # and leaves.
+    elif name == "lettuce":
+        p.ellipse(33, 35, 19, 17, "#1d2a30")
+        p.ellipse(32, 33, 18, 16, "#3f8a3f")              # A head of lettuce,
+        p.ellipse(32, 33, 13, 12, "#7fcf7a")
+        p.ellipse(32, 33, 7, 6, "#b5e6a0")
+        for x in (20, 30, 40):
+            p.rect(x, 22, x + 1, 44, "#4f9a5a")           # veined leaves.
+    else:
+        raise ValueError(name)
+
+
+def farm() -> Atlas:
+    a = Atlas("farm-atlas", 64, 4, 5)
+    for i, name in enumerate(FARM_ART):
+        farm_art(a.tile(name, i % 4, i // 4), name)
+    return a
+
+
 def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home(), store(), highway()]
+                markers(), track(), canopies(), home(), store(), highway(), farm()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

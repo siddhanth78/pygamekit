@@ -20,8 +20,12 @@ def font(size: int, bold: bool = False) -> pygame.font.Font:
 
 def _blit_text(surface, text, size, bold, align, cell_rect):
     image = font(size, bold).render(text, True, (255, 255, 255))
-    rect = image.get_rect(midleft=(cell_rect.left + 4, cell_rect.centery)) if align == "left" \
-        else image.get_rect(center=cell_rect.center)
+    if align == "left":
+        rect = image.get_rect(midleft=(cell_rect.left + 4, cell_rect.centery))
+    elif align == "right":
+        rect = image.get_rect(midright=(cell_rect.right - 4, cell_rect.centery))
+    else:
+        rect = image.get_rect(center=cell_rect.center)
     surface.blit(image, rect)
 
 
@@ -78,8 +82,11 @@ class DynamicLabel:
         upload(self.ctx, surface, self.texture)
 
     def record(self, x, y, rgb):
-        """A 'tex' record; x is the left edge for left-aligned labels, else the center."""
+        """A 'tex' record; x is the left edge for left-aligned labels, the right edge for
+        right-aligned ones, else the center."""
         width, height = self.size
         if self.align == "left":
             x += width // 2
+        elif self.align == "right":
+            x -= width // 2
         return [x, y, *rgb, 255, 0, width, height, 0.0, 0, 0]

@@ -31,6 +31,8 @@ class InputHandler:
                     intents.append(("clear", None))
                 elif event.key == pygame.K_i:
                     intents.append(("inventory", None))
+                elif event.key == pygame.K_o:
+                    intents.append(("orders", None))
                 elif event.key in (pygame.K_UP, pygame.K_w):
                     intents.append(("menu_up", None))
                 elif event.key in (pygame.K_DOWN, pygame.K_s):

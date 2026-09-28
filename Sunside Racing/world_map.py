@@ -37,7 +37,10 @@ KINDS = {
     "camp": ((236, 120, 170), "Fish trader camp"),
     "veteran": ((150, 226, 140), "Veteran giver"),
     "store": ((160, 96, 220), "General Store"),
+    "farm": ((176, 122, 72), "Farmhouse"),
+    "buyer": ((232, 196, 120), "Farm buyer"),
 }
+SPARE_MARKS = 12               # Room for landmarks that come and go (farm buyers).
 PANEL = (20, 32, 40, 235)
 ACCENT = (242, 202, 87)
 CREAM = (238, 232, 208)
@@ -47,7 +50,7 @@ INK = (32, 45, 52)
 
 @dataclass(frozen=True)
 class Landmark:
-    kind: str          # A KINDS key: "center", "dock", "camp", or "veteran".
+    kind: str          # A KINDS key: "center", "dock", "camp", "store", "farm", or "veteran".
     name: str
     x: float
     y: float
@@ -57,7 +60,7 @@ class Landmark:
         return KINDS[self.kind][0]
 
 
-def landmarks(world, givers=()) -> list[Landmark]:
+def landmarks(world, givers=(), buyers=()) -> list[Landmark]:
     """Every landmark the map shows. More kinds can be added here."""
     out = []
     for (sx, sy), name in sorted(CENTERS.items()):
@@ -71,9 +74,14 @@ def landmarks(world, givers=()) -> list[Landmark]:
     shop = getattr(world, "general_store", None)
     if shop:
         out.append(Landmark("store", "General Store", *shop.door))
+    farm = getattr(world, "farm", None)
+    if farm:
+        out.append(Landmark("farm", "Farmhouse", *farm.door))
     for giver in givers:
         if giver.harder:
             out.append(Landmark("veteran", giver.name, giver.x, giver.y))
+    for order in buyers:                     # Only while the farm is the player's.
+        out.append(Landmark("buyer", order.title, order.x, order.y))
     return out
 
 
@@ -116,7 +124,8 @@ class WorldMap:
         # draws in the same frame stalls until the GPU is done with the first draw.
         self.frame_instances = get_new_instances(2, 0, 0)[0]
         self.frame_vao, self.frame_vbo = build_rect_objs(ctx, self.rect_program, self.frame_instances)
-        self.rect_instances = get_new_instances(24 + 2 * len(marks), 0, 0)[0]
+        self.ctx = ctx
+        self.rect_instances = get_new_instances(24 + 2 * (len(marks) + SPARE_MARKS), 0, 0)[0]
         self.rect_vao, self.rect_vbo = build_rect_objs(ctx, self.rect_program, self.rect_instances)
         self.title = DynamicLabel(ctx, (200, 44), 40, bold=True, align="center")
         self.title.set("MAP")
@@ -152,6 +161,15 @@ class WorldMap:
         return [_rect(*self.to_screen(m.x, m.y), DIAMOND, DIAMOND, (0, 0, 0, 0), 45.0) for m in self.marks]
 
     # Input ------------------------------------------------------------------------
+
+    def set_marks(self, marks: list[Landmark]):
+        """Replace the landmarks (e.g. farm buyers moved); grows the buffer if needed."""
+        self.marks = marks
+        if 24 + 2 * len(marks) > len(self.rect_instances):
+            self.rect_instances = get_new_instances(24 + 2 * (len(marks) + SPARE_MARKS), 0, 0)[0]
+            self.rect_vao, self.rect_vbo = build_rect_objs(self.ctx, self.rect_program, self.rect_instances)
+        if self.hovered not in marks:
+            self.hovered = None
 
     def toggle(self):
         self.open = not self.open

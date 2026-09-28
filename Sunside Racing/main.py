@@ -36,9 +36,11 @@ from world_map import WorldMap, guide_line, landmarks
 from arcade import ArcadeCabinet
 from home import HomeInterior
 from store import StoreInterior
-from inventory import BY_ID
+from farm import CROP_NAMES, FARM_GIFT, FARM_LEVEL, FarmInterior, feed, outdoor_sprites, plot_index
+from inventory import BY_ID, count_of
 from inventory import STACK_MAX
 from inventory_ui import InventoryMenu
+from orders_ui import OrdersMenu
 from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
 from player_save import PlayerSave
 from traffic import Traffic
@@ -57,6 +59,7 @@ RACE_OVER_DELAY = 2.0  # Seconds a win's banner shows before returning (losses e
 CENTER_TALK_RANGE = 130  # On foot, px from a racing center building to enter races.
 HOME_DOOR_RANGE = 40     # On foot, px from the house's front door to go inside.
 STORE_DOOR_RANGE = 40    # On foot, px from the General Store's door to go in.
+FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
                  "jungle": "grass"}
 
@@ -122,7 +125,7 @@ class Game:
         self.spend_menu = SpendMenu(ctx, TOOLKIT_ROOT, viewport)
         # M: the world map. A diamond clicked there sets the guide arrow; nothing is
         # selected at launch, so there is no arrow until the player picks a landmark.
-        self.landmarks = landmarks(world, self.missions.givers)
+        self.landmarks = self._landmarks()
         self.world_map = WorldMap(ctx, TOOLKIT_ROOT, viewport, world, self.landmarks)
         self.guide_to = None
         self.strike_bar = StrikeBar(ctx, TOOLKIT_ROOT, viewport)
@@ -136,8 +139,14 @@ class Game:
         self.store = StoreInterior(world.seed)
         self.store_collisions = CollisionManager(None, self.store)
         self.in_store = False
+        # The farmhouse: a third little level (cows and hens), once the farm is the player's.
+        self.farmhouse = FarmInterior(world.seed)
+        self.farm_collisions = CollisionManager(None, self.farmhouse)
+        self.in_farm = False
+        self.pending_plant = None    # (plot index, crops) while the panel asks which seed.
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
+        self.orders_menu = OrdersMenu(ctx, TOOLKIT_ROOT, viewport)                # O
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
         # Face the way it's parked from the first frame (getting out at once kept it north).
         self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
@@ -153,6 +162,18 @@ class Game:
         self.autosave = Autosave()
 
     # Helpers --------------------------------------------------------------------
+
+    def _landmarks(self):
+        """Map landmarks; farm buyers show once the farm is the player's."""
+        m = self.missions
+        return landmarks(self.world, m.givers, m.orders.orders.values() if m.farm.owned else ())
+
+    def _refresh_landmarks(self):
+        """Buyers come and go: rebuild the map's landmarks, keeping the guide if it's still there."""
+        self.landmarks = self._landmarks()
+        self.world_map.set_marks(self.landmarks)
+        if self.guide_to and self.guide_to not in self.landmarks:
+            self.guide_to = None
 
     def _snap_zoom(self, zoom: float):
         """Jump straight to a zoom (loading, travel, races), ending any zoom in progress."""
@@ -267,6 +288,11 @@ class Game:
             if self.inventory.handle(action, value) == "spend":
                 self.spend_menu.show(self.missions)
             return True
+        if self.orders_menu.open:
+            outcome = self.orders_menu.handle(action, value)
+            if isinstance(outcome, tuple):
+                self._take_order(outcome[1])
+            return True
         if self.arcade.open:
             if self.arcade.handle(action, value) == "close":
                 self.autosave.request()   # Keep a new best score.
@@ -318,12 +344,20 @@ class Game:
             confirm, self.pending_confirm = self.pending_confirm, None
             center, self.pending_center = self.pending_center, None
             giver, self.pending_offer = self.pending_offer, None
-            if outcome == "accept":
+            plant, self.pending_plant = self.pending_plant, None
+            if outcome.startswith("choice:") and plant:
+                index, crops = plant
+                self._plant(index, crops[int(outcome.split(":")[1])])
+            elif outcome == "accept":
                 if confirm == "store_pay":
                     self._pay_at_store()
                 elif confirm == "store_leave":
                     self.store.cart.empty()            # Put everything back and go.
                     self._leave_store()
+                elif confirm and confirm.startswith("order:"):
+                    self._take_order(confirm.split(":", 1)[1])
+                elif confirm and confirm.startswith("deliver:"):
+                    self._deliver_order(confirm.split(":", 1)[1])
                 elif confirm:
                     self._give_up(confirm)
                 elif center:
@@ -347,6 +381,11 @@ class Game:
             self.world_map.toggle()
         elif action == "inventory":
             self.inventory.toggle(self.missions)
+        elif action == "orders":
+            if self.missions.active:
+                self.panel.show_message("Orders", "Finish your current mission first.")
+            else:
+                self._show_orders()
         elif action == "confirm":
             if self.fishing:
                 self.fishing.press()   # Space: strike while the marker is in the green.
@@ -354,7 +393,9 @@ class Game:
             self.fishing = None        # Put the rod away first; press again to act.
         elif self.in_store and action == "reset":
             self.walker.respawn_nearby(self.store_collisions)
-        elif (self.inside or self.in_store) and action in ("island", "call_car"):
+        elif self.in_farm and action == "reset":
+            self.walker.respawn_nearby(self.farm_collisions)
+        elif (self.inside or self.in_store or self.in_farm) and action in ("island", "call_car"):
             pass                       # Nothing to travel to or call from inside the house.
         elif self.inside and action == "reset":
             self._stand_up()
@@ -380,6 +421,9 @@ class Game:
         if self.in_store:
             self._interact_store()
             return
+        if self.in_farm:
+            self._interact_farm()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -396,6 +440,19 @@ class Game:
         if (math.dist((self.walker.x, self.walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
             self._enter_home()
+            return
+        if (math.dist((self.walker.x, self.walker.y), self.world.farm.door) <= FARM_DOOR_RANGE
+                and not self.walker.can_enter(self.car)):
+            self._farm_door()
+            return
+        tile = plot_index(self.world.farm, self.walker.x, self.walker.y)
+        # On the plot, E tends it (step off to get in); during a mission the plot waits.
+        if tile is not None and self.missions.farm.owned and not self.missions.active:
+            self._tend_plot(tile)
+            return
+        buyer = self.missions.orders.buyer_near(self.walker.x, self.walker.y) if self.missions.farm.owned else None
+        if buyer:
+            self._talk_to_buyer(buyer)
             return
         giver = self.missions.giver_near(self.walker.x, self.walker.y)
         center = self._center_near(self.walker.x, self.walker.y)
@@ -534,6 +591,7 @@ class Game:
         if self.in_store:
             self.store.cart.empty()
             self.in_store = False
+        self.in_farm = False
 
     def _interact_store(self):
         spot = self.store.spot_near(self.walker.x, self.walker.y)
@@ -554,10 +612,8 @@ class Game:
                 self.panel.show_message("Cashier", "Pick something from the aisles, then pay here.")
                 return
             self.pending_confirm = "store_pay"
-            self.panel.show_confirm("Checkout", "", (
-                cart.summary(), f"Total {cart.total:,} S",
-                f"You have {self.missions.tokens:,} Sunside Tokens"), "PAY", "NOT YET")
-            self.panel.selected = 0            # PAY starts selected: that's what they came for.
+            self.panel.show_bill("Checkout", cart.bill(), f"{cart.total:,} S",
+                                 f"You have {self.missions.tokens:,} Sunside Tokens", ("PAY", "NOT YET"))
         else:
             why = cart.take(spot.item, self.missions)
             if why:
@@ -565,14 +621,14 @@ class Game:
 
     def _pay_at_store(self):
         cart = self.store.cart
-        total, summary = cart.total, cart.summary()
+        total, bill = cart.total, cart.bill()
         why = cart.pay(self.missions)
         if why:
             self.panel.show_message("Checkout", why)
         else:
             self.autosave.request()
-            self.panel.show_lines("Checkout", "Success", (f"Paid {total:,} S", summary,
-                                                          "It's all in your inventory (I)."))
+            self.panel.show_bill("Receipt", bill, f"{total:,} S  PAID", "It's all in your inventory (I).",
+                                 ("OK",), chip="Success")
 
     def _store_prompt(self):
         spot = self.store.spot_near(self.walker.x, self.walker.y)
@@ -606,6 +662,216 @@ class Game:
         if self.world_map.open:
             shop = self.world.general_store
             self.world_map.render(shop.x, shop.y, self.guide_to)
+
+    # Farm -------------------------------------------------------------------------
+
+    def _farm_door(self):
+        """Abandoned until rural level FARM_LEVEL; then E makes it the player's (with
+        FARM_GIFT tokens, once); after that E goes inside."""
+        farm = self.missions.farm
+        if not farm.owned:
+            level = self.missions.progress.levels["rural"]
+            if farm.claim(self.missions):
+                self._refresh_landmarks()          # Farm buyers appear on the map.
+                self.autosave.request()
+                self.panel.show_lines("Farmhouse", "Success", (
+                    "The farmhouse is yours!", f"+{FARM_GIFT} Sunside Tokens to get you started.",
+                    "Seeds, fertilizer, and feed: the General Store."))
+            else:
+                self.panel.show_lines("Abandoned farmhouse", "Locked", (
+                    "The windows are boarded up; nobody lives here.",
+                    f"Reach rural level {FARM_LEVEL} to make it yours.", f"You're rural level {level}."))
+            return
+        if self.missions.active:
+            self.panel.show_message("Farmhouse", "Finish your current mission first.")
+            return
+        self.in_farm = True
+        self.walker.x, self.walker.y = self.farmhouse.entry
+        self.walker.heading, self.walker.speed = 0.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_farm(self):
+        self.in_farm = False
+        self.walker.x, self.walker.y = self.world.farm.door
+        self.walker.heading = 180.0
+        self.collisions.fixed = [self.car.obstacle()]   # The parked car stays solid.
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _tend_plot(self, index):
+        """E on a plot tile: plant (asking which seed when there's a choice), fertilize a
+        sprout, or harvest a ripe crop."""
+        farm, cell = self.missions.farm, self.missions.farm.plot[index]
+        if cell is None:
+            crops = farm.seeds_owned(self.missions)
+            if not crops:
+                self.panel.show_message("Farm plot", "You have no seeds. The General Store sells them.")
+            elif len(crops) == 1:
+                self._plant(index, crops[0])
+            else:
+                self.pending_plant = (index, crops)
+                self.panel.show_choice("Plant a seed", "", (
+                    "  ·  ".join(f"{CROP_NAMES[c]} x{count_of(self.missions, f'seeds_{c}')}" for c in crops),
+                    "One seed per tile; super fertilizer grows it.", ""),
+                    [CROP_NAMES[c].upper() for c in crops])
+            return
+        why = farm.fertilize(self.missions, index) if cell[1] == "sprout" else farm.harvest(self.missions, index)
+        if why:
+            self.panel.show_message("Farm plot", why)
+        else:
+            self.autosave.request()
+
+    def _plant(self, index, crop):
+        why = self.missions.farm.plant(self.missions, index, crop)
+        if why:
+            self.panel.show_message("Farm plot", why)
+        else:
+            self.autosave.request()
+
+    def _plot_prompt(self, walker):
+        if not self.missions.farm.owned or self.missions.active:
+            return ""
+        index = plot_index(self.world.farm, walker.x, walker.y)
+        if index is None:
+            return ""
+        cell = self.missions.farm.plot[index]
+        if cell is None:
+            return "E   Plant a seed"
+        name = CROP_NAMES[cell[0]]
+        if cell[1] == "sprout":
+            return f"E   Fertilize  ·  {name}  ·  fertilizer x{count_of(self.missions, 'super_fertilizer')}"
+        return f"E   Harvest  ·  {name}"
+
+    def _farm_door_prompt(self):
+        if self.missions.farm.owned:
+            return "E   Go inside the farmhouse"
+        if self.missions.progress.levels["rural"] >= FARM_LEVEL:
+            return "E   Claim the farmhouse"
+        return "E   Abandoned farmhouse"
+
+    def _talk_to_buyer(self, order):
+        """Take a buyer's order, deliver it when the goods are in the inventory, or say
+        what's still missing. Only one order is worked on at a time."""
+        orders, title = self.missions.orders, order.title
+        if self.missions.active:
+            self.panel.show_message(title, "Finish your current mission first.")
+            return
+        missing = orders.missing(self.missions, order)
+        chip = "Tokens" if order.pay == "tokens" else "Mastery"
+        if not missing:
+            self.pending_confirm = f"deliver:{order.region}"
+            self.panel.show_confirm(title, chip, (f"Wants {order.goods_line()}", order.pay_line(),
+                                                  "You have everything they need."), "DELIVER", "NOT NOW")
+            self.panel.selected = 0
+        elif orders.active == order.region:
+            self.panel.show_lines(title, chip, (
+                "Still waiting for " + ",  ".join(f"{n} {BY_ID[g].name.lower()}" for g, n in missing.items()),
+                order.pay_line(), "Grow crops on your plot; milk and eggs come from the farmhouse."))
+        else:
+            self.pending_confirm = f"order:{order.region}"
+            switching = orders.active and orders.orders.get(orders.active)
+            self.panel.show_confirm(title, chip, (
+                f"Wants {order.goods_line()}", order.pay_line(),
+                f"Instead of the {orders.active.title()} order (it stays open)" if switching
+                else "Bring the goods here to deliver."), "TAKE ORDER", "NOT NOW")
+            self.panel.selected = 0
+
+    def _show_orders(self):
+        """O: every open order, from wherever the player is (house, store, ...)."""
+        m, orders = self.missions, self.missions.orders
+        if not m.farm.owned:
+            self.orders_menu.show([], f"No orders yet. Farm buyers come once the farmhouse is yours "
+                                      f"(rural level {FARM_LEVEL}).")
+            return
+        here = self._where()
+        rows = []
+        for order in sorted(orders.orders.values(), key=lambda o: math.dist(here, (o.x, o.y))):
+            dx, dy = order.x - here[0], order.y - here[1]
+            rows.append({"region": order.region, "title": order.title, "wants": f"Wants {order.goods_line()}",
+                         "pays": (f"{order.value:,} S" if order.pay == "tokens" else f"{order.points} mastery points"),
+                         "where": f"{math.hypot(dx, dy) / 10000:.1f} km {compass(dx, dy)}",
+                         "active": orders.active == order.region,
+                         "ready": not orders.missing(m, order)})
+        self.orders_menu.show(rows)
+
+    def _where(self):
+        """The player's spot in the world, even from inside a building."""
+        if self.inside:
+            return HOME_HOUSE
+        if self.in_store:
+            shop = self.world.general_store
+            return shop.x, shop.y
+        if self.in_farm:
+            return self.world.farm.house
+        player = self.walker or self.car
+        return player.x, player.y
+
+    def _buyer_mark(self, region):
+        order = self.missions.orders.orders.get(region)
+        return next((m for m in self.landmarks if m.kind == "buyer" and order
+                     and (m.x, m.y) == (order.x, order.y)), None)
+
+    def _take_order(self, region):
+        self.missions.orders.take(region)
+        self.guide_to = self._buyer_mark(region)     # The guide arrow points at the buyer.
+        self.autosave.request()
+
+    def _deliver_order(self, region):
+        order = self.missions.orders.orders[region]
+        why = self.missions.orders.deliver(self.missions, region)
+        if why:
+            self.panel.show_message(order.title, why)
+            return
+        self._refresh_landmarks()                    # A new buyer elsewhere in the region.
+        self.autosave.request()
+        paid = (f"+{order.value:,} Sunside Tokens" if order.pay == "tokens"
+                else f"+{order.points} mastery points (in your inventory)")
+        self.panel.show_lines(order.title, "Success", (f"Delivered {order.goods_line()}", paid,
+                                                       f"A new {region} buyer is waiting somewhere else."))
+
+    def _interact_farm(self):
+        spot = self.farmhouse.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return
+        if spot.kind == "door":
+            self._leave_farm()
+        elif spot.kind in ("cow", "hen"):
+            why = feed(self.missions, spot.kind)
+            if why:
+                self.panel.show_message(spot.label, why)
+            else:
+                self.autosave.request()
+        else:
+            self.panel.show_message(spot.label, spot.key)
+
+    def _farmhouse_prompt(self):
+        spot = self.farmhouse.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        if spot.kind in ("cow", "hen"):
+            feed_id = "cow_feed" if spot.kind == "cow" else "hen_feed"
+            return f"E   {spot.label}  ·  {BY_ID[feed_id].name.lower()} x{count_of(self.missions, feed_id)}"
+        return f"E   {spot.label}" if spot.kind != "look" else f"E   Look  ·  {spot.label}"
+
+    def _update_farm(self, dt):
+        walker = self.walker
+        walker.update(dt, *self.inputs.walking(), self.farm_collisions)
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, walker.frame())
+        self.farmhouse.update(dt)
+        self._ease_zoom(dt)
+
+    def _render_farm(self):
+        walker, zoom, house = self.walker, self.zoom, self.farmhouse
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (house.width, house.height))
+        self.state.render(house.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
+        m = self.missions
+        panel = (f"COW FEED {count_of(m, 'cow_feed')}  ·  HEN FEED {count_of(m, 'hen_feed')}",
+                 f"Milk {count_of(m, 'milk')}  ·  Eggs {count_of(m, 'eggs')}")
+        self.hud.render(0.0, "Farmhouse", house.room_at(walker.x, walker.y), self._farmhouse_prompt(),
+                        show_speed=False, mission=panel, toast=self._toast())
+        if self.world_map.open:
+            self.world_map.render(*self.world.farm.house, self.guide_to)
 
     # Fishing ----------------------------------------------------------------------
 
@@ -796,8 +1062,8 @@ class Game:
         if self.arcade.open:
             self.arcade.update(dt)
             return
-        if self.inventory.open:
-            return   # Paused while the inventory is open.
+        if self.inventory.open or self.orders_menu.open:
+            return   # Paused while the inventory or the orders are open.
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
         if self.race:
@@ -811,6 +1077,9 @@ class Game:
             return
         if self.in_store:
             self._update_store(dt)   # Likewise the store.
+            return
+        if self.in_farm:
+            self._update_farm(dt)    # And the farmhouse.
             return
         car, walker = self.car, self.walker
         player = walker or car
@@ -893,6 +1162,8 @@ class Game:
             self._render_home()
         elif self.in_store:
             self._render_store()
+        elif self.in_farm:
+            self._render_farm()
         else:
             self._render_world()
         if self.panel.open:
@@ -903,6 +1174,8 @@ class Game:
             self.arcade.render()
         if self.inventory.open:
             self.inventory.render()
+        if self.orders_menu.open:
+            self.orders_menu.render()
         if self.menu.open:
             if self.menu.page in ("mastery", "docks"):
                 self._refresh_mastery()
@@ -921,6 +1194,11 @@ class Game:
         visible += self.pedestrians.sprites(camera_x, camera_y, view_w, view_h)
         visible += self.missions.sprites(self.clock)
         visible += trader_sprites(self.world, self.clock)
+        if self.missions.farm.owned:
+            visible += self.missions.orders.sprites(self.clock)
+        farm_x, farm_y = self.world.farm.house
+        if abs(farm_x - (camera_x + view_w / 2)) < view_w + 600 and abs(farm_y - (camera_y + view_h / 2)) < view_h + 600:
+            visible += outdoor_sprites(self.world.farm, self.missions.farm)
         fishing = self.fishing if walker else None
         if fishing:
             visible += fishing.sprites()
@@ -942,7 +1220,11 @@ class Game:
         giver = self.missions.giver_near(player.x, player.y) if walker else None
         center_region = self._center_near(player.x, player.y) if walker else None
         island = self._island_prompt(player)
-        if giver and self.missions.is_locked(giver):
+        buyer = (self.missions.orders.buyer_near(player.x, player.y)
+                 if walker and self.missions.farm.owned else None)
+        if buyer:
+            prompt = "E   Talk  ·  Farm buyer"
+        elif giver and self.missions.is_locked(giver):
             prompt = f"Veteran  ·  {giver.region.title()} level {HARDER_LEVEL}"
         elif giver:
             prompt = f"E   Talk  ·  {TITLES[giver.type]}"
@@ -955,6 +1237,11 @@ class Game:
         elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Go inside"
+        elif (walker and math.dist((walker.x, walker.y), self.world.farm.door) <= FARM_DOOR_RANGE
+              and not walker.can_enter(car)):
+            prompt = self._farm_door_prompt()
+        elif walker and self._plot_prompt(walker):
+            prompt = self._plot_prompt(walker)
         elif walker and (self.fishing or self._fishing_prompt(walker)):
             prompt = self._fishing_prompt(walker)
         elif walker and walker.can_enter(car):

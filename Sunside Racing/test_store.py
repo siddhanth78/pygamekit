@@ -21,7 +21,7 @@ from world import CENTERS, SECTOR_SIZE, World
 
 
 MANIFEST = json.loads((PROJECT_ROOT / "assets" / "atlas-manifest.json").read_text())["atlases"]
-PRICES = {"seeds_corn": 10, "seeds_tomato": 20, "seeds_lettuce": 30, "super_fertilizer": 50,
+PRICES = {"seeds_corn": 10, "seeds_tomato": 20, "seeds_lettuce": 30, "super_fertilizer": 50, "cow_feed": 10, "hen_feed": 10,
           "fair_ticket": 100, "factory_pass": 20_000, "island_pass": 100_000}
 
 
@@ -61,7 +61,7 @@ class CartTests(unittest.TestCase):
     def test_prices(self):
         self.assertEqual({i: BY_ID[i].price for i in PRICES}, PRICES)
         self.assertEqual([items for _, _, items in AISLES],
-                         [("seeds_corn", "seeds_tomato", "seeds_lettuce"), ("super_fertilizer",),
+                         [("seeds_corn", "seeds_tomato", "seeds_lettuce"), ("super_fertilizer", "cow_feed", "hen_feed"),
                           ("fair_ticket", "factory_pass", "island_pass")])
 
     def test_passes_are_one_time(self):

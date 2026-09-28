@@ -1,7 +1,7 @@
 """The General Store: a level loaded when the player walks in (like the house).
 
 A checkout counter by the door with the cashier, and three aisles: seeds (corn, tomato,
-lettuce), items (super fertilizer), and tickets (fair ticket, factory pass, island pass).
+lettuce), items (super fertilizer, cow feed, hen feed), and tickets (fair ticket, factory pass, island pass).
 E on a product puts one in the cart; the cashier takes Sunside Tokens for the whole cart;
 the door won't let the player out with an unpaid cart (empty it, or stay and pay).
 A few shoppers browse and come and go; none of them can be talked to.
@@ -26,7 +26,7 @@ FIXTURE = 128                         # store-atlas cells drawn at 2x, like the 
 SHELF_XS = (5.2, 7.9, 10.6, 13.3)     # Shelf units (tile x); the aisles run between them.
 SHELF_YS = (3.0, 4.9)
 AISLES = (("seeds", "Seeds aisle", ("seeds_corn", "seeds_tomato", "seeds_lettuce")),
-          ("items", "Items aisle", ("super_fertilizer",)),
+          ("items", "Items aisle", ("super_fertilizer", "cow_feed", "hen_feed")),
           ("tickets", "Tickets aisle", ("fair_ticket", "factory_pass", "island_pass")))
 PRODUCT_YS = {3: (2.7, 4.0, 5.3), 1: (4.0,)}   # Tile y of each product, by how many an aisle has.
 PRODUCT_SIZE = 44
@@ -103,6 +103,11 @@ class Cart:
 
     def empty(self):
         self.items = {}
+
+    def bill(self) -> list[tuple[str, str]]:
+        """One line per item, like a receipt: ("Corn seeds  3 x 10 S", "30 S")."""
+        return [(f"{BY_ID[i].name}  {n} x {BY_ID[i].price:,} S", f"{BY_ID[i].price * n:,} S")
+                for i, n in self.items.items()]
 
     def summary(self) -> str:
         return ",  ".join(f"{BY_ID[i].name} x{n}" for i, n in self.items.items())
