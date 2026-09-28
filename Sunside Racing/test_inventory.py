@@ -42,7 +42,7 @@ class InventoryTests(unittest.TestCase):
         m.unspent = 7
         self.assertEqual([(item.id, n) for item, n in contents(m)],
                          [("sunside_tokens", 0), ("fish_common", 2), ("fish_epic", 1), ("mastery_points", 7)])
-        self.assertEqual(GRID, (6, 4))
+        self.assertEqual(GRID, (7, 4))
         self.assertLessEqual(len(ITEMS), GRID[0] * GRID[1])
         for item in ITEMS:                                   # Every icon exists.
             self.assertIn(item.sprite, MANIFEST[item.atlas]["sprites"])

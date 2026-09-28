@@ -83,6 +83,9 @@ class Cart:
         """Put one in the cart; returns why not, or None when it went in."""
         item = BY_ID[item_id]
         have, wanted = count_of(missions, item_id), self.items.get(item_id, 0)
+        factory = getattr(missions, "factory", None)
+        if item_id == "factory_pass" and factory is not None and factory.unlocked:
+            return "The factory is already yours; no pass needed."
         if item.max_stack == 1 and (have or wanted):
             return f"You already have the {item.name.lower()}." if have else \
                 f"The {item.name.lower()} is already in your cart."

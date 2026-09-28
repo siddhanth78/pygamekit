@@ -1,10 +1,10 @@
 {
   "version": 3,
-  "mode": "drive",
+  "mode": "walk",
   "car": {
-    "x": 10964.0,
-    "y": 15976.0,
-    "heading": 0.0
+    "x": 17313.74913224388,
+    "y": 3842.2902706836276,
+    "heading": 174.9452714944614
   },
   "missions": {
     "progress": {
@@ -133,12 +133,12 @@
         "epic": 0
       }
     },
-    "unspent_mastery": 0,
+    "unspent_mastery": 245,
     "arcade": {
-      "lane_dodge": 39
+      "lane_dodge": 50
     },
     "inventory": {
-      "sunside_tokens": 265,
+      "sunside_tokens": 16897,
       "fair_ticket": 9
     },
     "farm": {
@@ -241,6 +241,33 @@
         "whack": 4
       },
       "f1": false
+    },
+    "factory": {
+      "unlocked": true,
+      "tank": 0,
+      "market": {
+        "iron": [
+          -0.05,
+          0.14
+        ],
+        "copper": [
+          0.11,
+          -0.09
+        ],
+        "silver": [
+          0.11,
+          0.05
+        ],
+        "gold": [
+          0.17,
+          -0.05
+        ]
+      }
     }
+  },
+  "walker": {
+    "x": 329.07074918465185,
+    "y": 136.49074918465394,
+    "heading": 180.0
   }
 }

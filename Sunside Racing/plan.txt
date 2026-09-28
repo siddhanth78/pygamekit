@@ -1675,7 +1675,7 @@ Farm buyers and deliveries (built, 2026-09-27; user: "continue build")
   block, save/bad saves) and a real-key flow (claim, 5 buyers on the map,
   take order, guide set, waiting, deliver, paid, new buyer). 242 passing.
 
-Desert Mining Factory (mostly agreed)
+Desert Mining Factory (agreed; BUILT 2026-09-28, see "Mining Factory (built)" at the end)
 - On the desert's shoreline, so stones can be shipped. A biofuel depot stands
   next to it (separate from the factory); biofuel from the depot powers the
   factory. Entry needs the Factory Pass (20,000 S, one-time).
@@ -1691,6 +1691,40 @@ Desert Mining Factory (mostly agreed)
   biofuel (milk and eggs stay for deliveries). A 1-biofuel run's odds: copper
   50% (300 S + 3 mastery), iron 30% (600 S + 5), silver 15% (1,200 S + 10),
   gold 5% (3,000 S + 25). Stones are new inventory items (999 each).
+- Agreed (user, 2026-09-28; supersedes the tiers and crop rate above):
+  - Biofuel depot: standing in front of it, the player turns crops into
+    biofuel. 1 crop gives 10 biofuel. Maximum capacity 200 biofuel.
+  - Spending more biofuel on a run raises the stone's rarity. Four run sizes:
+    - 2 biofuel: 80% iron, 20% copper
+    - 5 biofuel: 80% copper, 20% silver
+    - 10 biofuel: 90% silver, 10% gold
+    - 20 biofuel: 100% gold
+    ("High chance" means the listed stone is the floor: a run never gives
+    less than that tier.)
+  - This ranks the stones iron < copper < silver < gold (iron lowest), which
+    reverses copper and iron from the earlier proposal.
+- Answered (user, 2026-09-28):
+  - Stone payouts: iron 300 S + 3 mastery, copper 600 S + 5, silver 1,200 S +
+    10, gold 3,000 S + 25 (shipped at the factory dock; mastery universal,
+    into the inventory).
+  - 1 biofuel per crop (supersedes "1 crop gives 10"). A guaranteed gold (20
+    biofuel) costs 20 corn.
+  - 200 is the depot's tank. The player never carries biofuel (no biofuel
+    item).
+  - Only corn makes biofuel (tomato and lettuce don't; milk and eggs don't).
+  - Making a stone draws the biofuel from the depot's tank automatically.
+- Proposed details for the build (not yet confirmed):
+  - Depot: E in front of it shows the tank (n / 200) and FILL UP, which turns
+    as much corn as fits into biofuel (1 corn each). A popup explains if there
+    is no corn or the tank is full.
+  - Factory level: a machine where E picks the run size (2 / 5 / 10 / 20
+    biofuel), shown with its odds, if the tank has enough. The stone goes into
+    the inventory (new items: iron, copper, silver, gold stones, 999 each).
+  - Shipping: E at the factory's dock ships every stone carried, paying the
+    tokens and mastery above, with a receipt popup.
+  - Location (proposed): the desert sector on the east shore nearest the
+    desert's middle that is clear of the highway, camps, and the center, with
+    the depot beside the factory and the dock on the shore.
 
 Universal mastery in the inventory (built for fish, 2026-09-27; farm and
 factory use it when they are built)
@@ -1917,4 +1951,87 @@ Inventory notes are one line (built, 2026-09-28)
   milk.", "Sold to farm buyers.", "Entry to the Snow Fair.", "One fair game or
   ride.", "Entry to the factory.", "Passage to the island.". A test keeps
   notes to one line with no store or price words. 261 passing.
+
+Mining Factory (built, 2026-09-28; user: "build new assets and the factory loop.
+factory is unlocked with single factory pass. one time thing")
+- Site (factory.choose_site, rules only, the same on every seed): a desert
+  sector with a beach sector and then sea beside it, beach on both sides of
+  that beach, off the highway, 3+ sectors from the desert center, and 3+
+  sectors from any pier or the ferry dock. The one nearest the desert's
+  middle wins: sector (33, 7), facing north to the sea. Camps are now placed
+  after the factory and keep a sector clear of it (so camps can't move it
+  between seeds); piers and ferry docks are placed before camps.
+  GENERATOR_VERSION is now 16.
+- Outside: a concrete yard with the factory building (its front and door
+  face the yard side), the green biofuel depot tank piped to it, crates and a
+  drum. On the beach, the cargo dock runs out to sea with a container
+  freighter moored at its end. The art is in the new factory-atlas (96 px
+  cells, 4 x 4). The FactorySite.at(u, v) frame turns the layout to face any
+  shore. Map: "Mining Factory" diamond (170, 180, 196) at the door.
+- The Factory pass (General Store, 20,000 S): E at the door with the pass
+  asks UNLOCK / NOT NOW; UNLOCK uses the pass and the factory stays open for
+  good (missions "factory": {unlocked, tank}). Without it: "Entry needs a
+  Factory pass." Once unlocked, the store won't sell another pass. Prompt: "E
+  Mining Factory · Factory pass" until unlocked, then "E Mining Factory".
+- Depot (outside, needs the factory unlocked): "E Biofuel depot" shows the
+  tank (n / 200) with FILL UP / NOT NOW; FILL UP turns as much corn as fits
+  into biofuel (1 corn = 1 biofuel; tomato, lettuce, milk, and eggs don't).
+  Popups for no corn or a full tank. The player never carries biofuel.
+- Inside (FactoryInterior, 16 x 10): the stone machine (hopper, furnace,
+  control panel) fed by a pipe from the west wall, a conveyor to the stone
+  bin, drums, crates, and two workers. "E Run the stone machine" offers 2 /
+  5 / 10 / 20 (the panel's choice now takes four), with the tank and odds. It
+  burns that much from the tank (or says to fill up), then works for 3 s:
+  the furnace glows and the stone rides the conveyor. Then "You made a Gold
+  stone!" and the stone goes into the inventory. Odds (RUNS): 2 = iron 80 /
+  copper 20; 5 = copper 80 / silver 20; 10 = silver 90 / gold 10; 20 = gold.
+  Leaving or travelling mid-run still gives the stone. The HUD shows
+  "BIOFUEL n / 200" or "MAKING A STONE · n BIOFUEL" and the seconds left.
+- Dock: "E Ship stones" shows a bill of every stone carried (SHIP / NOT NOW)
+  and pays tokens plus universal mastery into the inventory: iron 300 S + 3,
+  copper 600 S + 5, silver 1,200 S + 10, gold 3,000 S + 25. It is refused if
+  tokens or mastery points would overflow. A receipt follows. The depot, the
+  dock, and the door all wait while a mission runs.
+- New items: iron, copper, silver, and gold stone ("Ship for tokens,
+  mastery."). The inventory grid is 7 x 4 (the panel is 1190 wide).
+- Tests: test_factory.py (the pass unlocks once and the store refuses
+  another, the depot takes only corn up to 200, the odds and never-worse
+  floor, shipping pay and full mastery, the site rules and seeds, walkable
+  spots, the machine timing) and a real-key flow (locked, unlock, empty tank,
+  fill, gold run, ship). 268 passing.
+
+Stone machine card follows the selection (built, 2026-09-28)
+- The card shows "Tank: n / 200 biofuel", then the highlighted run size ("10
+  biofuel") and its odds ("90% silver · 10% gold"), updating as the
+  highlight moves (arrows or the mouse). "burn more for rarer stones" is
+  gone (the odds make it plain). MissionPanel.show_choice takes optional
+  per-option detail lines. 268 passing.
+
+Stone market (built, 2026-09-28; supersedes the fixed stone pay above)
+- User: shipping also pays mastery, so the fixed prices (iron 300 ... gold
+  3,000) were far too much profit. Prices are now cost plus a moving market.
+- Cost: a stone costs the biofuel of the run whose floor it is (iron 2,
+  copper 5, silver 10, gold 20). One biofuel is one corn, which costs its
+  seed (10 S) plus the super fertilizer that grows it (50 S) = 60 S
+  (factory.CORN_COST, read from the store prices). So iron costs 120 S,
+  copper 300, silver 600, gold 1,200.
+- Market: each stone has its own margin, drawn anew for every stone after
+  every shipment, anywhere from -10% to +20% (MARGIN_RANGE). Price = cost x
+  (1 + margin). Mastery stays fixed: iron 3, copper 5, silver 10, gold 25.
+  factory.Market keeps the last 12 margins per stone, saved in missions
+  "factory" under "market" (bad saves are drawn fresh).
+- The market board (factory-atlas "market_board") hangs on the factory's
+  north wall. "E Stone market" opens market_ui.MarketBoard: for each stone,
+  its icon, today's price, the margin ("+10% over cost" in green or "1% under
+  cost" in red), its cost and mastery, and a bar chart of the last 12
+  shipments. Bars go up or down from the cost line; the newest bar is gold. E
+  or ESC closes it. The game pauses while it's open.
+- The dock bill and receipt use today's prices (the receipt shows what it
+  sold for; the market moves after). The receipt's TOTAL line now has room
+  for the whole amount ("17,024 S + 301 mastery PAID"); before, it was cut
+  to "00 S + 45 mastery PAID".
+- Tests: cost and margin ranges, price = cost x (1 + margin), the history
+  cap and saving, the market moving only on a real shipment, and the flow
+  (board opens and closes, ship at the market price, full total shown).
+  269 passing.
 

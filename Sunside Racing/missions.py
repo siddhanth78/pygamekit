@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from car import OFF_SURFACE, SURFACES, TOP_SPEED
 from collision_manager import CollisionManager, nearest_clear_spot
 from fishing import FishLog
+from factory import FactoryState
 from fair import FairState
 from farm import Farm
 from farm_orders import FarmOrders
@@ -167,6 +168,7 @@ class Missions:
         self.counter = data.get("counter") if type(data.get("counter")) is int else 0
         self.farm = Farm(data.get("farm"))    # The farmhouse (owned?) and its plot.
         self.fair = FairState(data.get("fair"))  # Snow Fair booths and the F1 prize.
+        self.factory = FactoryState(data.get("factory"))   # Unlocked? and the depot's biofuel.
         self.givers = self._place_givers()
         self.by_id = {g.id: g for g in self.givers}
         # Farm buyers (shown once the farm is owned): one open order per mainland region.
@@ -592,7 +594,8 @@ class Missions:
                 "offers": {gid: offer.to_dict() for gid, offer in self.offers.items()},
                 "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
                 "arcade": dict(self.arcade), "inventory": dict(self.items), "farm": self.farm.to_dict(),
-                "farm_orders": self.orders.to_dict(), "fair": self.fair.to_dict()}
+                "farm_orders": self.orders.to_dict(), "fair": self.fair.to_dict(),
+                "factory": self.factory.to_dict()}
 
     def add_universal(self, points: int) -> int:
         """Universal mastery (fish trades now; farm deliveries and factory stones later)

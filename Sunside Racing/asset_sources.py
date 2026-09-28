@@ -1811,11 +1811,151 @@ def f1_car(p: Painter):
     p.rect(19, 57, 45, 60, "#fff4c0")
 
 
+FACTORY_ART = ("factory_building", "depot_tank", "pipe", "cargo_dock", "cargo_ship", "stone_machine",
+               "machine_glow", "conveyor", "stone_bin", "barrel", "crate_stack",
+               "stone_iron", "stone_copper", "stone_silver", "stone_gold", "market_board")
+STONE_COLORS = {  # rock, ore, shine
+    "stone_iron": ("#6d6a66", "#8a4a3a", "#b0a8a0"), "stone_copper": ("#7a6250", "#d9804a", "#6fc0b0"),
+    "stone_silver": ("#8a9aa4", "#d8e2e8", "#ffffff"), "stone_gold": ("#8a7040", "#f2ca57", "#fff4c0")}
+
+
+def factory_art(p: Painter, name: str):
+    """The Desert Mining Factory in 96 px cells (fronts face south; the dock and ship run
+    east, out to sea) and the four stones."""
+    if name == "factory_building":
+        p.rect(6, 10, 94, 90, "#1d2a30")
+        p.rect(4, 8, 90, 86, "#8d969c")                      # Metal roof,
+        for x in range(8, 90, 8):
+            p.rect(x, 12, x + 2, 70, "#737c82")               # corrugated,
+        p.rect(4, 8, 90, 12, "#a9b2b8")
+        for cx in (22, 70):                                  # two smokestacks,
+            p.ellipse(cx, 26, 9, 9, "#4a4f55")
+            p.ellipse(cx, 26, 5, 5, "#1d1a18")
+        p.rect(30, 38, 62, 50, "#f2ca57")                    # the MINING sign,
+        for x in range(33, 60, 7):
+            p.rect(x, 41, x + 4, 47, "#27353d")
+        p.rect(4, 70, 90, 86, "#6b7278")                     # the front wall
+        p.rect(34, 72, 60, 86, "#3a3f44")                    # with a big door
+        for x in range(34, 60, 6):
+            p.rect(x, 82, x + 3, 86, "#f2ca57")               # and hazard stripes.
+    elif name == "depot_tank":
+        p.ellipse(50, 50, 40, 40, "#1d2a30")
+        p.ellipse(48, 48, 40, 40, "#4f8a4a")                 # A round green tank,
+        ring_color = "#3a6a38"
+        for r in (40, 30):
+            for y in range(48 - r, 49 + r):
+                h = int((r * r - (y - 48) ** 2) ** 0.5)
+                p.rect(48 - h, y, 48 - h + 2, y + 1, ring_color)
+                p.rect(48 + h - 2, y, 48 + h, y + 1, ring_color)
+        p.ellipse(48, 48, 12, 12, "#3a6a38")                 # its lid,
+        p.rect(34, 62, 62, 72, "#f4ead0")                    # a BIO label,
+        p.rect(37, 65, 59, 69, "#4f9a5a")
+        p.rect(84, 30, 88, 66, "#8a8f8f")                    # and a ladder.
+    elif name == "pipe":
+        p.rect(0, 42, 96, 56, "#1d2a30")
+        p.rect(0, 40, 96, 54, "#8a8f8f")                     # A pipe
+        p.rect(0, 42, 96, 45, "#b0b8bc")
+        for x in (10, 46, 82):
+            p.rect(x, 36, x + 6, 58, "#5d6366")               # with joints.
+    elif name == "cargo_dock":
+        p.rect(2, 26, 96, 72, "#4f3a28")
+        for x in range(2, 92, 7):
+            p.rect(x, 28, min(96, x + 5), 70, "#a47a4a")      # Planks,
+        for x in (6, 44, 86):
+            p.ellipse(x, 30, 4, 4, "#27353d")                # bollards,
+            p.ellipse(x, 68, 4, 4, "#27353d")
+        p.rect(88, 24, 92, 74, "#f2ca57")                    # and a yellow edge.
+    elif name == "cargo_ship":
+        p.rect(4, 30, 90, 70, "#1d2a30")
+        p.ellipse(88, 50, 8, 20, "#8a2e2a")                  # The bow,
+        p.rect(6, 28, 88, 72, "#8a2e2a")                     # a red hull,
+        p.rect(10, 32, 84, 68, "#27353d")                    # deck,
+        for i, (x, c) in enumerate(((16, "#3f7fd0"), (30, "#d9453f"), (44, "#f2ca57"), (58, "#4f9a5a"))):
+            p.rect(x, 36, x + 12, 49, c)                     # containers,
+            p.rect(x, 51, x + 12, 64, ("#e08a4a", "#3f7fd0", "#d9453f", "#8a55c9")[i])
+        p.rect(72, 36, 84, 64, "#e8eef0")                    # and the bridge.
+        p.rect(74, 40, 82, 46, "#83b8c0")
+    elif name in ("stone_machine", "machine_glow"):
+        if name == "stone_machine":
+            p.rect(10, 16, 90, 84, "#1d2a30")
+            p.rect(8, 14, 88, 82, "#4a4f55")                 # The machine's body,
+            p.rect(30, 6, 66, 24, "#6d747a")                 # its hopper,
+            p.rect(34, 8, 62, 20, "#2f3338")
+            p.rect(26, 36, 70, 60, "#2a1a14")                # the furnace mouth,
+            p.rect(30, 40, 66, 56, "#5a2a1a")
+            p.rect(8, 44, 14, 52, "#8a8f8f")                 # the pipe inlet,
+            p.rect(82, 50, 88, 60, "#8a8f8f")                # the outlet,
+            p.rect(30, 66, 66, 80, "#27353d")                # and the control panel.
+            for x, c in ((36, "#d9453f"), (46, "#f2ca57"), (56, "#4f9a5a")):
+                p.ellipse(x, 73, 3, 3, c)
+        else:
+            p.rect(30, 40, 66, 56, "#e8702a")                # The furnace burning,
+            p.rect(36, 44, 60, 52, "#f2ca57")
+            p.rect(42, 46, 54, 50, "#fff4c0")
+            for x, y in ((28, 34), (68, 36), (34, 30), (62, 58)):
+                p.rect(x, y, x + 2, y + 2, "#f2ca57")         # and sparks.
+    elif name == "conveyor":
+        p.rect(0, 32, 96, 66, "#1d2a30")
+        p.rect(0, 30, 96, 64, "#3a3f44")                     # A belt
+        for x in range(4, 96, 12):
+            p.rect(x, 32, x + 4, 62, "#2a2e32")               # with its rollers.
+        p.rect(0, 30, 96, 33, "#8a8f8f")
+        p.rect(0, 61, 96, 64, "#8a8f8f")
+    elif name == "stone_bin":
+        p.rect(10, 18, 90, 84, "#1d2a30")
+        p.rect(8, 16, 86, 80, "#6d747a")                     # A metal bin,
+        p.rect(14, 22, 80, 74, "#3a3f44")
+        for x, y, c in ((30, 40, "#8a4a3a"), (50, 52, "#f2ca57"), (62, 36, "#d8e2e8"), (40, 60, "#d9804a")):
+            p.ellipse(x, y, 7, 6, c)                         # with a few stones in it.
+    elif name == "barrel":
+        p.ellipse(50, 50, 30, 30, "#1d2a30")
+        p.ellipse(48, 48, 30, 30, "#d8a830")                 # A yellow drum,
+        p.ellipse(48, 48, 24, 24, "#e8c040")
+        p.ellipse(48, 48, 6, 6, "#27353d")                   # its cap,
+        p.rect(24, 46, 72, 50, "#27353d")                    # and a band.
+    elif name == "crate_stack":
+        for x, y in ((12, 12), (50, 12), (12, 50), (50, 50)):
+            p.rect(x + 2, y + 2, x + 38, y + 38, "#1d2a30")
+            p.rect(x, y, x + 36, y + 36, "#a47a4a")
+            p.rect(x, y + 16, x + 36, y + 20, "#7a5638")
+            p.rect(x + 16, y, x + 20, y + 36, "#7a5638")
+    elif name == "market_board":
+        p.rect(8, 26, 90, 72, "#1d2a30")
+        p.rect(6, 24, 88, 70, "#4a4f55")                     # A screen on the wall,
+        p.rect(10, 28, 84, 66, "#16242a")
+        for x in range(14, 82, 12):
+            p.rect(x, 30, x + 1, 64, "#22343c")               # its grid,
+        pts = [(14, 54), (24, 48), (34, 52), (44, 40), (54, 44), (64, 34), (74, 38), (82, 32)]
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):         # a rising price line,
+            for i in range(x1 - x0):
+                y = y0 + (y1 - y0) * i // (x1 - x0)
+                p.rect(x0 + i, y, x0 + i + 1, y + 2, "#6fd08a")
+        p.rect(12, 60, 40, 63, "#f2ca57")                    # and a ticker.
+    elif name.startswith("stone_"):
+        rock, ore, shine = STONE_COLORS[name]
+        p.ellipse(50, 54, 30, 24, "#1d2a30")
+        p.ellipse(48, 50, 30, 24, rock)                      # A rough rock,
+        p.ellipse(34, 48, 12, 10, rock)
+        p.ellipse(62, 56, 12, 10, rock)
+        for x, y, r in ((36, 44, 6), (56, 42, 5), (48, 58, 7), (66, 54, 4), (30, 56, 4)):
+            p.ellipse(x, y, r, r - 1, ore)                   # veined with ore,
+        p.dots([(40, 40), (41, 40), (58, 38), (50, 54)], shine)   # glinting.
+    else:
+        raise ValueError(name)
+
+
+def factory() -> Atlas:
+    a = Atlas("factory-atlas", 96, 4, 4)
+    for i, name in enumerate(FACTORY_ART):
+        factory_art(a.tile(name, i % 4, i // 4), name)
+    return a
+
+
 def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home(), store(), highway(), farm(), fair()]
+                markers(), track(), canopies(), home(), store(), highway(), farm(), fair(), factory()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

@@ -1,4 +1,4 @@
-"""The player's inventory: a 6 x 4 grid of item stacks, each capped at its item's max
+"""The player's inventory: a 7 x 4 grid of item stacks, each capped at its item's max
 (999 unless the item says otherwise: Sunside Tokens go to TOKEN_MAX, one-time passes
 to 1).
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 STACK_MAX = 999
 TOKEN_MAX = 999_999             # The currency: store passes cost up to 100,000.
-GRID = (6, 4)                       # Columns, rows.
+GRID = (7, 4)                       # Columns, rows.
 
 
 @dataclass(frozen=True)
@@ -68,8 +68,11 @@ ITEMS = (
          "Entry to the Snow Fair.", price=100, aisle="tickets"),
     Item("game_ticket", "Game ticket", "fair-atlas", "game_ticket",
          "One fair game or ride."),
+    # From the Mining Factory, shipped at its dock.
+    *(Item(f"stone_{s}", f"{s.title()} stone", "factory-atlas", f"stone_{s}", "Ship for tokens, mastery.")
+      for s in ("iron", "copper", "silver", "gold")),
     Item("factory_pass", "Factory pass", "store-atlas", "factory_pass",
-         "Entry to the factory.", max_stack=1, price=20_000, aisle="tickets"),
+         "Unlocks the factory.", max_stack=1, price=20_000, aisle="tickets"),
     Item("island_pass", "Island pass", "store-atlas", "island_pass",
          "Passage to the island.", max_stack=1, price=100_000, aisle="tickets"),
 )

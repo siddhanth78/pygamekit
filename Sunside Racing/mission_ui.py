@@ -42,6 +42,8 @@ class MissionPanel:
         self.selected = 0
         self.buttons = ()
         self.chip_name = ""
+        self.details = None           # Per-option description lines (show_choice).
+        self.fixed_lines = []
         shaders = toolkit_root / "shaders"
         size = tuple(float(v) for v in viewport)
         self.rect_program = load_program(ctx, str(shaders / "rect.vert"), str(shaders / "rect.frag"))
@@ -56,11 +58,13 @@ class MissionPanel:
         self.chip = DynamicLabel(ctx, (200, 28), 24, bold=True, align="center")
         self.lines = [DynamicLabel(ctx, (620, 30), 25, align="center") for _ in range(3)]
         self.button_labels = [DynamicLabel(ctx, BUTTON_SIZE, 32, bold=True, align="center")
-                              for _ in range(3)]
+                              for _ in range(4)]
         # A bill: one line per item (name left, amount right), then the total and a note.
         self.bill = None              # (rows, total, note) while a bill is shown.
         self.bill_left = [DynamicLabel(ctx, (420, 28), 23) for _ in range(BILL_ROWS + 1)]
-        self.bill_right = [DynamicLabel(ctx, (180, 28), 23, align="right") for _ in range(BILL_ROWS + 1)]
+        # Item amounts are short; the TOTAL line (last) can be long ("1,560 S + 25 mastery PAID").
+        self.bill_right = [DynamicLabel(ctx, (180, 28), 23, align="right") for _ in range(BILL_ROWS)]
+        self.bill_right.append(DynamicLabel(ctx, (420, 28), 23, align="right"))
         self.bill_note = DynamicLabel(ctx, (600, 26), 21, align="center")
         self.quads = {}
         for label in (self.title, self.chip, *self.lines, *self.button_labels,
@@ -98,9 +102,21 @@ class MissionPanel:
         self._show("offer", title, chip, lines, (yes, no))
         self.selected = 1
 
-    def show_choice(self, title: str, chip: str, lines, options):
-        """Pick one of up to three options; returns "choice:<index>", or "close" (Escape)."""
-        self._show("choice", title, chip, lines, tuple(options)[:3])
+    def show_choice(self, title: str, chip: str, lines, options, details=None):
+        """Pick one of up to four options; returns "choice:<index>", or "close" (Escape).
+        details: optional lines per option, shown after `lines` for the highlighted one
+        (they change as the selection moves)."""
+        self.fixed_lines = list(lines)
+        self._show("choice", title, chip, lines, tuple(options)[:4])
+        self.details = list(details) if details else None
+        self._show_details()
+
+    def _show_details(self):
+        if not self.details:
+            return
+        texts = (self.fixed_lines + list(self.details[self.selected]) + ["", "", ""])[:3]
+        for label, text in zip(self.lines, texts):
+            label.set(text)
 
     def show_bill(self, title: str, rows, total: str, note: str, buttons, chip: str = ""):
         """An itemized bill: rows of (item, amount), a TOTAL line, and a note under it.
@@ -124,6 +140,7 @@ class MissionPanel:
     def _show(self, mode, title, chip, lines, buttons):
         self.open, self.mode, self.selected, self.buttons = True, mode, 0, buttons
         self.bill = None
+        self.details = None
         self.title.set(title)
         self.chip_name = chip
         self.chip.set(chip.upper())
@@ -145,10 +162,12 @@ class MissionPanel:
             return [(width // 2, y)]
         if len(self.buttons) == 3:
             return [(width // 2 - 215, y), (width // 2, y), (width // 2 + 215, y)]
+        if len(self.buttons) == 4:
+            return [(width // 2 + dx, y) for dx in (-234, -78, 78, 234)]
         return [(width // 2 - 140, y), (width // 2 + 140, y)]
 
     def _button_size(self):
-        return (200, BUTTON_SIZE[1]) if len(self.buttons) == 3 else BUTTON_SIZE
+        return {3: (200, BUTTON_SIZE[1]), 4: (140, BUTTON_SIZE[1])}.get(len(self.buttons), BUTTON_SIZE)
 
     def handle(self, action, value):
         """Returns 'accept', 'decline', or 'close' when the panel is dismissed."""
@@ -170,6 +189,7 @@ class MissionPanel:
                 self.selected = hits[0]
                 if action == "click":
                     return self._choose(hits[0])
+        self._show_details()             # The highlighted option's description.
         return None
 
     def _choose(self, index):

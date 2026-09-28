@@ -2,6 +2,7 @@
 
 import dataclasses
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -36,6 +37,8 @@ from world_map import WorldMap, guide_line, landmarks
 from arcade import ArcadeCabinet
 from home import HomeInterior
 from store import StoreInterior
+from factory import (RUNS, STONE_NAMES, TANK_MAX, FactoryInterior, odds_line, ship, shipment,
+                     stone_item)
 from fair import GAME_TICKET_PACKS, GAME_TICKET_PRICE, RIDE_NAMES, RIDE_ZOOM, FairInterior, FairOutside
 from fair_ui import FairGameOverlay
 from farm import CROP_NAMES, FARM_GIFT, FARM_LEVEL, FarmInterior, feed, outdoor_sprites, plot_index
@@ -43,6 +46,7 @@ from inventory import BY_ID, count_of, room
 from inventory import STACK_MAX
 from inventory_ui import InventoryMenu
 from orders_ui import OrdersMenu
+from market_ui import MarketBoard
 from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
 from player_save import PlayerSave
 from traffic import Traffic
@@ -63,6 +67,7 @@ HOME_DOOR_RANGE = 40     # On foot, px from the house's front door to go inside.
 STORE_DOOR_RANGE = 40    # On foot, px from the General Store's door to go in.
 FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
 FAIR_DOOR_RANGE = 52     # On foot, px from the Snow Fair's ticket booth window.
+FACTORY_RANGE = 50       # On foot, px from the factory's door, the depot, or the cargo dock.
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
                  "jungle": "grass"}
 
@@ -155,6 +160,13 @@ class Game:
         self.fair_collisions = CollisionManager(None, self.fair_level)
         self.at_fair = False
         self.fair_game = FairGameOverlay(ctx, TOOLKIT_ROOT, viewport, self.state)
+        # The Mining Factory: its floor is a level; the depot and the dock are outside.
+        self.factory_level = FactoryInterior(world.seed)
+        self.factory_collisions = CollisionManager(None, self.factory_level)
+        self.in_factory = False
+        self.factory_rng = random.Random()
+        self.pending_run = False     # The stone machine is asking how much biofuel to burn.
+        self.market_board = MarketBoard(ctx, TOOLKIT_ROOT, viewport, self.state)
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
         self.orders_menu = OrdersMenu(ctx, TOOLKIT_ROOT, viewport)                # O
@@ -302,6 +314,9 @@ class Game:
             if self.inventory.handle(action, value) == "spend":
                 self.spend_menu.show(self.missions)
             return True
+        if self.market_board.open:
+            self.market_board.handle(action, value)
+            return True
         if self.orders_menu.open:
             outcome = self.orders_menu.handle(action, value)
             if isinstance(outcome, tuple):
@@ -360,7 +375,10 @@ class Game:
             giver, self.pending_offer = self.pending_offer, None
             plant, self.pending_plant = self.pending_plant, None
             buy, self.pending_buy = self.pending_buy, False
-            if outcome.startswith("choice:") and buy:
+            run, self.pending_run = self.pending_run, False
+            if outcome.startswith("choice:") and run:
+                self._run_machine(list(RUNS)[int(outcome.split(":")[1])])
+            elif outcome.startswith("choice:") and buy:
                 self._buy_game_tickets(GAME_TICKET_PACKS[int(outcome.split(":")[1])])
             elif outcome.startswith("choice:") and plant:
                 index, crops = plant
@@ -371,6 +389,14 @@ class Game:
                 elif confirm == "store_leave":
                     self.store.cart.empty()            # Put everything back and go.
                     self._leave_store()
+                elif confirm == "factory_unlock":
+                    if self.missions.factory.unlock(self.missions):
+                        self.autosave.request()
+                        self._enter_factory()
+                elif confirm == "depot_fill":
+                    self._fill_depot()
+                elif confirm == "ship_stones":
+                    self._ship_stones()
                 elif confirm == "fair_enter":
                     self._enter_fair()
                 elif confirm and confirm.startswith("order:"):
@@ -422,7 +448,10 @@ class Game:
             self.walker.respawn_nearby(self.farm_collisions)
         elif self.at_fair and action == "reset":
             self.walker.respawn_nearby(self.fair_collisions)
-        elif (self.inside or self.in_store or self.in_farm or self.at_fair) and action in ("island", "call_car"):
+        elif self.in_factory and action == "reset":
+            self.walker.respawn_nearby(self.factory_collisions)
+        elif (self.inside or self.in_store or self.in_farm or self.at_fair or self.in_factory) \
+                and action in ("island", "call_car"):
             pass                       # Nothing to travel to or call from inside the house.
         elif self.inside and action == "reset":
             self._stand_up()
@@ -454,6 +483,9 @@ class Game:
         if self.at_fair:
             self._interact_fair()
             return
+        if self.in_factory:
+            self._interact_factory()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -470,6 +502,10 @@ class Game:
         if (math.dist((self.walker.x, self.walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
             self._enter_home()
+            return
+        factory_spot = self._factory_spot(self.walker)
+        if factory_spot:
+            {"door": self._factory_door, "depot": self._depot, "dock": self._dock}[factory_spot]()
             return
         if (math.dist((self.walker.x, self.walker.y), self.world.fair.door) <= FAIR_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
@@ -629,6 +665,9 @@ class Game:
         self.at_fair = False
         self.fair_level.ride = None
         self.fair_game.open = False
+        if self.in_factory:
+            self._collect_running_stone()
+            self.in_factory = False
 
     def _interact_store(self):
         spot = self.store.spot_near(self.walker.x, self.walker.y)
@@ -699,6 +738,176 @@ class Game:
         if self.world_map.open:
             shop = self.world.general_store
             self.world_map.render(shop.x, shop.y, self.guide_to)
+
+    # Mining Factory ---------------------------------------------------------------
+
+    def _factory_spot(self, walker):
+        """"door", "depot", or "dock" when standing at one of them outside, else None."""
+        site = self.world.factory
+        for name, xy in (("door", site.door), ("depot", site.depot_spot), ("dock", site.dock_spot)):
+            if math.dist((walker.x, walker.y), xy) <= FACTORY_RANGE and not walker.can_enter(self.car):
+                return name
+        return None
+
+    def _factory_door(self):
+        factory = self.missions.factory
+        if self.missions.active:
+            self.panel.show_message("Mining Factory", "Finish your current mission first.")
+        elif factory.unlocked:
+            self._enter_factory()
+        elif count_of(self.missions, "factory_pass"):
+            self.pending_confirm = "factory_unlock"
+            self.panel.show_confirm("Mining Factory", "", ("Use your Factory pass?",
+                                                           "It unlocks the factory for good.", ""),
+                                    "UNLOCK", "NOT NOW")
+            self.panel.selected = 0
+        else:
+            self.panel.show_lines("Mining Factory", "Locked", ("Entry needs a Factory pass.",
+                                                               "The General Store sells it.",
+                                                               "One pass unlocks the factory for good."))
+
+    def _enter_factory(self):
+        self.in_factory = True
+        self.walker.x, self.walker.y = self.factory_level.entry
+        self.walker.heading, self.walker.speed = 0.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_factory(self):
+        self._collect_running_stone()
+        self.in_factory = False
+        self.walker.x, self.walker.y = self.world.factory.door
+        self.walker.heading = 180.0
+        self.collisions.fixed = [self.car.obstacle()]
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _depot(self):
+        factory = self.missions.factory
+        if self.missions.active:
+            self.panel.show_message("Biofuel depot", "Finish your current mission first.")
+        elif not factory.unlocked:
+            self.panel.show_message("Biofuel depot", "It fuels the Mining Factory. Unlock the factory first.")
+        else:
+            self.pending_confirm = "depot_fill"
+            self.panel.show_confirm("Biofuel depot", "", (f"Tank: {factory.tank} / {TANK_MAX} biofuel",
+                                                          "1 corn makes 1 biofuel.",
+                                                          "FILL UP turns your corn into biofuel."),
+                                    "FILL UP", "NOT NOW")
+            self.panel.selected = 0
+
+    def _fill_depot(self):
+        factory = self.missions.factory
+        amount = factory.fill(self.missions)
+        if amount:
+            self.autosave.request()
+            self.panel.show_lines("Biofuel depot", "Success", (f"Turned {amount} corn into biofuel",
+                                                               f"Tank: {factory.tank} / {TANK_MAX}", ""))
+        elif factory.tank >= TANK_MAX:
+            self.panel.show_message("Biofuel depot", "The tank is full.")
+        else:
+            self.panel.show_message("Biofuel depot", "You have no corn. Grow it on your farm's plot.")
+
+    def _dock(self):
+        if self.missions.active:
+            self.panel.show_message("Cargo dock", "Finish your current mission first.")
+            return
+        rows, tokens, mastery = shipment(self.missions)
+        if not rows:
+            self.panel.show_message("Cargo dock", "Bring stones from the factory to ship them.")
+            return
+        self.pending_confirm = "ship_stones"
+        self.panel.show_bill("Cargo dock", self._stone_bill(rows), f"{tokens:,} S + {mastery} mastery",
+                             "Mastery points go to your inventory.", ("SHIP", "NOT NOW"))
+
+    def _stone_bill(self, rows):
+        """Bill lines at today's market prices."""
+        market = self.missions.factory.market
+        return [(f"{STONE_NAMES[s]}  {n} x {market.price(s):,} S", f"{market.price(s) * n:,} S") for s, n in rows]
+
+    def _ship_stones(self):
+        rows, tokens, mastery = shipment(self.missions)
+        bill = self._stone_bill(rows)                    # At the prices it sold for.
+        why = ship(self.missions, self.factory_rng)
+        if why:
+            self.panel.show_message("Cargo dock", why)
+            return
+        self.autosave.request()
+        self.panel.show_bill("Shipped", bill, f"{tokens:,} S + {mastery} mastery  PAID",
+                             "The mastery points are in your inventory (I).", ("OK",), chip="Success")
+
+    def _interact_factory(self):
+        spot = self.factory_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return
+        if spot.kind == "exit":
+            self._leave_factory()
+        elif spot.kind == "market":
+            self.market_board.show(self.missions.factory.market)
+        elif spot.kind == "machine":
+            if self.factory_level.running:
+                return                                     # It's already working.
+            self.pending_run = True
+            sizes = list(RUNS)
+            # The description follows the highlighted run size.
+            self.panel.show_choice("Stone machine", "", (f"Tank: {self.missions.factory.tank} / {TANK_MAX} biofuel",),
+                                   [str(n) for n in sizes],
+                                   [(f"{n} biofuel", odds_line(n)) for n in sizes])
+        else:
+            self.panel.show_message(spot.label, spot.key)
+
+    def _run_machine(self, size):
+        if not self.missions.factory.burn(size):
+            self.panel.show_message("Stone machine", f"Not enough biofuel in the tank for {size}. "
+                                                     "Fill it at the depot outside.")
+            return
+        self.factory_level.start(size, self.factory_rng)
+        self.autosave.request()
+
+    def _collect_running_stone(self):
+        """Leaving mid-run: the stone was already paid for, so it comes with the player."""
+        if self.factory_level.running:
+            stone = self.factory_level.running[1]
+            self.factory_level.running = None
+            self.missions.add_item(stone_item(stone), 1)
+
+    def _factory_prompt(self):
+        spot = self.factory_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        if spot.kind == "machine":
+            return "" if self.factory_level.running else "E   Run the stone machine"
+        if spot.kind == "exit":
+            return "E   Go outside"
+        if spot.kind == "market":
+            return "E   Stone market"
+        return f"E   Look  ·  {spot.label}"
+
+    def _update_factory(self, dt):
+        walker = self.walker
+        stone = self.factory_level.update(dt)
+        if stone:
+            self.missions.add_item(stone_item(stone), 1)
+            self.autosave.request()
+            self.panel.show_lines("Stone machine", "Success", (f"You made {'an' if stone == 'iron' else 'a'} "
+                                                               f"{STONE_NAMES[stone]}!",
+                                                               "It's in your inventory (I).",
+                                                               "Ship stones at the cargo dock outside."))
+        walker.update(dt, *self.inputs.walking(), self.factory_collisions)
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, walker.frame())
+        self._ease_zoom(dt)
+
+    def _render_factory(self):
+        walker, zoom, level = self.walker, self.zoom, self.factory_level
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (level.width, level.height))
+        self.state.render(level.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
+        tank = self.missions.factory.tank
+        panel = ((f"MAKING A STONE  ·  {level.running[0]} BIOFUEL", f"{max(0.0, level.running[2]):.1f} s")
+                 if level.running else (f"BIOFUEL  {tank} / {TANK_MAX}", "Run the stone machine"))
+        self.hud.render(0.0, "Mining Factory", "Factory floor", self._factory_prompt(), show_speed=False,
+                        mission=panel, toast=self._toast())
+        if self.world_map.open:
+            self.world_map.render(*self.world.factory.building, self.guide_to)
 
     # Snow Fair --------------------------------------------------------------------
 
@@ -1018,6 +1227,8 @@ class Game:
             return self.world.farm.house
         if self.at_fair:
             return self.world.fair.center
+        if self.in_factory:
+            return self.world.factory.building
         player = self.walker or self.car
         return player.x, player.y
 
@@ -1278,7 +1489,7 @@ class Game:
         if self.arcade.open:
             self.arcade.update(dt)
             return
-        if self.inventory.open or self.orders_menu.open:
+        if self.inventory.open or self.orders_menu.open or self.market_board.open:
             return   # Paused while the inventory or the orders are open.
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
@@ -1296,6 +1507,9 @@ class Game:
             return
         if self.in_store:
             self._update_store(dt)   # Likewise the store.
+            return
+        if self.in_factory:
+            self._update_factory(dt)  # And the factory.
             return
         if self.at_fair:
             self._update_fair(dt)    # And the fair.
@@ -1389,6 +1603,8 @@ class Game:
             self._render_farm()
         elif self.at_fair:
             self._render_fair()
+        elif self.in_factory:
+            self._render_factory()
         else:
             self._render_world()
         if self.fair_game.open:
@@ -1403,6 +1619,8 @@ class Game:
             self.inventory.render()
         if self.orders_menu.open:
             self.orders_menu.render()
+        if self.market_board.open:
+            self.market_board.render()
         if self.menu.open:
             if self.menu.page in ("mastery", "docks"):
                 self._refresh_mastery()
@@ -1466,6 +1684,10 @@ class Game:
         elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Go inside"
+        elif walker and self._factory_spot(walker):
+            prompt = {"door": ("E   Mining Factory" if self.missions.factory.unlocked
+                               else "E   Mining Factory  ·  Factory pass"),
+                      "depot": "E   Biofuel depot", "dock": "E   Ship stones"}[self._factory_spot(walker)]
         elif (walker and math.dist((walker.x, walker.y), self.world.fair.door) <= FAIR_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Snow Fair  ·  1 ticket"

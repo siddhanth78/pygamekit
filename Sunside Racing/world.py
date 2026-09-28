@@ -252,6 +252,20 @@ class World:
             for name, x, y, width, length, rotation in highway.pieces(road):
                 self._highway_pieces.setdefault((int(x // SECTOR_SIZE), int(y // SECTOR_SIZE)), []).append(
                     Sprite("highway-atlas", name, x, y, width, length, rotation))
+        # Ferry docks face each other across the channel on the island's row.
+        self.mainland_dock = (max(sx for sx in range(SECTORS)
+                                  if self._landmass(sx, ISLAND_ROW) == "mainland"), ISLAND_ROW)
+        self.island_dock = (min(sx for sx in range(SECTORS)
+                                if self._landmass(sx, ISLAND_ROW) == "island"), ISLAND_ROW)
+        self.docks = self._place_docks()
+        self.pier_tiles = {tile: (dock, i) for dock in self.docks for i, tile in enumerate(dock.tiles)}
+        # The Desert Mining Factory, its biofuel depot, and its cargo dock (see factory.py).
+        import factory
+        self.factory = factory.choose_site(self)
+        self._factory_sprites = {}
+        for sprite in factory.exterior_sprites(self.factory):
+            key = (int(sprite.x // SECTOR_SIZE), int(sprite.y // SECTOR_SIZE))
+            self._factory_sprites.setdefault(key, []).append(sprite)
         self.camps = self._choose_camps()
         self.general_store = self._choose_store()
         self.farm = self._choose_farm()
@@ -263,13 +277,6 @@ class World:
         for sprite in exterior_sprites(self.fair, self.seed):
             key = (int(sprite.x // SECTOR_SIZE), int(sprite.y // SECTOR_SIZE))
             self._fair_sprites.setdefault(key, []).append(sprite)
-        # Ferry docks face each other across the channel on the island's row.
-        self.mainland_dock = (max(sx for sx in range(SECTORS)
-                                  if self._landmass(sx, ISLAND_ROW) == "mainland"), ISLAND_ROW)
-        self.island_dock = (min(sx for sx in range(SECTORS)
-                                if self._landmass(sx, ISLAND_ROW) == "island"), ISLAND_ROW)
-        self.docks = self._place_docks()
-        self.pier_tiles = {tile: (dock, i) for dock in self.docks for i, tile in enumerate(dock.tiles)}
 
     def _place_docks(self) -> tuple[Dock, ...]:
         """Fishing piers on the mainland's west, north, and east shores."""
@@ -340,9 +347,12 @@ class World:
             rng.shuffle(candidates)
             chosen = []
             on_highway = self.roads.sectors()
+            factory = self.factory.sectors()[:2]
             for sector in candidates:
                 if sector in on_highway:
                     continue   # Keep tents and the fire off the highway and its exits.
+                if any(max(abs(sector[0] - fx), abs(sector[1] - fy)) <= 1 for fx, fy in factory):
+                    continue   # And clear of the Mining Factory.
                 if all(max(abs(sector[0] - x), abs(sector[1] - y)) >= 3 for x, y in chosen):
                     chosen.append(sector)
                 if len(chosen) == CAMPS_PER_REGION:
@@ -595,6 +605,18 @@ class World:
             if sy == ISLAND_ROW and self.mainland_dock[0] < sx < self.island_dock[0]:
                 for dy in (-96, 96):
                     prop("buoy", ox + SECTOR_SIZE / 2, oy + SECTOR_SIZE / 2 + dy, 44)
+
+        if (sx, sy) in self.factory.sectors():
+            from factory import exterior_ground
+            if region != "sea":
+                occupied |= {(x, y) for x in range(TILES_PER_SECTOR) for y in range(TILES_PER_SECTOR)}
+            if (sx, sy) == self.factory.sector:
+                for lx in range(TILES_PER_SECTOR):
+                    for ly in range(TILES_PER_SECTOR):
+                        tile = exterior_ground(self.factory, tx0 + lx, ty0 + ly)
+                        if tile:
+                            ground[(lx, ly)] = tile
+            scenery += self._factory_sprites.get((sx, sy), [])
 
         result: list[Sprite] = []
         for ly in range(TILES_PER_SECTOR):

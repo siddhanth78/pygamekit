@@ -441,7 +441,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g.inventory.name.text, "Empty slot")
         for _ in range(5):
             self.press(pygame.K_DOWN, pygame.K_RIGHT)               # Stays inside the grid.
-        self.assertEqual(g.inventory.selected, 23)                  # 6 x 4.
+        self.assertEqual(g.inventory.selected, 27)                  # 7 x 4.
         x, y = g.inventory.slot_centers()[0]
         g.handle("pointer", (x, y))
         self.assertEqual(g.inventory.selected, 0)
@@ -599,7 +599,8 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
                          {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
                           "veteran": (150, 226, 140), "store": (160, 96, 220), "farm": (176, 122, 72),
-                          "buyer": (232, 196, 120), "fair": (110, 200, 236)})
+                          "buyer": (232, 196, 120), "fair": (110, 200, 236),
+                          "factory": (170, 180, 196)})
         self.assertEqual(kinds.count("store"), 1)
         self.assertEqual(kinds.count("farm"), 1)
         self.assertEqual(kinds.count("buyer"), 0)                    # Until the farm is owned.
@@ -1053,6 +1054,93 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual((g.walker.x, g.walker.y), site.door)
         g.arcade.show(g.missions.arcade, ("pit_stop",) if g.missions.fair.f1 else ())
         self.assertTrue(g.arcade.unlocked("pit_stop"))
+
+    def test_factory_pass_depot_machine_and_dock_with_keys(self):
+        g = self.game
+        site = g.world.factory
+        g._step_out(Walker(*site.door))
+        g.collisions.fixed = []
+        self.assertEqual(g._factory_spot(g.walker), "door")
+        self.press(pygame.K_e)                                        # No pass: locked.
+        self.assertEqual(g.panel.chip_name, "Locked")
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("factory_pass", 1)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("UNLOCK", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertTrue(g.in_factory and g.missions.factory.unlocked)
+        self.assertEqual(g.missions.items.get("factory_pass", 0), 0)  # Used up, unlocked for good.
+        # The machine with an empty tank says to fill it.
+        machine = next(s for s in g.factory_level.spots if s.kind == "machine")
+        g.walker.x, g.walker.y = machine.x, machine.y
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("2", "5", "10", "20"))
+        self.press(pygame.K_RETURN)
+        self.assertIn("Not enough biofuel", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        exit_spot = next(s for s in g.factory_level.spots if s.kind == "exit")
+        g.walker.x, g.walker.y = exit_spot.x, exit_spot.y
+        self.press(pygame.K_e)
+        self.assertFalse(g.in_factory)
+        # The depot: 25 corn in (only corn), 25 biofuel in the tank.
+        g.missions.add_item("corn", 25)
+        g.missions.add_item("tomato", 3)
+        g.walker.x, g.walker.y = site.depot_spot
+        self.assertEqual(g._factory_spot(g.walker), "depot")
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("FILL UP", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertEqual((g.missions.factory.tank, g.missions.items.get("corn", 0), g.missions.items["tomato"]),
+                         (25, 0, 3))
+        self.press(pygame.K_RETURN)
+        # Back inside: 20 biofuel makes a gold stone, which lands in the inventory.
+        g.walker.x, g.walker.y = site.door
+        self.press(pygame.K_e)
+        self.assertTrue(g.in_factory)
+        g.walker.x, g.walker.y = machine.x, machine.y
+        self.press(pygame.K_e)                                        # The card follows the highlight.
+        self.assertEqual([l.text for l in g.panel.lines], ["Tank: 25 / 200 biofuel", "2 biofuel",
+                                                           "80% iron  ·  20% copper"])
+        self.press(pygame.K_RIGHT)
+        self.assertEqual(g.panel.lines[2].text, "80% copper  ·  20% silver")
+        self.press(pygame.K_RIGHT, pygame.K_RIGHT)
+        self.assertEqual((g.panel.lines[1].text, g.panel.lines[2].text), ("20 biofuel", "100% gold"))
+        self.press(pygame.K_RETURN)
+        self.assertEqual(g.missions.factory.tank, 5)
+        self.assertIsNotNone(g.factory_level.running)
+        for _ in range(4 * 30):
+            g.update(1 / 30)
+        self.assertEqual(g.missions.items["stone_gold"], 1)
+        self.assertIn("Gold stone", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.walker.x, g.walker.y = exit_spot.x, exit_spot.y
+        self.press(pygame.K_e)
+        # The market board shows today's prices; the dock ships at them and the market moves.
+        g.walker.x, g.walker.y = site.door
+        self.press(pygame.K_e)
+        board = next(s for s in g.factory_level.spots if s.kind == "market")
+        g.walker.x, g.walker.y = board.x, board.y
+        self.assertEqual(g._factory_prompt(), "E   Stone market")
+        self.press(pygame.K_e)
+        self.assertTrue(g.market_board.open)
+        self.press(pygame.K_ESCAPE)
+        self.assertFalse(g.market_board.open or g.menu.open)
+        g.walker.x, g.walker.y = exit_spot.x, exit_spot.y
+        self.press(pygame.K_e)
+        price = g.missions.factory.market.price("gold")
+        shipments = len(g.missions.factory.market.history["gold"])
+        tokens, points = g.missions.tokens, g.missions.unspent
+        g.walker.x, g.walker.y = site.dock_spot
+        self.assertEqual(g._factory_spot(g.walker), "dock")
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("SHIP", "NOT NOW"))
+        self.assertEqual(g.panel.bill_left[0].text, f"Gold stone  1 x {price:,} S")
+        self.press(pygame.K_RETURN)
+        self.assertEqual((g.missions.tokens, g.missions.unspent), (tokens + price, points + 25))
+        self.assertEqual(g.missions.items.get("stone_gold", 0), 0)
+        self.assertEqual(g.panel.bill_right[-1].text, f"{price:,} S + 25 mastery  PAID")
+        self.assertEqual(len(g.missions.factory.market.history["gold"]), min(12, shipments + 1))
+        self.assertEqual(g.panel.title.text, "Shipped")
 
     def test_beach_travel_picks_a_pier_with_keys(self):
         g = self.game
