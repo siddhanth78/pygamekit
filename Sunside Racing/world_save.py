@@ -12,7 +12,7 @@ from pathlib import Path
 SAVE_VERSION = 1
 DEFAULT_WORLD_SEED = 2026
 # Bump when world.py places scenery differently so cached sectors regenerate.
-GENERATOR_VERSION = 10  # 5: piers. 6: house. 7-8: its lot. 9: center lots. 10: store.
+GENERATOR_VERSION = 13  # 5: piers. 6: house. 7-8: its lot. 9: center lots. 10: store. 11-13: highway.
 
 
 class WorldStore:

@@ -7,6 +7,7 @@ import random
 from dataclasses import dataclass
 from functools import lru_cache
 
+import highway
 from gl_utils import get_rect_corners
 from world_save import DEFAULT_WORLD_SEED, WorldStore
 
@@ -208,6 +209,14 @@ class World:
         _route(self.snow_roads, list(SNOW_ROUTE))
         for route in DIRT_ROUTES:
             _route(self.dirt_roads, list(route))
+        # The highway loop, its on-ramps, and its exits (see highway.py).
+        self.highway_roads = highway.build(self)
+        self.roads = highway.RoadIndex(self.highway_roads, SECTOR_SIZE)
+        self._highway_pieces: dict[tuple[int, int], list[Sprite]] = {}
+        for road in self.highway_roads:
+            for name, x, y, width, length, rotation in highway.pieces(road):
+                self._highway_pieces.setdefault((int(x // SECTOR_SIZE), int(y // SECTOR_SIZE)), []).append(
+                    Sprite("highway-atlas", name, x, y, width, length, rotation))
         self.camps = self._choose_camps()
         self.general_store = self._choose_store()
         # Ferry docks face each other across the channel on the island's row.
@@ -267,7 +276,10 @@ class World:
                           and all(max(abs(sx - cx), abs(sy - cy)) >= 2 for cx, cy in CENTERS)]
             rng.shuffle(candidates)
             chosen = []
+            on_highway = self.roads.sectors()
             for sector in candidates:
+                if sector in on_highway:
+                    continue   # Keep tents and the fire off the highway and its exits.
                 if all(max(abs(sector[0] - x), abs(sector[1] - y)) >= 3 for x, y in chosen):
                     chosen.append(sector)
                 if len(chosen) == CAMPS_PER_REGION:
@@ -316,9 +328,21 @@ class World:
         return self.region(int(x // SECTOR_SIZE), int(y // SECTOR_SIZE))
 
     def is_ice(self, x: float, y: float) -> bool:
-        """The snow region's icy roads, where cars slide (see car.ICE_TRACTION)."""
+        """The snow region's icy roads (and the highway's icy exit), where cars slide.
+        The highway's asphalt is never ice, even where the snow road crosses under it."""
+        road = self.roads.road_at(x, y)
+        if road in highway.ASPHALT:
+            return False
         tx, ty = int(x // TILE_SIZE), int(y // TILE_SIZE)
-        return self.region_at(x, y) == "snow" and self._road_style(tx, ty) == "ice"
+        return road == "ice" or (self.region_at(x, y) == "snow" and self._road_style(tx, ty) == "ice")
+
+    def surface_at(self, x: float, y: float) -> str:
+        """What the car drives on: the region, except the highway's asphalt, which is city
+        road (city grip, top speed, and city mastery speed)."""
+        return "city" if self.roads.road_at(x, y) in highway.ASPHALT else self.region_at(x, y)
+
+    def on_highway(self, x: float, y: float) -> bool:
+        return self.roads.road_at(x, y) in highway.ASPHALT
 
     def is_drivable(self, x: float, y: float) -> bool:
         return self.region_at(x, y) != "sea"
@@ -474,7 +498,7 @@ class World:
                 scenery[:] = [item for item in scenery if not (
                     item.name in ("street_lamp", "traffic_light")
                     and abs(item.x - center_xy[0]) < half and abs(item.y - center_xy[1]) < half)]
-        elif region == "rural" and not center and rng.random() < 0.5:
+        elif region == "rural" and not center and rng.random() < 0.5 and (sx, sy) not in self.roads.sectors():
             self._farmstead(rng, tx0, ty0, grid, ground, occupied, scenery, prop)
         elif region == "beach" and (sx, sy) in (self.mainland_dock, self.island_dock):
             # The pier is drawn pointing south; rotate it out toward the island channel.
@@ -535,7 +559,7 @@ class World:
                     rotation = 0.0 if road == "city_ns" else 90.0
                     road = "city_crosswalk"
                 result.append(Sprite("road-atlas", road, x, y, TILE_SIZE, TILE_SIZE, rotation))
-                if road_style == "ice" and (tx + ty) % 3 == 0:
+                if road_style == "ice" and (tx + ty) % 3 == 0 and not self.roads.near(x, y, 48):
                     if road == "ice_ns":
                         prop("snow_marker", x - 24, y, 40)
                         prop("snow_marker", x + 24, y, 40)
@@ -554,6 +578,8 @@ class World:
                 # Keep the plaza, its gates, and its barriers clear of scatter.
                 if center_xy and math.hypot(x - center_xy[0], y - center_xy[1]) < 210:
                     continue
+                if self.roads.near(x, y, 40):
+                    continue   # Clear of the highway and its ramps.
                 if (int((x - ox) // TILE_SIZE), int((y - oy) // TILE_SIZE)) in occupied:
                     continue
                 if any(self._road_style(int((x + dx) // TILE_SIZE), int((y + dy) // TILE_SIZE))
@@ -561,6 +587,7 @@ class World:
                     continue
                 solid = 40 if name.startswith("rock") else 30 if name.startswith("hay") else 18
                 prop(name, x, y, size, solid=(solid, solid))
+        result += self._highway_pieces.get((sx, sy), [])
         return tuple(result + scenery)
 
     def _center_lot_tile(self, sx: int, sy: int) -> tuple[int, int]:

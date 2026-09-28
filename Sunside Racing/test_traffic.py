@@ -10,6 +10,7 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from traffic import (
+    HIGHWAY_CARS, HIGHWAY_SPEED,
     EXTRA_CITY_LOOPS, PAIRS, RURAL_CARS, Traffic, TrafficCar, lane_path, there_and_back,
 )
 from world import SECTOR_SIZE, TILE_SIZE, World
@@ -37,6 +38,8 @@ class TrafficTests(unittest.TestCase):
             traffic.update(1 / 30, [-9999, -9999, 0, 0, 0, 0, 0, 1, 1, 0])
             for car in traffic.cars:
                 region = self.world.region_at(car.x, car.y)
+                if self.world.on_highway(car.x, car.y):
+                    continue   # Highway traffic (see test_highway).
                 if region in ("city", "snow", "rural"):
                     tile = int(car.x // TILE_SIZE), int(car.y // TILE_SIZE)
                     self.assertTrue(self.world._road_style(*tile), (car.name, region, tile))
@@ -71,8 +74,9 @@ class TrafficTests(unittest.TestCase):
 
     def test_city_is_busy_and_countryside_quiet(self):
         traffic = Traffic(self.world, self.world.seed)
-        regions = [self.world.region_at(car.x, car.y) for car in traffic.cars]
-        self.assertEqual(len(traffic.cars), 56 + 3 * EXTRA_CITY_LOOPS)
+        regions = [self.world.region_at(car.x, car.y) for car in traffic.cars
+                   if not self.world.on_highway(car.x, car.y)]
+        self.assertEqual(len(traffic.cars), 56 + 3 * EXTRA_CITY_LOOPS + 2 * HIGHWAY_CARS)
         self.assertGreater(regions.count("city"), 200)
         self.assertLessEqual(regions.count("jungle") + regions.count("desert"), 6)
 

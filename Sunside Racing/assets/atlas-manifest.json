@@ -2378,6 +2378,32 @@
           "source_row": 2
         }
       }
+    },
+    "highway-atlas": {
+      "png": "highway-atlas.png",
+      "bitmap": "../bitmap/highway-atlas.json",
+      "cell_px": 64,
+      "atlas_grid": [
+        2,
+        1
+      ],
+      "tile_origin": "bottom-left, as used by shaders/tex.frag",
+      "sprites": {
+        "hwy": {
+          "tile": [
+            0,
+            0
+          ],
+          "source_row": 0
+        },
+        "ramp": {
+          "tile": [
+            1,
+            0
+          ],
+          "source_row": 0
+        }
+      }
     }
   }
 }

@@ -1425,3 +1425,149 @@ Store prompts follow what you see (2026-09-27, built)
 - Tests: prompts from beside each icon, gap-free along a shelf, none across the
   aisle, anywhere on the mat but not at the entry, the counter band; flows use
   each spot's stand point. 212 passing.
+
+Highway (2026-09-27, built)
+- highway.py. A four-lane loop (128 px wide: shoulders, dashed lanes, double
+  yellow median) around the city, LOOP_GAP = 3 sectors outside it on every
+  side: long straights meeting on the jungle/desert and north/south borders,
+  and four smooth corners (1,024 px radius), one in each outer region. ~596
+  tiles around.
+- On-ramps: the middle city road on each side (2-lane asphalt like a city
+  road) continues out to the loop. The other city edge roads still end at the
+  boundary (open: connect more, or cap them).
+- Exits leave the middle of each corner toward that region's racing center:
+  a short asphalt ramp, then jungle and desert: 11 tiles of dirt road that
+  wears out into grass or sand over 4 tiles; snow: an icy road to the snow
+  road (2.6 tiles); rural: a dirt road to the rural road (6.5 tiles). Exits
+  meet the corner's curve head-on (a T), not with a sweeping slip road.
+- Drawn as road pieces laid along each path (new highway-atlas: hwy, ramp,
+  dirt, dirt_fade, ice), 64 px apart, 72 long, so curves are smooth; stored
+  with each sector (GENERATOR_VERSION 11). HighwayRoad index answers road_at.
+- Driving: asphalt (loop and ramps) counts as city road wherever it runs
+  (World.surface_at -> "city": city grip, top speed, and city mastery speed);
+  the HUD shows HIGHWAY there. The icy exit is ice; the asphalt is never ice,
+  even where the snow road crosses under it. The existing snow and rural roads
+  cross the loop near its SW and SE corners (level crossings).
+- Traffic: HIGHWAY_CARS = 3 per direction (6 total), 185-215 px/s, in the
+  outer lane each way.
+- Scenery, camps, farms, and givers are kept off the roads (camps skip
+  highway sectors, keeping the rest where they were). World map draws the
+  loop, ramps, and exits.
+- Measured: 1.85 ms median frames driving the loop flat out (city level 10:
+  231 px/s). Tests: test_highway.py (loop around the city through all four
+  regions, smooth and mostly straight, asphalt is city road and never ice,
+  exits fade or join roads, on-ramps continue city roads, nothing solid on it,
+  six cars that stay on it). 220 passing.
+
+Highway redone: no overlaps, exits are the region roads (2026-09-27, built)
+- Supersedes the highway's exits and loop size above. User: exits looked wrong;
+  stay away from existing structures; the loop must not overlap existing
+  roads; exits must only lead into existing roads.
+- The made-up exits (jungle/desert dirt that faded out, the icy and dirt stubs)
+  are gone, with their art (highway-atlas is now hwy and ramp only).
+- The snow road and the rural road start at the city's corners, so any loop
+  around the city must cross them; before, both crossings sat on the loop's
+  corners beside the roads' bends. The loop was re-sized (searched) so each
+  crosses once, square-on, on a straight, 5.5 and 8.5 tiles from their nearest
+  bends, while the rural road's side branches stay clear:
+  highway.LOOP_SECTORS = (14, 21, 39, 44) (x0, y0, x1, y1), stretched furthest
+  west and south where those roads leave the city. It stays off the beach and
+  20+ tiles from every racing center.
+- Those two crossings are the exits (the region roads continue both sides;
+  the highway draws over them). Jungle and desert have no roads, so no exits.
+  The four city on-ramps stay.
+- Nothing along it: camps and farms skip every sector the road's width
+  reaches (a farm fence had poked onto the east side), snow road markers and
+  scattered props keep off it, givers stand at least a tile away.
+  GENERATOR_VERSION 13.
+- Tests: exactly one square-on crossing each, away from bends; branches clear;
+  never runs along any road tile; clear of centers; every loop and ramp piece
+  free of solids; givers and markers clear. 223 passing.
+
+======================================================================
+PLANNED, NOT BUILT (2026-09-27): Snow Fair, F1 car, Farm, Mining Factory
+These are agreed designs from planning. A direct "build" instruction is still
+needed. "Proposed" items were suggested and not yet confirmed by the user.
+======================================================================
+
+Snow Region Fair (agreed)
+- In the snow region, fenced on all sides; the only way in is a ticket
+  counter. It is a separate level (like the General Store). On the world map
+  and in the world it appears as a mini version of the fair (fence, tents,
+  ferris wheel) with the ticket counter as the entrance.
+- Busy: several car parking lots outside, cars arriving and leaving, people
+  walking between the lots and the gate; inside, crowds playing, queueing, and
+  wandering.
+- Tickets: 1 fair ticket (General Store, 100 S) to enter, and 1 more for every
+  game or ride. Leaving a game mid-attempt loses that ticket.
+- Six games, each its own overlay (like Lane Dodge). Limited tries per attempt;
+  a new attempt resets the game. Proposed six (user open to swaps):
+    1. Darts: 3 darts, swaying crosshair, bullseye scores most.
+    2. Hammer hit (high striker): 3 swings, stop a power meter at the top.
+    3. Balloon shooting gallery: 10 pellets at drifting balloons.
+    4. Ring toss: 5 rings, farther bottles score more.
+    5. Skee-ball (the fair's arcade game): 6 balls up the lane.
+    6. Whack-a-mole: 30 seconds.
+- Score bands pay Sunside Tokens as reached: bronze, silver, gold. Max score
+  pays platinum and closes that game forever (can't be played again).
+  Proposed amounts, same for every game: bronze 10, silver 25, gold 50,
+  platinum 150. Proposed thresholds: a first try usually reaches bronze;
+  platinum needs a near-perfect run.
+- Progress is tracked: best score per game, bands reached, games maxed.
+- All six maxed: the prize is the F1 car (below) and unlocking the second
+  arcade game at the player's house.
+- Rides, each 1 ticket, scenic only (the camera rides along for a moment):
+  carousel, ferris wheel, bumper cars.
+- Location (proposed): a clear spot in the snow region, found by search, away
+  from the highway, the snow road, the racing center, and camps.
+
+F1 car (agreed; the fair's grand prize)
+- A new car model, Formula 1 style. Replaces the player's car automatically
+  when won; no switching back.
+- 10% faster top speed in every region, and 20% more grip on every surface
+  (ice and sand included).
+- The displayed rating counts it, so Easy/Medium/Hard stay honest: rating
+  becomes the one whose speed matches 1.1 x the level's top speed
+  (level 1: 100 -> 125, level 5: 140 -> 169, level 25: 340 -> 395).
+
+Rural Farm (agreed)
+- One abandoned farmhouse in the rural region. At rural level 6 it becomes
+  the player's, and they are given 200 S to start.
+- A 5 x 5 mud plot: up to 25 crops. Each crop needs a store seed (corn 10 S,
+  tomato 20 S, lettuce 30 S) and one super fertilizer (50 S), which grows it
+  instantly ("revolutionary fertilizer").
+- The farmhouse can be entered (its own level): 2 cows and 4 hens. Feed from
+  the General Store, cow feed and hen feed, 10 S each (new Items-aisle
+  products). Feeding is instant ("super formula"): each feed gives one milk
+  (cow) or one egg (hen).
+- Deliveries: one buyer in each of the 5 mainland regions (city, jungle,
+  desert, snow, rural), so 5 open orders; the player works one order at a time.
+  When an order is done, a new buyer appears somewhere else in that region.
+  No load limit in the car.
+- Buyers ask for crops, milk, and eggs. Prices per item delivered: corn 100 S,
+  tomato 120 S, lettuce 140 S, milk 40 S, eggs 25 S, plus a distance bonus
+  (buyers farther from the farm pay more).
+- Proposed: planting by standing on a plot tile, E, pick a seed you own, E
+  with fertilizer grows it; E on a grown crop harvests it to the inventory.
+  1 seed + 1 fertilizer = 1 crop. Crops, milk, and eggs are new inventory
+  items (999 each).
+- Open: order size with five kinds of goods. Earlier rule was up to 5 of each
+  crop (15 max); proposed: each order mixes up to 3 kinds, up to 5 of each,
+  still 15 max. Awaiting the user's answer.
+- Biofuel from crops: see the factory.
+
+Desert Mining Factory (partly agreed)
+- On the desert's shoreline, so stones can be shipped. A biofuel depot stands
+  next to it (separate from the factory); biofuel from the depot powers the
+  factory. Entry needs the Factory Pass (20,000 S, one-time).
+- The factory produces four kinds of stone: copper, iron, silver, gold.
+  Shipped stones pay high amounts of Sunside Tokens and mastery.
+- Proposed (not confirmed): any crop at the depot becomes biofuel, 5 crops per
+  biofuel (milk and eggs stay for deliveries). 1 biofuel runs the factory once
+  and instantly makes a random stone: copper 50% (300 S + 3 mastery), iron 30%
+  (600 S + 5), silver 15% (1,200 S + 10), gold 5% (3,000 S + 25). Stones are
+  new inventory items (999 each).
+- Open questions: which mastery shipping pays (desert, or universal points
+  like traded fish); whether the factory is a level you walk into with
+  machines, or just the depot and a shipping dock used with E outside; whether
+  shipping has its own dock beside the factory or uses a fishing pier.

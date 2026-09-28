@@ -100,6 +100,13 @@ class WorldMap:
         tiles = [_rect(left + (sx + 0.5) * CELL, top + (sy + 0.5) * CELL, CELL, CELL,
                        (*REGION_COLORS.get(world.region(sx, sy), (0, 0, 0)), 255))
                  for sy in range(SECTORS) for sx in range(SECTORS)]
+        # The highway, its ramps, and exits, dotted along their paths.
+        road_colors = {"hwy": (70, 76, 84), "ramp": (95, 100, 106)}
+        for road in getattr(world, "highway_roads", ()):
+            dot = 6 if road.kind == "hwy" else 4
+            for x, y in road.points[::2]:
+                tiles.append(_rect(left + x / SECTOR_SIZE * CELL, top + y / SECTOR_SIZE * CELL,
+                                   dot, dot, (*road_colors[road.kind], 255)))
         self.tile_count = len(tiles)
         tile_instances = get_new_instances(len(tiles), 0, 0)[0]
         _, tile_instances = to_gl(tiles, tile_instances, "rect")

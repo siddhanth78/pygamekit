@@ -12,7 +12,7 @@ if str(TOOLKIT_ROOT) not in sys.path:
 
 from gl_utils import check_collision
 from parking import Parking
-from traffic import EXTRA_CITY_LOOPS, Traffic
+from traffic import EXTRA_CITY_LOOPS, HIGHWAY_CARS, Traffic
 from world import CITY_SECTORS_X, CITY_SECTORS_Y, World
 
 FAR_AWAY = [-9999, -9999, 0, 0, 0, 0, 0, 1, 1, 0]
@@ -64,7 +64,8 @@ class ParkingTests(unittest.TestCase):
         self.assertTrue(departed and returned)
         self.assertNotIn(sprite, self.parking.away)
         # Other commuters in the same lots may still be out.
-        self.assertEqual(len(self.traffic.cars), 56 + 3 * EXTRA_CITY_LOOPS + len(self.parking.away))
+        self.assertEqual(len(self.traffic.cars), 56 + 3 * EXTRA_CITY_LOOPS + 2 * HIGHWAY_CARS
+                         + len(self.parking.away))
         self.assertIn(sprite, self.parking.waits)
 
     def test_away_stall_is_not_solid(self):

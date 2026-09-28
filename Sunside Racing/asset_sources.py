@@ -669,6 +669,39 @@ def home() -> Atlas:
     return a
 
 
+HIGHWAY_ART = ("hwy", "ramp")
+
+
+def highway_piece(p: Painter, name: str):
+    """Road pieces laid end to end along the highway and its on-ramps (one tile of road,
+    running north-south). "hwy" is drawn 128 px wide (four lanes), "ramp" 64 px, both 72
+    px long so neighbours overlap on curves; dashes repeat every piece."""
+    if name == "hwy":
+        p.rect(4, 0, 60, 64, "#b9b9aa")                   # Shoulders,
+        p.rect(6, 0, 58, 64, "#4b5159")                   # asphalt,
+        p.flecks(401, 10, ("#555c64", "#41474e"))
+        p.rect(7, 0, 8, 64, "#e8e4d4")                    # solid edge lines,
+        p.rect(56, 0, 57, 64, "#e8e4d4")
+        p.rect(30, 0, 31, 64, "#e4c77c")                  # double yellow median,
+        p.rect(33, 0, 34, 64, "#e4c77c")
+        for x in (19, 45):
+            p.rect(x, 0, x + 1, 32, "#e8e4d4")            # and dashed lane lines.
+    elif name == "ramp":
+        p.rect(9, 0, 55, 64, "#b9b9aa")                   # Like a city road: curbed,
+        p.rect(11, 0, 53, 64, "#4b5159")
+        p.flecks(402, 8, ("#555c64", "#41474e"))
+        p.rect(31, 0, 33, 32, "#e4c77c")                  # dashed down the middle.
+    else:
+        raise ValueError(name)
+
+
+def highway() -> Atlas:
+    a = Atlas("highway-atlas", 64, len(HIGHWAY_ART), 1)
+    for i, name in enumerate(HIGHWAY_ART):
+        highway_piece(a.tile(name, i, 0), name)
+    return a
+
+
 STORE_ART = ("shelf", "counter", "ticket_board", "crate", "seeds_corn", "seeds_tomato",
              "seeds_lettuce", "super_fertilizer", "fair_ticket", "factory_pass", "island_pass",
              "store_mat")
@@ -1301,7 +1334,7 @@ def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home(), store()]
+                markers(), track(), canopies(), home(), store(), highway()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

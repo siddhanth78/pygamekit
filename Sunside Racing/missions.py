@@ -235,7 +235,8 @@ class Missions:
         class OffRoad:
             def can_move(self, rect):
                 tx, ty = int(rect[0] // TILE_SIZE), int(rect[1] // TILE_SIZE)
-                if world._road_style(tx, ty) or world.region_at(rect[0], rect[1]) in ("sea", "island"):
+                if (world._road_style(tx, ty) or world.region_at(rect[0], rect[1]) in ("sea", "island")
+                        or world.roads.near(rect[0], rect[1], 64)):   # A tile clear of the highway.
                     return False
                 if region and world.region_at(rect[0], rect[1]) != region:
                     return False

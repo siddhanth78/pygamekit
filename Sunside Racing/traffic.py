@@ -33,6 +33,9 @@ CROSSING_HALF = 30    # Half-size of the box drivers treat as a city intersectio
 APPROACH = 34         # How far ahead of its center a car checks for a busy crossing.
 PATIENCE = 4.0        # Seconds a car waits before squeezing through anyway (no gridlock).
 EXTRA_CITY_LOOPS = 70  # Busy city; rural, snow, jungle, and desert stay quiet.
+HIGHWAY_CARS = 3       # Per direction: the highway stays open for speed.
+HIGHWAY_SPEED = (185, 215)
+HIGHWAY_LANE = 40      # px right of the median: the outer lane each way.
 
 
 def _tile_center(tile):
@@ -149,6 +152,15 @@ class Traffic:
             else:
                 self._road(rng, SNOW_ROUTE, (name,), cars=2, speed=(100, 120))
         self._city_loops(rng, loops=EXTRA_CITY_LOOPS, per_loop=3)
+        self._highway(random.Random(seed * 31 + 505))
+
+    def _highway(self, rng):
+        """A few cars around the highway loop, both ways, so it stays open for speed."""
+        loop = next((r for r in getattr(self.world, "highway_roads", ()) if r.kind == "hwy"), None)
+        if loop is None:
+            return
+        for points in (loop.points, loop.points[::-1]):     # Clockwise, then the other way.
+            self._add_loop(rng, lane_path(points, HIGHWAY_LANE), CITY_CARS, HIGHWAY_CARS, HIGHWAY_SPEED)
 
     def _add_loop(self, rng, path, names, cars, speed):
         total = sum(math.dist(path[i], path[(i + 1) % len(path)]) for i in range(len(path)))

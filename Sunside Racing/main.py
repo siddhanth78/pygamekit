@@ -830,7 +830,7 @@ class Game:
             self.state.set_frame(self.walker_id, walker.frame())
         else:
             throttle, steer = self.inputs.driving()
-            scale = self.missions.progress.speed_scale(self.world.region_at(car.x, car.y))
+            scale = self.missions.progress.speed_scale(self.world.surface_at(car.x, car.y))
             car.update(dt, throttle, steer, self.world, self.collisions, scale)
             self.state.set_player_pose(self.player_id, car.x, car.y, car.heading)
             self.collisions.update(self.player_id, car.collision_record())
@@ -958,11 +958,13 @@ class Game:
             prompt = island
         elif walker and math.dist((walker.x, walker.y), (car.x, car.y)) > CALL_PROMPT_DISTANCE:
             prompt = "Q   Call car"
-        self.hud.top_speed = TOP_SPEED * self.missions.progress.speed_scale(region)
+        self.hud.top_speed = TOP_SPEED * self.missions.progress.speed_scale(
+            self.world.surface_at(player.x, player.y))
         mission = self.missions.status()
         if fishing and fishing.status()[0]:
             mission = fishing.status()
-        self.hud.render(car.speed, region, guide, prompt, show_speed=walker is None,
+        label = "Highway" if self.world.on_highway(player.x, player.y) else region
+        self.hud.render(car.speed, label, guide, prompt, show_speed=walker is None,
                         mission=mission, toast=self._toast())
         if fishing and not (self.menu.open or self.panel.open):
             self.strike_bar.render(fishing)

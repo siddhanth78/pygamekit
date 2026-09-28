@@ -74,7 +74,8 @@ class Car:
         """
         self.crashed = False
         dt = min(max(dt, 0.0), 0.05)
-        surface = world.region_at(self.x, self.y)
+        # The highway's asphalt counts as city road wherever it runs.
+        surface = getattr(world, "surface_at", world.region_at)(self.x, self.y)
         grip, max_speed = SURFACES.get(surface, OFF_SURFACE)
         max_speed *= speed_scale
         # Gentle acceleration (about 2 s to top speed in the city), firm brakes.

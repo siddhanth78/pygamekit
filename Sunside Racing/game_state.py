@@ -25,7 +25,7 @@ from gl_utils import (
 # beach umbrella canopies over the people lying under them, still below vehicles;
 # floating mission badges over everything.
 DRAW_ORDER = (
-    "terrain-atlas", "road-atlas", "track-atlas", "structure-atlas", "prop-atlas",
+    "terrain-atlas", "road-atlas", "highway-atlas", "track-atlas", "structure-atlas", "prop-atlas",
     "camp-atlas", "home-atlas", "store-atlas", "people-atlas", "canopy-atlas", "vehicle-atlas", "marker-atlas",
 )
 CAPACITY = {
@@ -38,6 +38,7 @@ CAPACITY = {
     "people-atlas": 512,
     "canopy-atlas": 128,
     "home-atlas": 64,
+    "highway-atlas": 512,
     "store-atlas": 64,
     "vehicle-atlas": 512,
     "marker-atlas": 128,
