@@ -1,10 +1,10 @@
 {
   "version": 3,
-  "mode": "walk",
+  "mode": "drive",
   "car": {
-    "x": 17313.74913224388,
-    "y": 3842.2902706836276,
-    "heading": 174.9452714944614
+    "x": 10964.0,
+    "y": 15976.0,
+    "heading": 0.0
   },
   "missions": {
     "progress": {
@@ -135,10 +135,14 @@
     },
     "unspent_mastery": 245,
     "arcade": {
-      "lane_dodge": 50
+      "lane_dodge": 50,
+      "tow_train": 17
     },
+    "arcade_unlocked": [
+      "tow_train"
+    ],
     "inventory": {
-      "sunside_tokens": 16897,
+      "sunside_tokens": 6897,
       "fair_ticket": 9
     },
     "farm": {
@@ -264,10 +268,5 @@
         ]
       }
     }
-  },
-  "walker": {
-    "x": 329.07074918465185,
-    "y": 136.49074918465394,
-    "heading": 180.0
   }
 }

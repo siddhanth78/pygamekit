@@ -3,7 +3,9 @@
 Lane Dodge: three lanes, cones fall faster and faster, Left/Right switch lanes, one hit
 ends the run. Pit Stop (unlocked by the Snow Fair's grand prize): an arrow flashes, press
 it before time runs out; the time shrinks with every call, and one wrong or late key ends
-the run. Best scores are saved with the player. The third game is still locked.
+the run. Tow Train (bought at the General Store): steer a tow truck round the yard with
+the arrows; every broken-down car picked up joins the chain behind it, the truck speeds
+up, and hitting a wall or its own chain ends the run. Best scores are saved with the player.
 """
 
 from __future__ import annotations
@@ -16,9 +18,13 @@ from gl_utils import build_rect_objs, build_tex_objs, get_new_instances, load_pr
 from ui_text import DynamicLabel
 
 
-GAMES = (("lane_dodge", "LANE DODGE"), ("pit_stop", "PIT STOP"), ("game_3", "LOCKED"))
+GAMES = (("lane_dodge", "LANE DODGE"), ("pit_stop", "PIT STOP"), ("tow_train", "TOW TRAIN"))
 LOCKED_NOTE = "Unlocks later"
-LOCKED_NOTES = {"pit_stop": "Win the Snow Fair's grand prize"}
+LOCKED_NOTES = {"pit_stop": "Win the Snow Fair's grand prize", "tow_train": "Sold at the General Store"}
+TOW_GRID = (12, 16)           # Columns, rows of 30 px cells on the 360 x 480 screen.
+TOW_CELL = 30
+TOW_STEP = (0.2, 0.07)        # Seconds per move: at the start, and the fastest it gets.
+TOW_SPEED_UP = 0.96           # Each car picked up: the step is this x the last one.
 PIT_WINDOW = (1.3, 0.38)      # Seconds to answer: the first call, and the floor it shrinks to.
 PIT_SHRINK = 0.93             # Each call's window is this x the last one.
 ARROWS = ("menu_up", "menu_down", "menu_left", "menu_right")
@@ -110,6 +116,62 @@ class PitStop:
                 self.over = True
 
 
+class TowTrain:
+    """Pure game state: a tow truck (the chain's head) moving one cell per step."""
+
+    TURNS = {"menu_up": (0, -1), "menu_down": (0, 1), "menu_left": (-1, 0), "menu_right": (1, 0)}
+
+    def __init__(self, seed=None):
+        self.rng = random.Random(seed)
+        cols, rows = TOW_GRID
+        x, y = cols // 2, rows - 5
+        self.chain = [(x, y), (x, y + 1), (x, y + 2)]    # The truck, then the cars it tows.
+        self.heading = self.turning = (0, -1)
+        self.score = 0
+        self.over = False
+        self.step = TOW_STEP[0]
+        self.timer = 0.0
+        self.target = self._place()
+
+    def _place(self):
+        """A broken-down car somewhere the chain isn't."""
+        cols, rows = TOW_GRID
+        free = [(x, y) for y in range(rows) for x in range(cols) if (x, y) not in self.chain]
+        return self.rng.choice(free) if free else None
+
+    def turn(self, arrow: str):
+        """Steer (never straight back into the chain)."""
+        dx, dy = self.TURNS[arrow]
+        if (dx + self.heading[0], dy + self.heading[1]) != (0, 0):
+            self.turning = (dx, dy)
+
+    def update(self, dt: float):
+        self.timer += dt
+        while not self.over and self.timer >= self.step:
+            self.timer -= self.step
+            self._advance()
+
+    def _advance(self):
+        self.heading = self.turning
+        hx, hy = self.chain[0]
+        head = (hx + self.heading[0], hy + self.heading[1])
+        cols, rows = TOW_GRID
+        grow = head == self.target
+        body = self.chain if grow else self.chain[:-1]   # The last car moves off its cell.
+        if not (0 <= head[0] < cols and 0 <= head[1] < rows) or head in body:
+            self.over = True
+            return
+        self.chain.insert(0, head)
+        if grow:
+            self.score += 1
+            self.step = max(TOW_STEP[1], self.step * TOW_SPEED_UP)
+            self.target = self._place()
+            if self.target is None:
+                self.over = True                          # The whole yard towed away.
+        else:
+            self.chain.pop()
+
+
 def lane_x(lane: int) -> float:
     return (lane + 0.5) * FIELD[0] / LANES
 
@@ -129,7 +191,7 @@ class ArcadeCabinet:
         self.best: dict[str, int] = {}
         self.extra: set[str] = set()     # Games unlocked beyond Lane Dodge.
         self.game_id = "lane_dodge"
-        self.game: LaneDodge | PitStop | None = None
+        self.game: LaneDodge | PitStop | TowTrain | None = None
         shaders = toolkit_root / "shaders"
         size = tuple(float(v) for v in viewport)
         self.rect_program = load_program(ctx, str(shaders / "rect.vert"), str(shaders / "rect.frag"))
@@ -138,7 +200,7 @@ class ArcadeCabinet:
         self.text_program["u_viewport_size"].value = size
         self.text_program["u_texture"].value = 0
         self.text_program["u_atlas_grid"].value = (1.0, 1.0)
-        self.rect_instances = get_new_instances(96, 0, 0)[0]
+        self.rect_instances = get_new_instances(TOW_GRID[0] * TOW_GRID[1] + 64, 0, 0)[0]   # A full tow chain.
         self.rect_vao, self.rect_vbo = build_rect_objs(ctx, self.rect_program, self.rect_instances)
         self.title = DynamicLabel(ctx, (400, 44), 36, bold=True, align="center")
         self.items = [DynamicLabel(ctx, (300, 34), 28, bold=True, align="center") for _ in GAMES]
@@ -163,7 +225,7 @@ class ArcadeCabinet:
 
     def _start(self):
         self.game_id = GAMES[self.selected][0]
-        self.mode, self.game = "play", (PitStop() if self.game_id == "pit_stop" else LaneDodge())
+        self.mode, self.game = "play", {"pit_stop": PitStop, "tow_train": TowTrain}.get(self.game_id, LaneDodge)()
 
     # Input ------------------------------------------------------------------------------
 
@@ -185,6 +247,8 @@ class ArcadeCabinet:
             self.mode = "menu"           # Leave the run, back to the game list.
         elif isinstance(game, PitStop) and action in ARROWS:
             game.press(action)
+        elif isinstance(game, TowTrain) and action in ARROWS:
+            game.turn(action)
         elif action == "menu_left":
             game.steer(-1)
         elif action == "menu_right":
@@ -218,11 +282,39 @@ class ArcadeCabinet:
                 playable = self.unlocked(game_id)
                 label.set(name)
                 note.set(f"Best {self.best.get(game_id, 0)}" if playable else LOCKED_NOTES.get(game_id, LOCKED_NOTE))
-                label.set(name if playable or game_id != "pit_stop" else "LOCKED")
+                label.set(name if playable else "LOCKED")
                 rects.append(_rect(cx, y + 10, 300, 74, (*ACCENT, 255) if chosen else (44, 66, 76, 255)))
                 ink = INK if chosen else CREAM if playable else MUTED
                 labels += [(label, label.record(cx, y, ink)), (note, note.record(cx, y + 28, ink))]
             self.hint.set("UP / DOWN choose  ·  ENTER play  ·  ESC leave")
+        elif isinstance(self.game, TowTrain):
+            game = self.game
+            self.title.set("TOW TRAIN")
+            cell = TOW_CELL
+            for gx in range(1, TOW_GRID[0]):                  # A faint yard grid.
+                rects.append(_rect(left + gx * cell, top + FIELD[1] / 2, 1, FIELD[1], (30, 40, 50, 255)))
+            if game.target:
+                tx, ty = left + (game.target[0] + 0.5) * cell, top + (game.target[1] + 0.5) * cell
+                rects.append(_rect(tx, ty, cell - 8, cell - 6, (217, 69, 63, 255)))          # Broken down,
+                if int(game.timer * 10 + game.score) % 2 == 0:
+                    rects.append(_rect(tx, ty - cell / 2 + 4, 8, 4, (242, 202, 87, 255)))    # hazards on.
+            colors = ((63, 127, 208, 255), (79, 154, 90, 255), (138, 85, 201, 255), (224, 138, 74, 255))
+            for i, (cx_, cy_) in enumerate(game.chain):
+                x, y = left + (cx_ + 0.5) * cell, top + (cy_ + 0.5) * cell
+                if i == 0:
+                    rects += [_rect(x, y, cell - 4, cell - 4, (242, 202, 87, 255)),          # The truck,
+                              _rect(x + game.heading[0] * 7, y + game.heading[1] * 7, 12, 12, (39, 53, 61, 255))]
+                else:
+                    rects.append(_rect(x, y, cell - 8, cell - 8, colors[i % len(colors)]))     # its tow.
+            self.score.set(f"Score {game.score}   ·   Best {self.best.get('tow_train', 0)}")
+            labels.append((self.score, self.score.record(cx, top + 24, CREAM)))
+            if game.over:
+                rects.append(_rect(cx, cy + 20, FIELD[0], 110, (8, 16, 22, 230)))
+                self.status.set(f"JACKKNIFED!  Score {game.score}")
+                labels.append((self.status, self.status.record(cx, cy + 4, ACCENT)))
+                self.hint.set("ENTER play again  ·  ESC back to the games")
+            else:
+                self.hint.set("ARROWS steer  ·  pick up the red cars  ·  ESC back")
         elif isinstance(self.game, PitStop):
             game = self.game
             self.title.set("PIT STOP")

@@ -2495,6 +2495,20 @@
             0
           ],
           "source_row": 3
+        },
+        "game_stand": {
+          "tile": [
+            2,
+            0
+          ],
+          "source_row": 3
+        },
+        "arcade_tow_train": {
+          "tile": [
+            3,
+            0
+          ],
+          "source_row": 3
         }
       }
     },

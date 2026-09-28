@@ -36,6 +36,10 @@ PRODUCT_SIZE = 44
 PRODUCT_BAND = ((34, 41.5), (30, 0))
 CASHIER_BAND = ((30, 58), (30, 0))
 MAT = ((48, 24), (0, 0))
+# The game corner: a display stand by the south wall with the arcade cartridge on it.
+GAME_STAND = (10.4, 9.25)
+GAME_PRODUCTS = ("arcade_tow_train",)
+STAND_BAND = ((44, 30), (0, -50))
 
 
 def at(tx: float, ty: float) -> tuple[float, float]:
@@ -86,6 +90,8 @@ class Cart:
         factory = getattr(missions, "factory", None)
         if item_id == "factory_pass" and factory is not None and factory.unlocked:
             return "The factory is already yours; no pass needed."
+        if item.unlocks and item.unlocks in getattr(missions, "arcade_unlocked", ()):
+            return f"You already own {item.name.removesuffix(' cartridge')}. It's on your arcade at home."
         if item.max_stack == 1 and (have or wanted):
             return f"You already have the {item.name.lower()}." if have else \
                 f"The {item.name.lower()} is already in your cart."
@@ -100,9 +106,16 @@ class Cart:
             return f"Not enough Sunside Tokens: {self.total:,} S due, you have {missions.tokens:,} S."
         missions.add_item("sunside_tokens", -self.total)
         for item_id, n in self.items.items():
-            missions.add_item(item_id, n)
+            if BY_ID[item_id].unlocks:
+                missions.arcade_unlocked.add(BY_ID[item_id].unlocks)   # Unlocked, not carried.
+            else:
+                missions.add_item(item_id, n)
         self.items = {}
         return None
+
+    def unlocks(self) -> list[str]:
+        """Names of what the cart unlocks when paid for (e.g. an arcade game)."""
+        return [BY_ID[i].name.removesuffix(" cartridge") for i in self.items if BY_ID[i].unlocks]
 
     def empty(self):
         self.items = {}
@@ -146,6 +159,7 @@ class StoreInterior:
             for y in SHELF_YS:
                 out.append(Sprite("store-atlas", "shelf", *at(x, y), FIXTURE, FIXTURE, 0.0, 40, 116))
         out.append(Sprite("store-atlas", "ticket_board", *at(aisle_x(2), 1.2), FIXTURE, FIXTURE, 180.0))
+        out.append(Sprite("store-atlas", "game_stand", *at(*GAME_STAND), FIXTURE, FIXTURE, 0.0, 88, 40))
         out.append(Sprite("store-atlas", "crate", *at(14.3, 8.6), 96, 96, 0.0, 60, 60))
         out.append(Sprite("store-atlas", "crate", *at(13.4, 9.1), 96, 96, 0.0, 60, 60))
         out.append(Sprite("home-atlas", "plant", *at(1.4, 9.2), FIXTURE, FIXTURE, 0.0, 26, 26))
@@ -166,6 +180,9 @@ class StoreInterior:
             for item_id, y in zip(items, PRODUCT_YS[len(items)]):
                 spots.append(Spot("product", icon_x, y * TILE_SIZE, item_id, area=PRODUCT_BAND,
                                   stand=(icon_x + 28, y * TILE_SIZE)))
+        sx, sy = at(*GAME_STAND)
+        for item_id in GAME_PRODUCTS:                      # On top of the game stand.
+            spots.append(Spot("product", sx, sy - 6, item_id, area=STAND_BAND, stand=(sx, sy - 56)))
         return spots
 
     def _people(self):
@@ -228,4 +245,7 @@ class StoreInterior:
         for index, (_, name, _) in enumerate(AISLES):
             if abs(x - aisle_x(index) * TILE_SIZE) < 0.9 * TILE_SIZE and 1.8 * TILE_SIZE < y < 6.2 * TILE_SIZE:
                 return name
+        gx, gy = at(*GAME_STAND)
+        if abs(x - gx) < 1.4 * TILE_SIZE and gy - 2 * TILE_SIZE < y < gy:
+            return "Game corner"
         return "Checkout" if x < 4.5 * TILE_SIZE and y > 4.5 * TILE_SIZE else "General Store"

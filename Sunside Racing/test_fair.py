@@ -290,3 +290,31 @@ class F1Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TowTrainTests(unittest.TestCase):
+    def test_tows_grows_speeds_up_and_crashes(self):
+        from arcade import TOW_GRID, TOW_STEP, TowTrain
+        game = TowTrain(1)
+        head = game.chain[0]
+        game.target = (head[0], head[1] - 2)                 # Two cells straight ahead.
+        game.update(TOW_STEP[0] * 2 + 0.001)
+        self.assertEqual((game.score, len(game.chain)), (1, 4))
+        self.assertLess(game.step, TOW_STEP[0])
+        game.turn("menu_down")                                # Can't reverse into the chain.
+        self.assertEqual(game.turning, (0, -1))
+        game.turn("menu_left")
+        game.target = (0, 0)
+        while not game.over:
+            game.update(0.05)
+        self.assertEqual(game.chain[0][0], 0)                 # Ran into the west wall.
+
+    def test_hitting_its_own_chain_ends_the_run(self):
+        from arcade import TowTrain
+        game = TowTrain(2)
+        game.chain = [(5, 5), (5, 6), (4, 6), (4, 5), (4, 4)]
+        game.heading = game.turning = (0, -1)
+        game.turn("menu_left")                                # Into (4, 5): part of the chain.
+        game.target = (9, 9)
+        game.update(game.step + 0.001)
+        self.assertTrue(game.over)

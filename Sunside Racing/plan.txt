@@ -2035,3 +2035,28 @@ Stone market (built, 2026-09-28; supersedes the fixed stone pay above)
   (board opens and closes, ship at the market price, full total shown).
   269 passing.
 
+Display size (decided, 2026-09-28)
+- The game stays a fixed 1280 x 720 window (16:9). A fullscreen letterboxed
+  mode was started and then reverted at the user's request ("let it remain").
+  Nothing about the display changed.
+
+Tow Train, arcade game 3 (built, 2026-09-28)
+- User: the General Store sells arcade game 3 for 10,000 S, a one-time
+  purchase that unlocks it and never stays in the inventory.
+- The game (arcade.TowTrain): a 12 x 16 yard. The tow truck moves a cell at a
+  time (0.2 s a step at first); the arrows steer it (never straight back).
+  Each red broken-down car it reaches joins the chain behind it: +1 score and
+  4% faster, down to 0.07 s a step. Hitting a wall or its own chain ends the
+  run ("JACKKNIFED!"). The best score is saved like the other games. The
+  cabinet menu shows TOW TRAIN, or LOCKED with "Sold at the General Store".
+- The store: a game stand ("game_stand", store-atlas) by the south wall at
+  tile (10.4, 9.25) in the "Game corner", with the cartridge on it (item
+  arcade_tow_train, "Tow Train cartridge", 10,000 S, Item.unlocks =
+  "tow_train"). Paying adds "tow_train" to missions.arcade_unlocked (saved as
+  "arcade_unlocked") instead of an item. The receipt says "New on your arcade
+  at home: Tow Train." The cart refuses it once owned ("You already own Tow
+  Train.").
+- Tests: the chain grows and speeds up, no reversing, walls and its own
+  chain end it, the one-time unlock (not in the inventory, saved, refused
+  again), and the stand is reachable. 273 passing.
+

@@ -64,6 +64,29 @@ class CartTests(unittest.TestCase):
                          [("seeds_corn", "seeds_tomato", "seeds_lettuce"), ("super_fertilizer", "cow_feed", "hen_feed"),
                           ("fair_ticket", "factory_pass", "island_pass")])
 
+    def test_tow_train_is_a_one_time_unlock_not_an_item(self):
+        m, cart = self.missions(), Cart()
+        self.assertIsNone(cart.take("arcade_tow_train", m))
+        self.assertIn("already in your cart", cart.take("arcade_tow_train", m))
+        self.assertIn("Not enough", cart.pay(m))
+        m.add_item("sunside_tokens", 10_000)
+        self.assertEqual(cart.unlocks(), ["Tow Train"])
+        self.assertIsNone(cart.pay(m))
+        self.assertEqual(m.tokens, 0)
+        self.assertEqual(m.arcade_unlocked, {"tow_train"})
+        self.assertNotIn("arcade_tow_train", m.items)            # Never in the inventory.
+        self.assertIn("already own Tow Train", Cart().take("arcade_tow_train", m))
+        again = type(m)(m.world, m.seed, __import__("json").loads(__import__("json").dumps(m.to_dict())))
+        self.assertEqual(again.arcade_unlocked, {"tow_train"})
+
+    def test_the_game_stand_sells_it(self):
+        store = StoreInterior(0)
+        spot = next(s for s in store.spots if s.item == "arcade_tow_train")
+        collisions = CollisionManager(None, store)
+        self.assertTrue(collisions.can_walk(Walker(*spot.stand).collision_record()))
+        self.assertIs(store.spot_near(*spot.stand), spot)
+        self.assertEqual(store.aisle_at(*spot.stand), "Game corner")
+
     def test_passes_are_one_time(self):
         m, cart = self.missions(), Cart()
         self.assertIsNone(cart.take("factory_pass", m))

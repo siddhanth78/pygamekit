@@ -166,6 +166,9 @@ class Missions:
         self.arcade = {k: v for k, v in arcade.items() if isinstance(k, str) and type(v) is int and v >= 0} \
             if isinstance(arcade, dict) else {}
         self.counter = data.get("counter") if type(data.get("counter")) is int else 0
+        # Arcade games bought at the store (one-time purchases that never enter the inventory).
+        unlocked = data.get("arcade_unlocked")
+        self.arcade_unlocked = {g for g in unlocked if isinstance(g, str)} if isinstance(unlocked, list) else set()
         self.farm = Farm(data.get("farm"))    # The farmhouse (owned?) and its plot.
         self.fair = FairState(data.get("fair"))  # Snow Fair booths and the F1 prize.
         self.factory = FactoryState(data.get("factory"))   # Unlocked? and the depot's biofuel.
@@ -593,7 +596,8 @@ class Missions:
         return {"progress": self.progress.to_dict(), "counter": self.counter,
                 "offers": {gid: offer.to_dict() for gid, offer in self.offers.items()},
                 "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
-                "arcade": dict(self.arcade), "inventory": dict(self.items), "farm": self.farm.to_dict(),
+                "arcade": dict(self.arcade), "arcade_unlocked": sorted(self.arcade_unlocked),
+                "inventory": dict(self.items), "farm": self.farm.to_dict(),
                 "farm_orders": self.orders.to_dict(), "fair": self.fair.to_dict(),
                 "factory": self.factory.to_dict()}
 

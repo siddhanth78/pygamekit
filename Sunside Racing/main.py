@@ -600,7 +600,8 @@ class Game:
         elif spot.kind == "lamp":
             self.home.toggle_lamp(spot.key)
         elif spot.kind == "arcade":
-            self.arcade.show(self.missions.arcade, ("pit_stop",) if self.missions.fair.f1 else ())
+            extra = (("pit_stop",) if self.missions.fair.f1 else ()) + tuple(self.missions.arcade_unlocked)
+            self.arcade.show(self.missions.arcade, extra)
         else:
             self.panel.show_message(spot.label, spot.key)
 
@@ -697,13 +698,15 @@ class Game:
 
     def _pay_at_store(self):
         cart = self.store.cart
-        total, bill = cart.total, cart.bill()
+        total, bill, unlocks = cart.total, cart.bill(), cart.unlocks()
         why = cart.pay(self.missions)
         if why:
             self.panel.show_message("Checkout", why)
         else:
             self.autosave.request()
-            self.panel.show_bill("Receipt", bill, f"{total:,} S  PAID", "It's all in your inventory (I).",
+            note = (f"New on your arcade at home: {', '.join(unlocks)}." if unlocks
+                    else "It's all in your inventory (I).")
+            self.panel.show_bill("Receipt", bill, f"{total:,} S  PAID", note,
                                  ("OK",), chip="Success")
 
     def _store_prompt(self):

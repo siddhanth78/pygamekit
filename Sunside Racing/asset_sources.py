@@ -763,7 +763,7 @@ def highway() -> Atlas:
 
 STORE_ART = ("shelf", "counter", "ticket_board", "crate", "seeds_corn", "seeds_tomato",
              "seeds_lettuce", "super_fertilizer", "fair_ticket", "factory_pass", "island_pass",
-             "store_mat", "cow_feed", "hen_feed")
+             "store_mat", "cow_feed", "hen_feed", "game_stand", "arcade_tow_train")
 
 
 def seed_packet(p: Painter, color: str, mark: str):
@@ -825,6 +825,22 @@ def store_art(p: Painter, name: str):
         p.rect(30, 25, 34, 39, "#4f9a5a")                 # showing a sprout
         p.rect(26, 28, 30, 31, "#4f9a5a")
         p.rect(34, 30, 38, 33, "#4f9a5a")
+    elif name == "game_stand":
+        p.rect(10, 20, 58, 46, "#1d2a30")
+        p.rect(8, 18, 56, 44, "#4a2a70")                  # A display stand,
+        p.rect(10, 20, 54, 24, "#8a55c9")
+        p.rect(8, 40, 56, 44, "#f2ca57")                  # with a lit edge.
+    elif name == "arcade_tow_train":
+        p.rect(18, 12, 48, 54, "#1d2a30")
+        p.rect(16, 10, 46, 52, "#3a3f44")                 # A game cartridge,
+        p.rect(20, 10, 42, 14, "#27353d")
+        p.rect(20, 18, 42, 38, "#f2ca57")                 # its label:
+        p.rect(23, 24, 31, 32, "#e08a4a")                 # a tow truck
+        p.rect(31, 27, 34, 29, "#27353d")                 # towing
+        p.rect(34, 24, 40, 32, "#3f7fd0")                 # a car.
+        for x in (40, 44):
+            p.rect(x, 52, x + 2, 56, "#b8862a")           # Pins.
+        p.rect(20, 44, 42, 48, "#27353d")
     elif name in ("cow_feed", "hen_feed"):
         sack, band = ("#d8c8a0", "#3f7fd0") if name == "cow_feed" else ("#e8d49a", "#d9453f")
         p.rect(20, 12, 48, 54, "#1d2a30")

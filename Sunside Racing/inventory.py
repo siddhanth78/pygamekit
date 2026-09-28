@@ -29,6 +29,8 @@ class Item:
     max_stack: int = STACK_MAX
     price: int = 0                  # Sunside Tokens at the General Store (0: not sold).
     aisle: str = ""                 # Store aisle it's sold in.
+    unlocks: str = ""               # Paying unlocks this (e.g. an arcade game) instead of
+                                    # adding the item: it never enters the inventory.
 
 
 ITEMS = (
@@ -73,6 +75,8 @@ ITEMS = (
       for s in ("iron", "copper", "silver", "gold")),
     Item("factory_pass", "Factory pass", "store-atlas", "factory_pass",
          "Unlocks the factory.", max_stack=1, price=20_000, aisle="tickets"),
+    Item("arcade_tow_train", "Tow Train cartridge", "store-atlas", "arcade_tow_train",
+         "Unlocks Tow Train.", max_stack=1, price=10_000, aisle="games", unlocks="tow_train"),
     Item("island_pass", "Island pass", "store-atlas", "island_pass",
          "Passage to the island.", max_stack=1, price=100_000, aisle="tickets"),
 )
