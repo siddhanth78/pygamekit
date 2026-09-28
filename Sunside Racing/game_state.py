@@ -26,7 +26,7 @@ from gl_utils import (
 # floating mission badges over everything.
 DRAW_ORDER = (
     "terrain-atlas", "road-atlas", "highway-atlas", "track-atlas", "structure-atlas", "prop-atlas",
-    "camp-atlas", "home-atlas", "store-atlas", "farm-atlas", "people-atlas", "canopy-atlas", "vehicle-atlas", "marker-atlas",
+    "camp-atlas", "home-atlas", "store-atlas", "farm-atlas", "fair-atlas", "people-atlas", "canopy-atlas", "vehicle-atlas", "marker-atlas",
 )
 CAPACITY = {
     "terrain-atlas": 8192,
@@ -41,6 +41,7 @@ CAPACITY = {
     "highway-atlas": 512,
     "store-atlas": 64,
     "farm-atlas": 96,
+    "fair-atlas": 320,
     "vehicle-atlas": 512,
     "marker-atlas": 128,
 }
@@ -102,6 +103,12 @@ class GameState:
             "record": [x, y, 255, 255, 255, 255, 0, 32, 32, 0, tile_x, tile_y],
         }
         return entity_id
+
+    def set_sprite(self, entity_id: int, atlas: str, sprite: str):
+        """Swap an entity's art (e.g. the player's car becoming the F1 car)."""
+        entity = self.entities[entity_id]
+        entity["atlas"] = atlas
+        modify_texture(0, [entity["record"]], *self._tile(atlas, sprite))
 
     def set_frame(self, entity_id: int, sprite: str):
         entity = self.entities[entity_id]

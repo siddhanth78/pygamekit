@@ -14,7 +14,7 @@ import moderngl
 import pygame
 
 from autosave import Autosave
-from car import TOP_SPEED, Car
+from car import F1_SPEED, TOP_SPEED, Car
 from collision_manager import CollisionManager, nearest_clear_spot
 from drag_race import DragRace
 from fast_travel import destination, island_destination, on_island, on_mainland_beach
@@ -36,8 +36,10 @@ from world_map import WorldMap, guide_line, landmarks
 from arcade import ArcadeCabinet
 from home import HomeInterior
 from store import StoreInterior
+from fair import GAME_TICKET_PACKS, GAME_TICKET_PRICE, RIDE_NAMES, RIDE_ZOOM, FairInterior, FairOutside
+from fair_ui import FairGameOverlay
 from farm import CROP_NAMES, FARM_GIFT, FARM_LEVEL, FarmInterior, feed, outdoor_sprites, plot_index
-from inventory import BY_ID, count_of
+from inventory import BY_ID, count_of, room
 from inventory import STACK_MAX
 from inventory_ui import InventoryMenu
 from orders_ui import OrdersMenu
@@ -60,6 +62,7 @@ CENTER_TALK_RANGE = 130  # On foot, px from a racing center building to enter ra
 HOME_DOOR_RANGE = 40     # On foot, px from the house's front door to go inside.
 STORE_DOOR_RANGE = 40    # On foot, px from the General Store's door to go in.
 FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
+FAIR_DOOR_RANGE = 52     # On foot, px from the Snow Fair's ticket booth window.
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
                  "jungle": "grass"}
 
@@ -144,10 +147,21 @@ class Game:
         self.farm_collisions = CollisionManager(None, self.farmhouse)
         self.in_farm = False
         self.pending_plant = None    # (plot index, crops) while the panel asks which seed.
+        self.pending_buy = False     # The fair's ticket counter is asking how many.
+        # The Snow Fair: visitors at its lots (outside) and the fairground level (inside).
+        self.fair_outside = FairOutside(world.fair, world.seed)
+        self.collisions.others.append(self.fair_outside)
+        self.fair_level = FairInterior(world.seed)
+        self.fair_collisions = CollisionManager(None, self.fair_level)
+        self.at_fair = False
+        self.fair_game = FairGameOverlay(ctx, TOOLKIT_ROOT, viewport, self.state)
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
         self.orders_menu = OrdersMenu(ctx, TOOLKIT_ROOT, viewport)                # O
         self.player_id = self.state.spawn_player(self.car.x, self.car.y)
+        self.car.f1 = self.missions.fair.f1
+        if self.car.f1:
+            self.state.set_sprite(self.player_id, "vehicle-atlas", "racer_f1")
         # Face the way it's parked from the first frame (getting out at once kept it north).
         self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
         self.walker_id = None
@@ -345,7 +359,10 @@ class Game:
             center, self.pending_center = self.pending_center, None
             giver, self.pending_offer = self.pending_offer, None
             plant, self.pending_plant = self.pending_plant, None
-            if outcome.startswith("choice:") and plant:
+            buy, self.pending_buy = self.pending_buy, False
+            if outcome.startswith("choice:") and buy:
+                self._buy_game_tickets(GAME_TICKET_PACKS[int(outcome.split(":")[1])])
+            elif outcome.startswith("choice:") and plant:
                 index, crops = plant
                 self._plant(index, crops[int(outcome.split(":")[1])])
             elif outcome == "accept":
@@ -354,6 +371,8 @@ class Game:
                 elif confirm == "store_leave":
                     self.store.cart.empty()            # Put everything back and go.
                     self._leave_store()
+                elif confirm == "fair_enter":
+                    self._enter_fair()
                 elif confirm and confirm.startswith("order:"):
                     self._take_order(confirm.split(":", 1)[1])
                 elif confirm and confirm.startswith("deliver:"):
@@ -372,6 +391,12 @@ class Game:
                 self.panel.show_offer(self.missions.preview(offer))
                 self.autosave.request()
             return True
+        if self.fair_game.open:
+            if self.fair_game.handle(action, value) == "start":
+                self._start_fair_game()
+            return True
+        if self.at_fair and self.fair_level.ride and action not in ("pause", "focus_lost"):
+            return True                  # On a ride: sit back and enjoy it.
         if action in ("pause", "focus_lost"):
             self.menu.toggle()
         elif self.race:
@@ -395,7 +420,9 @@ class Game:
             self.walker.respawn_nearby(self.store_collisions)
         elif self.in_farm and action == "reset":
             self.walker.respawn_nearby(self.farm_collisions)
-        elif (self.inside or self.in_store or self.in_farm) and action in ("island", "call_car"):
+        elif self.at_fair and action == "reset":
+            self.walker.respawn_nearby(self.fair_collisions)
+        elif (self.inside or self.in_store or self.in_farm or self.at_fair) and action in ("island", "call_car"):
             pass                       # Nothing to travel to or call from inside the house.
         elif self.inside and action == "reset":
             self._stand_up()
@@ -424,6 +451,9 @@ class Game:
         if self.in_farm:
             self._interact_farm()
             return
+        if self.at_fair:
+            self._interact_fair()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -440,6 +470,10 @@ class Game:
         if (math.dist((self.walker.x, self.walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
             self._enter_home()
+            return
+        if (math.dist((self.walker.x, self.walker.y), self.world.fair.door) <= FAIR_DOOR_RANGE
+                and not self.walker.can_enter(self.car)):
+            self._fair_gate()
             return
         if (math.dist((self.walker.x, self.walker.y), self.world.farm.door) <= FARM_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
@@ -530,7 +564,7 @@ class Game:
         elif spot.kind == "lamp":
             self.home.toggle_lamp(spot.key)
         elif spot.kind == "arcade":
-            self.arcade.show(self.missions.arcade)
+            self.arcade.show(self.missions.arcade, ("pit_stop",) if self.missions.fair.f1 else ())
         else:
             self.panel.show_message(spot.label, spot.key)
 
@@ -592,6 +626,9 @@ class Game:
             self.store.cart.empty()
             self.in_store = False
         self.in_farm = False
+        self.at_fair = False
+        self.fair_level.ride = None
+        self.fair_game.open = False
 
     def _interact_store(self):
         spot = self.store.spot_near(self.walker.x, self.walker.y)
@@ -662,6 +699,183 @@ class Game:
         if self.world_map.open:
             shop = self.world.general_store
             self.world_map.render(shop.x, shop.y, self.guide_to)
+
+    # Snow Fair --------------------------------------------------------------------
+
+    def _tickets(self) -> int:
+        """Game tickets: what the fair's games and rides take (sold at its counter)."""
+        return count_of(self.missions, "game_ticket")
+
+    def _fair_gate(self):
+        """The ticket booth: one fair ticket to go in."""
+        if self.missions.active:
+            self.panel.show_message("Snow Fair", "Finish your current mission first.")
+            return
+        if not count_of(self.missions, "fair_ticket"):
+            self.panel.show_lines("Snow Fair", "", ("Entry is 1 fair ticket.",
+                                                    "The General Store sells them (100 S each).",
+                                                    "Games and rides use game tickets, sold inside."))
+            return
+        self.pending_confirm = "fair_enter"
+        self.panel.show_confirm("Snow Fair", "", ("Entry: 1 fair ticket",
+                                                  f"Game tickets for games and rides: {GAME_TICKET_PRICE} S inside.",
+                                                  f"Platinum booths: {self.missions.fair.maxed()} / 6"),
+                                "GO IN", "NOT NOW")
+        self.panel.selected = 0
+
+    def _enter_fair(self):
+        if not self.missions.add_item("fair_ticket", -1):
+            return
+        self.autosave.request()
+        self.at_fair = True
+        self.walker.x, self.walker.y = self.fair_level.entry
+        self.walker.heading, self.walker.speed = 0.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_fair(self):
+        self.at_fair = False
+        self.fair_level.ride = None
+        self.walker.x, self.walker.y = self.world.fair.door
+        self.walker.heading = 180.0
+        self.collisions.fixed = [self.car.obstacle()]
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _interact_fair(self):
+        spot = self.fair_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return
+        fair = self.missions.fair
+        if spot.kind == "exit":
+            self._leave_fair()
+        elif spot.kind == "booth":
+            if fair.closed(spot.key):
+                self.panel.show_lines(spot.label, "Champion", ("You scored platinum here.",
+                                                                "This booth is closed for good.",
+                                                                f"Platinum booths: {fair.maxed()} / 6"))
+            else:
+                self.fair_game.show(spot.key, fair.best.get(spot.key, 0), fair.band.get(spot.key, 0))
+        elif spot.kind == "counter":
+            self.pending_buy = True
+            self.panel.show_choice("Game tickets", "", (f"{GAME_TICKET_PRICE} S each.",
+                                                        "One ticket plays a game or rides a ride.", ""),
+                                   [f"BUY {n}" for n in GAME_TICKET_PACKS])
+        elif spot.kind == "ride":
+            if not self._tickets():
+                self.panel.show_message(spot.label, "Rides take 1 game ticket. The ticket counter by the gate sells them.")
+                return
+            self.missions.add_item("game_ticket", -1)
+            self.autosave.request()
+            self.fair_level.start_ride(spot.key)
+            self.ride_exit = (spot.x, spot.y)
+        else:
+            self.panel.show_message(spot.label, spot.key)
+
+    def _start_fair_game(self):
+        """ENTER at a booth: one ticket buys an attempt."""
+        if not self._tickets():
+            self.panel.show_message("Game tickets", "You're out of game tickets. The ticket counter by the gate sells them.")
+            return
+        self.missions.add_item("game_ticket", -1)
+        self.autosave.request()
+        self.fair_game.begin()
+
+    def _buy_game_tickets(self, count: int):
+        """The fair's ticket counter: count game tickets for GAME_TICKET_PRICE S each."""
+        cost = count * GAME_TICKET_PRICE
+        if self.missions.tokens < cost:
+            self.panel.show_message("Game tickets", f"{count} ticket{'s' if count != 1 else ''} cost {cost:,} S. "
+                                                    "You don't have enough Sunside Tokens.")
+            return
+        if count > room(count_of(self.missions, "game_ticket"), "game_ticket"):
+            self.panel.show_message("Game tickets", "You can't carry that many game tickets.")
+            return
+        self.missions.add_item("sunside_tokens", -cost)
+        self.missions.add_item("game_ticket", count)
+        self.autosave.request()
+        self.panel.show_lines("Game tickets", "Success", (f"Bought {count} game ticket{'s' if count != 1 else ''}",
+                                                          f"Paid {cost:,} S", "Enjoy the fair!"))
+
+    def _update_fair_game(self, dt):
+        move_x, move_y, _ = self.inputs.walking()
+        score = self.fair_game.update(dt, move_x, move_y)
+        if score is None:
+            return
+        fair, game_id = self.missions.fair, self.fair_game.game_id
+        earned, new, prize = fair.record(game_id, score)
+        self.missions.add_item("sunside_tokens", earned)
+        self.fair_game.earned, self.fair_game.best = earned, fair.best[game_id]
+        self.fair_game.band = fair.band[game_id]
+        self.autosave.request()
+        if prize:
+            self._grant_f1()
+
+    def _grant_f1(self):
+        """Every booth at platinum: the F1 car, and Pit Stop at the home arcade."""
+        self.car.f1 = True
+        self.state.set_sprite(self.player_id, "vehicle-atlas", "racer_f1")
+        self.panel.show_lines("GRAND PRIZE", "Champion", (
+            "All six booths at platinum! The F1 car is yours:",
+            "+10% top speed and +20% grip everywhere.",
+            "And a new game on your arcade at home: PIT STOP."))
+
+    def _fair_prompt(self):
+        if self.fair_level.ride:
+            return ""
+        spot = self.fair_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        if spot.kind == "booth":
+            return (f"{spot.label}  ·  closed (platinum)" if self.missions.fair.closed(spot.key)
+                    else f"E   Play {spot.label}  ·  1 ticket")
+        if spot.kind == "ride":
+            return f"E   Ride the {spot.label.lower()}  ·  1 ticket"
+        if spot.kind == "counter":
+            return f"E   Game tickets  ·  {GAME_TICKET_PRICE} S each"
+        if spot.kind == "exit":
+            return "E   Leave the fair"
+        return f"E   Look  ·  {spot.label}"
+
+    def _update_fair(self, dt):
+        level, walker = self.fair_level, self.walker
+        level.update(dt)
+        if level.ride:
+            driving = self.inputs.driving() if level.ride.kind == "bumper_cars" else (0, 0)
+            if level.update_ride(dt, *driving):
+                walker.x, walker.y = self.ride_exit          # Off the ride, back where we got on.
+            else:
+                x, y, heading = level.ride_pose()            # Sitting in their seat as it goes round.
+                walker.x, walker.y = x, y
+                self.state.set_frame(self.walker_id, "player_sit")
+                self.state.set_player_pose(self.walker_id, x, y + (2 if level.ride.kind == "ferris_wheel" else 0), heading)
+                self._ease_ride_zoom(dt, RIDE_ZOOM[level.ride.kind])
+                return
+        walker.update(dt, *self.inputs.walking(), self.fair_collisions)
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, walker.frame())
+        self._ease_zoom(dt)
+
+    def _ease_ride_zoom(self, dt, target):
+        if target != self.zoom_to:
+            self.zoom_from, self.zoom_to, self.zoom_time = self.zoom, target, 0.0
+        self.zoom_time += dt
+        self.zoom = eased_zoom(self.zoom_from, self.zoom_to, self.zoom_time)
+
+    def _render_fair(self):
+        walker, zoom, level = self.walker, self.zoom, self.fair_level
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (level.width, level.height))
+        riding_bumper = level.ride and level.ride.kind == "bumper_cars"
+        self.state.render(level.visible_sprites(), camera_x, camera_y, [] if riding_bumper else [self.walker_id], zoom)
+        fair = self.missions.fair
+        panel = (f"GAME TICKETS  {self._tickets()}", f"Platinum booths {fair.maxed()} / 6")
+        if level.ride:
+            panel = (RIDE_NAMES[level.ride.kind].upper(),
+                     "ARROWS drive  ·  bump away!" if level.ride.kind == "bumper_cars" else "Enjoy the ride!")
+        area = level.area_at(walker.x, walker.y)
+        self.hud.render(0.0, "Snow Fair", area, self._fair_prompt(), show_speed=False, mission=panel,
+                        toast=self._toast())
+        if self.world_map.open:
+            self.world_map.render(*self.world.fair.center, self.guide_to)
 
     # Farm -------------------------------------------------------------------------
 
@@ -738,7 +952,7 @@ class Game:
             return "E   Plant a seed"
         name = CROP_NAMES[cell[0]]
         if cell[1] == "sprout":
-            return f"E   Fertilize  ·  {name}  ·  fertilizer x{count_of(self.missions, 'super_fertilizer')}"
+            return f"E   Fertilize  ·  {name}"
         return f"E   Harvest  ·  {name}"
 
     def _farm_door_prompt(self):
@@ -802,6 +1016,8 @@ class Game:
             return shop.x, shop.y
         if self.in_farm:
             return self.world.farm.house
+        if self.at_fair:
+            return self.world.fair.center
         player = self.walker or self.car
         return player.x, player.y
 
@@ -848,8 +1064,7 @@ class Game:
         if spot is None:
             return ""
         if spot.kind in ("cow", "hen"):
-            feed_id = "cow_feed" if spot.kind == "cow" else "hen_feed"
-            return f"E   {spot.label}  ·  {BY_ID[feed_id].name.lower()} x{count_of(self.missions, feed_id)}"
+            return f"E   {spot.label}"
         return f"E   {spot.label}" if spot.kind != "look" else f"E   Look  ·  {spot.label}"
 
     def _update_farm(self, dt):
@@ -969,7 +1184,7 @@ class Game:
         _, _, sprite = rival(region, race)
         scale = self.missions.progress.speed_scale(region)
         self.race = DragRace(track, None, scale, race * 101 + REGIONS.index(region),
-                             rival_sprite=sprite, rival_rating=RIVAL_RATINGS[race - 1])
+                             rival_sprite=sprite, rival_rating=RIVAL_RATINGS[race - 1], f1=self.car.f1)
         self.center_race = (region, race)
         self.race_over = 0.0
         self._snap_zoom(DRIVE_ZOOM)
@@ -1048,7 +1263,8 @@ class Game:
         if offer.type == "drag":
             scale = self.missions.progress.speed_scale(giver.region)
             # The rival's rating was fixed when the offer was made.
-            self.race = DragRace(offer.track, None, scale, offer.seed, rival_rating=offer.rating)
+            self.race = DragRace(offer.track, None, scale, offer.seed, rival_rating=offer.rating,
+                                 f1=self.car.f1)   # Rival ratings stay on the base car (F1 is a real edge).
             self.race_over = 0.0
             self._snap_zoom(DRIVE_ZOOM)
 
@@ -1066,6 +1282,9 @@ class Game:
             return   # Paused while the inventory or the orders are open.
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
+        if self.fair_game.open:
+            self._update_fair_game(dt)   # The fair waits while a booth game is on.
+            return
         if self.race:
             self._update_race(dt)
         else:
@@ -1078,6 +1297,9 @@ class Game:
         if self.in_store:
             self._update_store(dt)   # Likewise the store.
             return
+        if self.at_fair:
+            self._update_fair(dt)    # And the fair.
+            return
         if self.in_farm:
             self._update_farm(dt)    # And the farmhouse.
             return
@@ -1087,6 +1309,7 @@ class Game:
             self.fishing = None   # Travel or the car took the player away from the pier.
         blockers = [car.collision_record()] if walker else []
         self.parking.update(dt, player.x, player.y)
+        self.fair_outside.update(dt, player.x, player.y)
         self.pedestrians.update(dt, player.collision_record())
         self.traffic.update(dt, player.collision_record(), blockers + self.pedestrians.road_blockers())
         if walker and self.fishing:
@@ -1164,8 +1387,12 @@ class Game:
             self._render_store()
         elif self.in_farm:
             self._render_farm()
+        elif self.at_fair:
+            self._render_fair()
         else:
             self._render_world()
+        if self.fair_game.open:
+            self.fair_game.render()
         if self.panel.open:
             self.panel.render()
         if self.spend_menu.open:
@@ -1196,6 +1423,8 @@ class Game:
         visible += trader_sprites(self.world, self.clock)
         if self.missions.farm.owned:
             visible += self.missions.orders.sprites(self.clock)
+        if self.fair_outside.near(player.x, player.y):
+            visible += self.fair_outside.sprites()
         farm_x, farm_y = self.world.farm.house
         if abs(farm_x - (camera_x + view_w / 2)) < view_w + 600 and abs(farm_y - (camera_y + view_h / 2)) < view_h + 600:
             visible += outdoor_sprites(self.world.farm, self.missions.farm)
@@ -1237,6 +1466,9 @@ class Game:
         elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Go inside"
+        elif (walker and math.dist((walker.x, walker.y), self.world.fair.door) <= FAIR_DOOR_RANGE
+              and not walker.can_enter(car)):
+            prompt = "E   Snow Fair  ·  1 ticket"
         elif (walker and math.dist((walker.x, walker.y), self.world.farm.door) <= FARM_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = self._farm_door_prompt()
@@ -1251,7 +1483,7 @@ class Game:
         elif walker and math.dist((walker.x, walker.y), (car.x, car.y)) > CALL_PROMPT_DISTANCE:
             prompt = "Q   Call car"
         self.hud.top_speed = TOP_SPEED * self.missions.progress.speed_scale(
-            self.world.surface_at(player.x, player.y))
+            self.world.surface_at(player.x, player.y)) * (F1_SPEED if car.f1 else 1.0)
         mission = self.missions.status()
         if fishing and fishing.status()[0]:
             mission = fishing.status()
@@ -1288,7 +1520,7 @@ class Game:
             banner = "GO!"
         elif race.result:
             banner = "YOU WIN!" if race.result == "win" else "YOU LOSE"
-        self.hud.top_speed = TOP_SPEED * race.speed_scale
+        self.hud.top_speed = TOP_SPEED * race.speed_scale * (F1_SPEED if race.car.f1 else 1.0)
         if self.center_race:
             region, number = self.center_race
             name, _, _ = rival(region, number)

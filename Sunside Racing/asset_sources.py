@@ -336,7 +336,7 @@ def car(p: Painter, body: str, kind: str, stripe: str | None = None):
 
 
 def vehicles() -> Atlas:
-    a = Atlas("vehicle-atlas", 64, 8, 3)
+    a = Atlas("vehicle-atlas", 64, 8, 4)
     traffic = [
         ("traffic_red", "#bf554e", "sedan"), ("traffic_blue", "#5189b4", "sedan"),
         ("traffic_green", "#5f9b76", "sedan"), ("traffic_white", "#d9d7cb", "sedan"),
@@ -358,6 +358,7 @@ def vehicles() -> Atlas:
     for col, (name, body, kind) in enumerate(traffic): car(a.tile(name, col, 0), body, kind)
     for col, (name, body, stripe) in enumerate(racers): car(a.tile(name, col, 1), body, "racer", stripe)
     for col, (name, body, kind) in enumerate(utility): car(a.tile(name, col, 2), body, kind)
+    f1_car(a.tile("racer_f1", 0, 3))
     return a
 
 
@@ -1001,6 +1002,7 @@ PEOPLE = (
 )
 BEACH_KINDS = ("beach_a", "beach_b", "beach_c", "beach_d")
 REST_POSES = ("lounge", "lie")
+RIDER_KINDS = ("city_a", "city_b", "city_c", "city_d", "city_e", "city_g", "city_h", "snow_a", "snow_b")
 PERSON_FRAMES = ("idle", "walk_a", "walk_b")
 
 
@@ -1105,7 +1107,8 @@ def resting(p: Painter, pose: str, top: str, trim: str, head: str, head_color: s
         p.ellipse(16, 18, 7, 3, top)                      # shoulders,
         p.rect(15, 19, 17, 22, trim)
         p.ellipse(16, 15, 4, 4, head_color)               # and the cap from above.
-        p.rect(13, 10, 19, 12, accent)
+        if accent:
+            p.rect(13, 10, 19, 12, accent)
         return
     p.rect(12, 3, 15, 13, skin)                           # Legs,
     p.rect(17, 3, 20, 13, skin)
@@ -1156,6 +1159,7 @@ def people() -> Atlas:
     columns = per_row * len(PERSON_FRAMES)
     rest = [(f"{kind}_{pose}", kind, pose) for kind in BEACH_KINDS for pose in REST_POSES]
     rest += [("player_sit", "player", "sit"), ("player_lie", "player", "lie")]
+    rest += [(f"{kind}_sit", kind, "sit") for kind in RIDER_KINDS]      # Fair riders.
     cells = len(PEOPLE) * len(PERSON_FRAMES) + len(FISHING_SPRITES) + len(rest)
     rows = -(-cells // columns)
     a = Atlas("people-atlas", 32, columns, rows)
@@ -1557,11 +1561,261 @@ def farm() -> Atlas:
     return a
 
 
+FAIR_ART = ("big_top", "carousel", "ferris_wheel", "ticket_booth", "fair_gate",
+            "booth_darts", "booth_hammer", "booth_balloons", "booth_ring_toss", "booth_skee_ball", "booth_whack",
+            "popcorn_stand", "candy_stand", "food_stand", "fair_fence", "fair_lamp", "barrier_rail",
+            "carousel_horse", "ferris_car", "bumper_red", "bumper_blue", "bumper_yellow", "bumper_green",
+            "bumper_player", "dartboard", "dart", "bell", "balloon_red", "balloon_blue", "balloon_yellow",
+            "bottle", "ring", "skee_rings", "skee_hole", "skee_ball", "mole", "mole_hole", "mallet", "game_ticket")
+BOOTH_COLORS = {"darts": "#d9453f", "hammer": "#3f7fd0", "balloons": "#f28fb0", "ring_toss": "#4f9a5a",
+                "skee_ball": "#e08a4a", "whack": "#8a55c9"}
+
+
+def disc(p: Painter, cx: int, cy: int, r: int, colors, band: int = 8):
+    """A filled circle in vertical bands of alternating colors (tent and canopy stripes)."""
+    for i, x in enumerate(range(cx - r, cx + r + 1, band)):
+        for xx in range(x, min(x + band, cx + r + 1)):
+            h = int((r * r - (xx - cx + 0.5) ** 2) ** 0.5) if abs(xx - cx + 0.5) <= r else -1
+            if h >= 0:
+                p.rect(xx, cy - h, xx + 1, cy + h + 1, colors[i % len(colors)])
+
+
+def ring(p: Painter, cx: int, cy: int, r: int, width: int, color: str):
+    """A circle outline, width px thick."""
+    for y in range(cy - r, cy + r + 1):
+        for x in range(cx - r, cx + r + 1):
+            d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+            if r - width < d <= r:
+                p.rect(x, y, x + 1, y + 1, color)
+
+
+def fair_art(p: Painter, name: str):
+    """The Snow Fair in 96 px cells: rides, tents, booths (fronts face south), carts, and
+    the booth games' pieces."""
+    if name == "big_top":
+        p.ellipse(50, 50, 44, 44, "#1d2a30")
+        disc(p, 48, 48, 44, ("#d9453f", "#f4ead0"), 8)       # Striped canvas,
+        ring(p, 48, 48, 44, 3, "#8a2e2a")                    # its hem,
+        p.ellipse(48, 48, 7, 7, "#f2ca57")                   # the center pole's cap,
+        p.rect(47, 32, 49, 48, "#5a3d28")
+        p.rect(49, 32, 58, 37, "#3f7fd0")                    # and a pennant.
+    elif name == "carousel":
+        p.ellipse(50, 50, 44, 44, "#1d2a30")
+        p.ellipse(48, 48, 44, 44, "#b0703f")                 # A round wooden platform,
+        ring(p, 48, 48, 44, 4, "#f2ca57")                    # gold rim with lights,
+        for i in range(16):
+            a = i * math.pi / 8
+            p.ellipse(48 + round(42 * math.cos(a)), 48 + round(42 * math.sin(a)), 1, 1, "#fff4d6")
+        disc(p, 48, 48, 16, ("#f28fb0", "#f4ead0"), 4)       # the center column,
+        p.ellipse(48, 48, 5, 5, "#f2ca57")
+    elif name == "ferris_wheel":
+        # Seen from the front: legs, rim, spokes, hub (the cars are drawn on the rim).
+        for (x0, x1) in ((30, 48), (66, 48)):
+            for i in range(40):
+                x = x0 + (x1 - x0) * i / 40
+                p.rect(int(x) - 1, 88 - i, int(x) + 2, 89 - i, "#5d6366")
+        p.rect(24, 88, 72, 92, "#3a3a3a")
+        ring(p, 48, 48, 37, 3, "#d9453f")
+        ring(p, 48, 48, 33, 1, "#f2ca57")
+        for i in range(8):
+            a = i * math.pi / 4
+            for t in range(4, 34, 2):
+                p.rect(48 + round(t * math.cos(a)), 48 + round(t * math.sin(a)),
+                       49 + round(t * math.cos(a)), 49 + round(t * math.sin(a)), "#e6ddc8")
+        p.ellipse(48, 48, 5, 5, "#3f7fd0")
+        p.ellipse(48, 48, 2, 2, "#f2ca57")
+    elif name == "ticket_booth":
+        p.rect(14, 22, 84, 76, "#1d2a30")
+        p.rect(12, 20, 82, 74, "#4a2a70")                    # A booth,
+        for x in range(12, 82, 10):
+            p.rect(x, 20, x + 5, 34, "#f2ca57")               # a striped roof,
+        p.rect(28, 44, 66, 60, "#f4ead0")                    # the TICKETS board,
+        p.rect(31, 48, 63, 51, "#d9453f")
+        p.rect(31, 54, 55, 56, "#27353d")
+        p.rect(34, 62, 60, 72, "#83b8c0")                    # the window,
+        p.rect(4, 58, 12, 90, "#8a8f8f")                     # and turnstile posts.
+        p.rect(82, 58, 90, 90, "#8a8f8f")
+        p.rect(4, 58, 90, 62, "#d9453f")
+    elif name == "fair_gate":
+        p.rect(8, 40, 16, 80, "#8a8f8f")                     # The exit arch:
+        p.rect(80, 40, 88, 80, "#8a8f8f")
+        p.rect(4, 32, 92, 46, "#4a2a70")                     # a banner over two posts
+        for x in range(8, 88, 12):
+            p.rect(x, 36, x + 6, 42, "#f2ca57")               # with lights.
+    elif name.startswith("booth_"):
+        color = BOOTH_COLORS[name.removeprefix("booth_")]
+        p.rect(10, 24, 88, 82, "#1d2a30")
+        p.rect(8, 22, 86, 80, "#8a6440")                     # A wooden stall,
+        for x in range(8, 86, 13):
+            p.rect(x, 22, x + 7, 44, color)                  # its awning,
+            p.rect(x + 7, 22, x + 13, 44, "#f4ead0")
+        p.rect(8, 44, 86, 48, "#5a3d28")
+        p.rect(14, 66, 80, 80, "#b0703f")                    # the counter,
+        kind = name.removeprefix("booth_")
+        p.ellipse(47, 57, 10, 8, "#f4ead0")                  # and the game's sign.
+        if kind == "darts":
+            ring(p, 47, 57, 7, 2, "#d9453f"); p.ellipse(47, 57, 2, 2, "#d9453f")
+        elif kind == "hammer":
+            p.rect(44, 50, 47, 64, "#5a3d28"); p.rect(40, 50, 54, 55, "#3a3a3a")
+        elif kind == "balloons":
+            p.ellipse(44, 55, 4, 5, "#d9453f"); p.ellipse(51, 57, 4, 5, "#3f7fd0")
+        elif kind == "ring_toss":
+            ring(p, 47, 57, 6, 2, "#f2ca57")
+        elif kind == "skee_ball":
+            ring(p, 47, 57, 7, 1, "#e08a4a"); p.ellipse(47, 57, 3, 3, "#e08a4a")
+        else:
+            p.ellipse(47, 59, 6, 4, "#6b4a30"); p.ellipse(47, 55, 4, 4, "#8a6440")
+            p.dots([(45, 54), (49, 54)], "#27353d")
+    elif name in ("popcorn_stand", "candy_stand", "food_stand"):
+        top = {"popcorn_stand": ("#d9453f", "#f4ead0"), "candy_stand": ("#f28fb0", "#fff4d6"),
+               "food_stand": ("#3f7fd0", "#f4ead0")}[name]
+        p.rect(22, 50, 74, 82, "#1d2a30")
+        p.rect(20, 48, 72, 80, "#8a8f8f")                    # A cart,
+        p.ellipse(34, 84, 5, 5, "#27353d"); p.ellipse(60, 84, 5, 5, "#27353d")
+        disc(p, 46, 38, 28, top, 7)                          # under a striped umbrella,
+        p.ellipse(46, 38, 3, 3, "#5a3d28")
+        if name == "popcorn_stand":
+            p.rect(38, 60, 54, 74, "#f4ead0")                # with its goods.
+            p.flecks(911, 0, ("#f2ca57",))
+            p.dots([(40, 58), (44, 57), (48, 58), (52, 57)], "#fff4d6")
+        elif name == "candy_stand":
+            p.ellipse(36, 62, 6, 6, "#f28fb0"); p.ellipse(56, 62, 6, 6, "#c5e0f0")
+        else:
+            p.rect(30, 60, 62, 70, "#b0703f"); p.rect(34, 62, 58, 64, "#d9453f")
+    elif name == "fair_fence":
+        p.rect(0, 44, 96, 48, "#e8eef0")                     # Rails,
+        p.rect(0, 52, 96, 56, "#e8eef0")
+        p.rect(0, 48, 96, 52, "#8a9aa0")
+        for x in (0, 30, 62, 92):
+            p.rect(x, 40, x + 4, 60, "#5d6366")              # on posts.
+    elif name == "fair_lamp":
+        p.ellipse(48, 48, 16, 16, "#f2ca57")                 # A warm glow,
+        p.ellipse(48, 48, 10, 10, "#fff4d6")
+        p.ellipse(48, 48, 5, 5, "#5d6366")                   # around the post's top.
+    elif name == "barrier_rail":
+        p.rect(0, 42, 96, 54, "#27353d")
+        for x in range(0, 96, 16):
+            p.rect(x, 43, x + 8, 53, "#f2ca57")               # Striped barrier.
+    elif name == "carousel_horse":
+        p.ellipse(48, 52, 10, 20, "#f4ead0")                 # A horse's back,
+        p.ellipse(48, 30, 7, 8, "#f4ead0")                   # its head,
+        p.rect(44, 44, 52, 58, "#d9453f")                    # saddle,
+        p.rect(46, 24, 50, 44, "#8a6440")                    # mane,
+        p.rect(47, 20, 49, 80, "#f2ca57")                    # and the brass pole.
+    elif name == "ferris_car":
+        p.rect(46, 18, 50, 36, "#5d6366")                    # A gondola on its hanger.
+        p.rect(28, 34, 68, 70, "#1d2a30")
+        p.rect(30, 34, 66, 66, "#3f7fd0")
+        p.rect(34, 40, 62, 52, "#83b8c0")
+    elif name.startswith("bumper_"):
+        body = {"bumper_red": "#d9453f", "bumper_blue": "#3f7fd0", "bumper_yellow": "#f2ca57",
+                "bumper_green": "#4f9a5a", "bumper_player": "#f28a3a"}[name]
+        p.ellipse(49, 51, 30, 30, "#1d2a30")
+        p.ellipse(48, 48, 30, 30, "#27353d")                 # Rubber bumper,
+        p.ellipse(48, 48, 25, 25, body)                      # body,
+        p.ellipse(48, 56, 10, 9, "#27353d")                  # seat,
+        p.rect(46, 20, 50, 34, "#8a8f8f")                    # pole,
+        p.ellipse(48, 38, 7, 4, "#1d2a30")                   # and wheel.
+        if name == "bumper_player":
+            p.rect(38, 64, 58, 70, "#fff4c0")
+    elif name == "dartboard":
+        for r, c in ((48, "#1d2a30"), (46, "#27353d"), (38, "#f4ead0"), (29, "#27353d"),
+                     (19, "#f4ead0"), (10, "#4f9a5a"), (4, "#d9453f")):
+            p.ellipse(48, 48, r, r, c)
+    elif name == "dart":
+        p.rect(46, 30, 50, 66, "#8a8f8f")                    # A dart stuck in the board.
+        p.rect(42, 58, 54, 66, "#d9453f")
+        p.ellipse(48, 30, 3, 3, "#27353d")
+    elif name == "bell":
+        p.ellipse(48, 52, 26, 24, "#b8862a")
+        p.ellipse(48, 50, 24, 22, "#f2ca57")
+        p.ellipse(40, 42, 6, 5, "#fff4d6")
+        p.rect(44, 20, 52, 30, "#5d6366")
+    elif name.startswith("balloon_"):
+        color = {"balloon_red": "#d9453f", "balloon_blue": "#3f7fd0", "balloon_yellow": "#f2ca57"}[name]
+        p.rect(47, 60, 49, 92, "#e6ddc8")                    # String,
+        p.ellipse(48, 38, 24, 28, color)                     # balloon,
+        p.ellipse(38, 26, 6, 8, "#fff4d6")                   # shine.
+    elif name == "bottle":
+        p.rect(40, 30, 56, 80, "#1d2a30")
+        p.rect(38, 28, 54, 78, "#3f8a4a")                    # A green bottle
+        p.rect(42, 12, 50, 30, "#3f8a4a")                    # with its neck,
+        p.rect(40, 44, 52, 60, "#f4ead0")                    # label,
+        p.rect(41, 32, 44, 70, "#7fcf7a")                    # and shine.
+    elif name == "ring":
+        ring(p, 48, 48, 30, 8, "#f2ca57")
+        ring(p, 48, 48, 24, 2, "#b8862a")
+    elif name == "skee_rings":
+        for r, c in ((48, "#27353d"), (44, "#3f7fd0"), (30, "#f28fb0"), (18, "#f2ca57"), (8, "#d9453f")):
+            p.ellipse(48, 48, r, r, c)
+        for r in (44, 30, 18, 8):
+            ring(p, 48, 48, r, 1, "#1d2a30")
+    elif name == "skee_hole":
+        p.ellipse(48, 48, 40, 40, "#f2ca57")
+        p.ellipse(48, 48, 32, 32, "#1d2a30")
+    elif name == "skee_ball":
+        p.ellipse(49, 50, 34, 34, "#1d2a30")
+        p.ellipse(48, 48, 34, 34, "#8a55c9")
+        p.ellipse(38, 38, 9, 8, "#c9a8ec")
+    elif name == "game_ticket":
+        p.rect(14, 30, 86, 70, "#1d2a30")
+        p.rect(10, 26, 82, 66, "#6ec8ec")                    # A blue ride ticket,
+        p.rect(10, 42, 14, 50, "#27353d")                    # notched,
+        p.rect(78, 42, 82, 50, "#27353d")
+        p.rect(60, 26, 62, 66, "#27353d")                    # with a tear line
+        p.ellipse(35, 46, 12, 12, "#f4ead0")                 # and a ferris wheel.
+        p.ellipse(35, 46, 9, 9, "#6ec8ec")
+        p.rect(34, 34, 36, 58, "#f4ead0")
+        p.rect(23, 45, 47, 47, "#f4ead0")
+        p.rect(66, 36, 76, 56, "#f2ca57")
+    elif name == "mallet":
+        p.rect(52, 40, 60, 90, "#8a6440")                    # A wooden mallet,
+        p.rect(53, 40, 55, 90, "#a47a4a")
+        p.rect(30, 22, 82, 46, "#1d2a30")
+        p.rect(28, 20, 80, 44, "#d9453f")                    # red head,
+        p.rect(28, 20, 80, 25, "#f28a7a")
+        p.rect(28, 20, 34, 44, "#8a2e2a")                    # rubber ends.
+        p.rect(74, 20, 80, 44, "#8a2e2a")
+    elif name in ("mole", "mole_hole"):
+        p.ellipse(48, 60, 40, 22, "#6b4a30")                 # Dirt mound,
+        p.ellipse(48, 60, 30, 15, "#1d1a18")                 # the hole,
+        if name == "mole":
+            p.ellipse(48, 40, 22, 26, "#8a6440")             # and a mole popping up.
+            p.ellipse(48, 50, 12, 9, "#c9a07a")
+            p.ellipse(48, 44, 5, 4, "#f28fb0")
+            p.dots([(40, 32), (41, 32), (55, 32), (56, 32)], "#1d1a18")
+    else:
+        raise ValueError(name)
+
+
+def fair() -> Atlas:
+    a = Atlas("fair-atlas", 96, 8, 5)
+    for i, name in enumerate(FAIR_ART):
+        fair_art(a.tile(name, i % 8, i // 8), name)
+    return a
+
+
+def f1_car(p: Painter):
+    """The fair's grand prize: an open-wheel racer, nose north (64 px cell like the cars)."""
+    p.rect(20, 5, 44, 11, "#1d2a30")                          # Front wing,
+    p.rect(21, 6, 43, 10, "#e54e4a")
+    for x in (15, 43):
+        p.rect(x, 12, x + 6, 24, "#1d1a18")                   # exposed wheels,
+        p.rect(x, 42, x + 6, 56, "#1d1a18")
+    p.rect(28, 8, 36, 58, "#e54e4a")                          # a narrow body,
+    p.rect(24, 30, 40, 50, "#e54e4a")                         # sidepods,
+    p.rect(29, 28, 35, 40, "#27353d")                         # cockpit,
+    p.ellipse(32, 33, 2, 2, "#f2ca57")                        # helmet,
+    p.rect(30, 12, 34, 26, "#fff4c0")                         # a nose stripe,
+    p.rect(18, 56, 46, 61, "#1d2a30")                         # and the rear wing.
+    p.rect(19, 57, 45, 60, "#fff4c0")
+
+
 def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home(), store(), highway(), farm()]
+                markers(), track(), canopies(), home(), store(), highway(), farm(), fair()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

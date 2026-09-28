@@ -1,8 +1,9 @@
-"""The arcade cabinet in the player's house: a menu of three games, one playable so far.
+"""The arcade cabinet in the player's house: a menu of three games.
 
 Lane Dodge: three lanes, cones fall faster and faster, Left/Right switch lanes, one hit
-ends the run. The best score is saved with the player. The other two games are locked
-until their unlock rules are decided (see ArcadeCabinet.unlocked).
+ends the run. Pit Stop (unlocked by the Snow Fair's grand prize): an arrow flashes, press
+it before time runs out; the time shrinks with every call, and one wrong or late key ends
+the run. Best scores are saved with the player. The third game is still locked.
 """
 
 from __future__ import annotations
@@ -15,8 +16,12 @@ from gl_utils import build_rect_objs, build_tex_objs, get_new_instances, load_pr
 from ui_text import DynamicLabel
 
 
-GAMES = (("lane_dodge", "LANE DODGE"), ("game_2", "LOCKED"), ("game_3", "LOCKED"))
+GAMES = (("lane_dodge", "LANE DODGE"), ("pit_stop", "PIT STOP"), ("game_3", "LOCKED"))
 LOCKED_NOTE = "Unlocks later"
+LOCKED_NOTES = {"pit_stop": "Win the Snow Fair's grand prize"}
+PIT_WINDOW = (1.3, 0.38)      # Seconds to answer: the first call, and the floor it shrinks to.
+PIT_SHRINK = 0.93             # Each call's window is this x the last one.
+ARROWS = ("menu_up", "menu_down", "menu_left", "menu_right")
 
 LANES = 3
 FIELD = (360, 480)            # Playfield size on screen, px.
@@ -76,6 +81,35 @@ class LaneDodge:
             self.over = True
 
 
+class PitStop:
+    """Pure game state: the crew chief calls an arrow; press it before the window closes."""
+
+    def __init__(self, seed=None):
+        self.rng = random.Random(seed)
+        self.score = 0
+        self.over = False
+        self.window = PIT_WINDOW[0]
+        self.left = self.window
+        self.call = self.rng.choice(ARROWS)
+
+    def press(self, arrow: str):
+        if self.over:
+            return
+        if arrow != self.call:
+            self.over = True
+            return
+        self.score += 1
+        self.window = max(PIT_WINDOW[1], self.window * PIT_SHRINK)
+        self.left = self.window
+        self.call = self.rng.choice([a for a in ARROWS if a != self.call])
+
+    def update(self, dt: float):
+        if not self.over:
+            self.left -= dt
+            if self.left <= 0:
+                self.over = True
+
+
 def lane_x(lane: int) -> float:
     return (lane + 0.5) * FIELD[0] / LANES
 
@@ -93,7 +127,9 @@ class ArcadeCabinet:
         self.mode = "menu"
         self.selected = 0
         self.best: dict[str, int] = {}
-        self.game: LaneDodge | None = None
+        self.extra: set[str] = set()     # Games unlocked beyond Lane Dodge.
+        self.game_id = "lane_dodge"
+        self.game: LaneDodge | PitStop | None = None
         shaders = toolkit_root / "shaders"
         size = tuple(float(v) for v in viewport)
         self.rect_program = load_program(ctx, str(shaders / "rect.vert"), str(shaders / "rect.frag"))
@@ -117,16 +153,17 @@ class ArcadeCabinet:
 
     # Games ----------------------------------------------------------------------------
 
-    @staticmethod
-    def unlocked(game_id: str) -> bool:
-        """Only Lane Dodge for now; the other two get their own unlock rules later."""
-        return game_id == "lane_dodge"
+    def unlocked(self, game_id: str) -> bool:
+        """Lane Dodge always; Pit Stop with the fair's grand prize; the third later."""
+        return game_id == "lane_dodge" or game_id in self.extra
 
-    def show(self, best: dict[str, int]):
+    def show(self, best: dict[str, int], extra=()):
         self.open, self.mode, self.selected, self.best = True, "menu", 0, best
+        self.extra = set(extra)
 
     def _start(self):
-        self.mode, self.game = "play", LaneDodge()
+        self.game_id = GAMES[self.selected][0]
+        self.mode, self.game = "play", (PitStop() if self.game_id == "pit_stop" else LaneDodge())
 
     # Input ------------------------------------------------------------------------------
 
@@ -146,6 +183,8 @@ class ArcadeCabinet:
         game = self.game
         if action == "pause":
             self.mode = "menu"           # Leave the run, back to the game list.
+        elif isinstance(game, PitStop) and action in ARROWS:
+            game.press(action)
         elif action == "menu_left":
             game.steer(-1)
         elif action == "menu_right":
@@ -158,8 +197,7 @@ class ArcadeCabinet:
         if self.open and self.mode == "play" and not self.game.over:
             self.game.update(dt)
             if self.game.over:
-                game_id = GAMES[0][0]
-                self.best[game_id] = max(self.best.get(game_id, 0), self.game.score)
+                self.best[self.game_id] = max(self.best.get(self.game_id, 0), self.game.score)
 
     # Render ---------------------------------------------------------------------------
 
@@ -179,11 +217,37 @@ class ArcadeCabinet:
                 chosen = i == self.selected
                 playable = self.unlocked(game_id)
                 label.set(name)
-                note.set(f"Best {self.best.get(game_id, 0)}" if playable else LOCKED_NOTE)
+                note.set(f"Best {self.best.get(game_id, 0)}" if playable else LOCKED_NOTES.get(game_id, LOCKED_NOTE))
+                label.set(name if playable or game_id != "pit_stop" else "LOCKED")
                 rects.append(_rect(cx, y + 10, 300, 74, (*ACCENT, 255) if chosen else (44, 66, 76, 255)))
                 ink = INK if chosen else CREAM if playable else MUTED
                 labels += [(label, label.record(cx, y, ink)), (note, note.record(cx, y + 28, ink))]
             self.hint.set("UP / DOWN choose  ·  ENTER play  ·  ESC leave")
+        elif isinstance(self.game, PitStop):
+            game = self.game
+            self.title.set("PIT STOP")
+            # The call: a big arrow in the middle, and a shrinking time bar under it.
+            ax, ay = cx, top + 220
+            shape = {"menu_up": ((0, -40, 24, 50), (0, 20, 16, 60)), "menu_down": ((0, 40, 24, 50), (0, -20, 16, 60)),
+                     "menu_left": ((-40, 0, 50, 24), (20, 0, 60, 16)), "menu_right": ((40, 0, 50, 24), (-20, 0, 60, 16))}
+            if not game.over:
+                for dx, dy, w, h in shape[game.call]:
+                    rects.append(_rect(ax + dx, ay + dy, w, h, (242, 202, 87, 255)))
+                tip = {"menu_up": (0, -66), "menu_down": (0, 66), "menu_left": (-66, 0), "menu_right": (66, 0)}[game.call]
+                rects.append(_rect(ax + tip[0], ay + tip[1], 16, 16, (242, 202, 87, 255)))
+                share = max(0.0, game.left / game.window)
+                rects += [_rect(cx, top + 360, 280, 16, (52, 70, 78, 255)),
+                          _rect(cx - 140 + 140 * share, top + 360, 280 * share, 16,
+                                (140, 214, 150, 255) if share > 0.35 else (226, 88, 72, 255))]
+            self.score.set(f"Score {game.score}   ·   Best {self.best.get('pit_stop', 0)}")
+            labels.append((self.score, self.score.record(cx, top + 24, CREAM)))
+            if game.over:
+                rects.append(_rect(cx, cy + 20, FIELD[0], 110, (8, 16, 22, 230)))
+                self.status.set(f"STALLED!  Score {game.score}")
+                labels.append((self.status, self.status.record(cx, cy + 4, ACCENT)))
+                self.hint.set("ENTER play again  ·  ESC back to the games")
+            else:
+                self.hint.set("Press the ARROW shown before the bar runs out  ·  ESC back")
         else:
             game = self.game
             self.title.set("LANE DODGE")

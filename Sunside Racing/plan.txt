@@ -1490,7 +1490,7 @@ These are agreed designs from planning. A direct "build" instruction is still
 needed. "Proposed" items were suggested and not yet confirmed by the user.
 ======================================================================
 
-Snow Region Fair (agreed)
+Snow Region Fair (agreed; BUILT 2026-09-28, see "Snow Fair and F1 (built)" at the end)
 - In the snow region, fenced on all sides; the only way in is a ticket
   counter. It is a separate level (like the General Store). On the world map
   and in the world it appears as a mini version of the fair (fence, tents,
@@ -1521,14 +1521,15 @@ Snow Region Fair (agreed)
 - Location (proposed): a clear spot in the snow region, found by search, away
   from the highway, the snow road, the racing center, and camps.
 
-F1 car (agreed; the fair's grand prize)
+F1 car (agreed; the fair's grand prize; BUILT 2026-09-28)
 - A new car model, Formula 1 style. Replaces the player's car automatically
   when won; no switching back.
 - 10% faster top speed in every region, and 20% more grip on every surface
   (ice and sand included).
-- The displayed rating counts it, so Easy/Medium/Hard stay honest: rating
-  becomes the one whose speed matches 1.1 x the level's top speed
-  (level 1: 100 -> 125, level 5: 140 -> 169, level 25: 340 -> 395).
+- SUPERSEDED (user, 2026-09-28): missions and races do NOT count the F1.
+  Ratings, rival ratings, difficulty labels, and time-trial limits all stay
+  on the base car, so the F1 is a real edge. For that reason the fair's
+  platinum scores are hard to get.
 
 Rural Farm (agreed)
 - One abandoned farmhouse in the rural region. At rural level 6 it becomes
@@ -1780,3 +1781,140 @@ Order card removed (built, 2026-09-27)
   READY chips, the pay and distance, and ENTER to work on one. It is still
   blocked during missions (O says to finish first) and does nothing in races.
   244 passing.
+
+Snow Fair and F1 (built, 2026-09-28; user: "lets build the fair. make getting
+max points hard coz f1 is a significant boost as missions and races wont take
+into consideration the 10% boost and scale based on base rating not f1 rating")
+- Site (fair.choose_site, rules only, the same on every seed): a 2 x 2 snow
+  block with a sector of snow margin all round. No highway, camps, or roads
+  in it, 3+ sectors from the snow center, and a straight spur down to the
+  snow road; the shortest spur wins. Today that is sectors (17, 39)-(18, 40)
+  with a 5-tile spur at x 148 (added to snow_roads, so it's icy and has
+  markers). GENERATOR_VERSION is now 15.
+- Outside (the world): the top row is the fenced mini fair (big top,
+  carousel, ferris wheel, two booths, carts, lamps; plaza ground). The south
+  fence's gap is filled by the ticket booth, the only way in. The bottom row
+  is two rows of parking stalls with asphalt aisles and a walkway to the
+  gate. Parked visitor cars are drawn with the sector. FairOutside
+  simulates, near the player: 4 shuttle cars (drive up the spur, park in the
+  south row's east stalls, back out, leave; solid via CollisionManager.
+  others) and 7 visitors walking stall -> walkway -> gate (inside for a
+  while) and back. Map: "Snow Fair" diamond (110, 200, 236) at the gate.
+- Entry: E at the booth window ("E Snow Fair · 1 ticket (you have N)"). With
+  no ticket it says where to buy them. Otherwise GO IN / NOT NOW, and GO IN
+  spends 1 fair ticket. Blocked during missions.
+- Inside (fair.FairInterior, 26 x 18 tiles; the fence round the edge, the
+  exit gate at the bottom): six booths in two rows (darts, high striker,
+  balloons / ring toss, skee-ball, whack-a-mole), popcorn and candy carts,
+  a food cart, lamps, the ferris wheel (rim cars go round) and the carousel
+  (horses go round) on the east, and a bumper car arena (4 AI bumper cars)
+  in the southwest. About 16 wandering visitors plus some queueing at booths.
+  HUD: "FAIR TICKETS n · Platinum booths k / 6".
+- Rides (1 ticket each, scenic): the camera rides along (the ferris wheel
+  zooms out, a lap of the rim in 12 s; the carousel 2 laps in 9 s; bumper
+  cars 10 s in your own orange bumper car). Input is ignored meanwhile, and
+  the player is put back where they got on.
+- Booth games (fair_games.py logic, fair_ui.FairGameOverlay): an intro card
+  (rules, best, the four bands and what each pays or "reached"); ENTER
+  spends 1 ticket for an attempt; ESC mid-attempt loses it; the result card
+  shows the score, the band, and the tokens earned; ENTER plays again (1
+  ticket). Bands pay once each: bronze 10, silver 25, gold 50, platinum 150.
+  Platinum = the maximum score and closes that booth for good.
+  - Darts: 3 darts, figure-8 sway through the bullseye, faster per dart
+    (bullseye windows about 76/63/54 ms). Rings 50/25/20/15/10/5.
+    Bands 20 / 50 / 100 / 150.
+  - High striker: 3 swings, meter speeding up per swing; the top 5% rings
+    the bell (100). Bands 150 / 210 / 260 / 300.
+  - Balloon gallery: 10 pellets, three rows drifting at different speeds;
+    aim with arrows or the mouse. Bands 3 / 6 / 8 / 10.
+  - Ring toss: 5 rings; stop the side marker, then the distance; back row
+    30, middle 20, front 10, within 12 px of a neck. Bands 20 / 60 / 100 /
+    150.
+  - Skee-ball: 6 balls; stop the aim, then the power; corner holes (aim
+    within 10 px, power 92+) pay 100; else rings by aim (50-10), too weak 0.
+    Bands 100 / 180 / 280 / 600.
+  - Whack-a-mole: 30 s, 30 moles, up time 1.2 s shrinking to 0.55 s;
+    arrows + ENTER or click. Bands 10 / 18 / 25 / 30.
+- Saved as missions "fair": best, band per game, f1.
+- Grand prize (all six at platinum): the F1 car (vehicle-atlas "racer_f1",
+  an open-wheel racer) replaces the player's car for good: +10% top speed and
+  +20% grip in the world and in races (Car.f1; DragRace(f1=...)); the HUD
+  speedometer scales with it. Ratings do not count it (see F1 above). Also
+  PIT STOP unlocks on the home arcade: an arrow is called and you press it
+  before the bar runs out (1.3 s, x0.93 per call, floor 0.38 s); a wrong or
+  late key ends the run.
+- Art: new fair-atlas (96 px cells, 8 x 5); vehicle-atlas gained a row for
+  racer_f1. DynamicLabel align="right" is used for the bands.
+- Tests: test_fair.py (a flawless run reaches platinum in all six games,
+  platinum is the max, one slip costs it, bullseye windows, state/pay/prize,
+  site rules and determinism, the gate is the only way in, visitor cars
+  cycle, interior spots reachable, rides end, F1 +10%/grip, ratings
+  unchanged, Pit Stop) and a real-key flow (no ticket, go in, a platinum
+  darts run and its pay, closed booth, a ride, the grand prize, leaving).
+  259 passing.
+- Open for later: the third arcade game is still locked.
+
+Prompts don't show counts (built, 2026-09-28)
+- User: no "(you have n)" in the entry prompt or anywhere; the inventory shows
+  how many, and a popup explains when something can't be done. The fair gate
+  prompt is "E Snow Fair · 1 ticket", and its GO IN popup is "Entry: 1 fair
+  ticket". The fertilize prompt ("E Fertilize · Corn") and the feeding
+  prompts ("E Feed Daisy", "E Feed the hen") also dropped their counts. The
+  checkout bill still shows the token balance (part of the bill).
+
+Fair refinements (built, 2026-09-28)
+- Whack-a-mole: the yellow cursor bars are gone. A mallet (fair-atlas
+  "mallet") hovers over the hole being aimed at (arrows or the mouse still
+  move it).
+- Booth descriptions wrap (fair_ui.wrap, 48 characters a line) on the intro
+  card, and the result card's lines wrap too; the band list moves down to fit.
+- Ferris wheel and carousel: the player rides one seat and turns with the ride
+  (fair.ferris_seat / horse_seat, the same clock and speed as the drawn cars
+  and horses). Ferris: 16 s a lap, one lap, boarding the car at the bottom.
+  Carousel: 1.2 rad/s, two laps (about 10.5 s), boarding the horse nearest
+  the entrance, facing the way it goes. Both end where they began.
+- Bumper cars: 20 s and drivable: UP/DOWN go and reverse, LEFT/RIGHT steer
+  (BumperCar.drive); the barrier bounces you back; cars that touch are pushed
+  apart and the others turn away. The arena is whole tiles (2, 11)-(11, 15)
+  with the barrier on its edge.
+- Riders: new "<kind>_sit" people poses for nine visitor kinds. Every AI bumper
+  car has a driver, and about 70% of ferris cars and carousel horses have a
+  rider (the player's seat is left empty for them). The player sits in their
+  own orange bumper car.
+- 261 passing.
+
+Game tickets (built, 2026-09-28)
+- User: the General Store's fair ticket is entry only; a ticket counter inside
+  the fair sells game tickets (50 S each) for rides and games.
+- New item game_ticket ("Game ticket", fair-atlas icon, 999 stack; not sold at
+  the store). Entry still takes 1 fair_ticket; every game attempt and ride
+  takes 1 game_ticket. The HUD at the fair reads "GAME TICKETS n".
+- The counter (ticket_booth art turned to face the fair) stands just inside the
+  gate, east of it, at tile (15.6, 16.35). "E Game tickets · 50 S each" opens
+  a BUY 1 / BUY 5 / BUY 10 choice. Too few tokens: a popup says so; on
+  success, a receipt popup. The messages at booths and rides point to the
+  counter.
+- The inventory grid is 6 x 4 (21 kinds of item now) and its panel is 1080
+  wide.
+- Tests: the fair flow buys at the counter (not enough tokens, BUY 1 twice,
+  BUY 10 refused) and plays and rides with game tickets. 261 passing.
+
+Skee-ball like ring toss (built, 2026-09-28)
+- The side power meter is gone. After the aim is set, a yellow bar sweeps up
+  and down the lane on the aim line; where it stops is where the ball lands
+  (SkeeBall.landing_y: power 0 lands at field y 340, 100 at y 30). Scoring
+  is unchanged (power 92+ and a corner aim is 100; 55-90 lands in the rings;
+  under 55 rolls back). The art now matches it: the rings (drawn 220 x 110
+  at y 115) span the aim offsets and the distances that score in them, and
+  the corner holes sit at y 42, where 92+ lands. The rules text mentions the
+  yellow bar. 261 passing.
+
+Inventory notes are one line (built, 2026-09-28)
+- User: an item's description says only what it does, in one line; no where
+  to get it and no price. Every note is now 26 characters or fewer, e.g.
+  "The island's currency.", "Trades for 2 mastery.", "Spend on any region.",
+  "Plants one corn crop.", "Grows a sprout at once.", "Feeds a cow for 1
+  milk.", "Sold to farm buyers.", "Entry to the Snow Fair.", "One fair game or
+  ride.", "Entry to the factory.", "Passage to the island.". A test keeps
+  notes to one line with no store or price words. 261 passing.
+

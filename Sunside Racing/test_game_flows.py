@@ -441,7 +441,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g.inventory.name.text, "Empty slot")
         for _ in range(5):
             self.press(pygame.K_DOWN, pygame.K_RIGHT)               # Stays inside the grid.
-        self.assertEqual(g.inventory.selected, 19)                  # 5 x 4.
+        self.assertEqual(g.inventory.selected, 23)                  # 6 x 4.
         x, y = g.inventory.slot_centers()[0]
         g.handle("pointer", (x, y))
         self.assertEqual(g.inventory.selected, 0)
@@ -599,7 +599,7 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
                          {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
                           "veteran": (150, 226, 140), "store": (160, 96, 220), "farm": (176, 122, 72),
-                          "buyer": (232, 196, 120)})
+                          "buyer": (232, 196, 120), "fair": (110, 200, 236)})
         self.assertEqual(kinds.count("store"), 1)
         self.assertEqual(kinds.count("farm"), 1)
         self.assertEqual(kinds.count("buyer"), 0)                    # Until the farm is owned.
@@ -961,6 +961,98 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g._plot_prompt(g.walker), "E   Plant a seed")
         self.press(pygame.K_o)
         self.assertTrue(g.orders_menu.open)
+
+    def test_snow_fair_tickets_a_booth_a_ride_and_the_grand_prize(self):
+        from fair_games import GAMES
+        g = self.game
+        site = g.world.fair
+        g._step_out(Walker(*site.door))
+        g.collisions.fixed = []
+        self.press(pygame.K_e)                                        # No ticket: says where to buy.
+        self.assertIn("1 fair ticket", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("fair_ticket", 2)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("GO IN", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertTrue(g.at_fair)
+        self.assertEqual(g.missions.items["fair_ticket"], 1)          # Entry only.
+        # Game tickets come from the counter inside: 50 S each, in 1, 5, or 10.
+        counter = next(s for s in g.fair_level.spots if s.kind == "counter")
+        g.walker.x, g.walker.y = counter.x, counter.y
+        self.assertEqual(g._fair_prompt(), "E   Game tickets  ·  50 S each")
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("BUY 1", "BUY 5", "BUY 10"))
+        self.press(pygame.K_RIGHT, pygame.K_RETURN)                   # BUY 5 with no money:
+        self.assertIn("don't have enough", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("sunside_tokens", 150)
+        self.press(pygame.K_e, pygame.K_RETURN)                       # BUY 1,
+        self.press(pygame.K_RETURN, pygame.K_e, pygame.K_RIGHT, pygame.K_RIGHT, pygame.K_RETURN)   # not 10,
+        self.assertIn("don't have enough", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN, pygame.K_e, pygame.K_RETURN)      # then another 1 ...
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("game_ticket", 1)                         # ... and one more given.
+        self.assertEqual((g.missions.items["game_ticket"], g.missions.tokens), (3, 50))
+        # Darts: the intro costs nothing; ENTER spends a ticket on an attempt.
+        spot = next(s for s in g.fair_level.spots if s.key == "darts")
+        g.walker.x, g.walker.y = spot.x, spot.y
+        self.assertEqual(g._fair_prompt(), "E   Play Darts  ·  1 ticket")
+        self.press(pygame.K_e)
+        self.assertTrue(g.fair_game.open)
+        self.assertEqual(g.fair_game.mode, "intro")
+        self.press(pygame.K_RETURN)
+        self.assertEqual((g.fair_game.mode, g.missions.items["game_ticket"]), ("play", 2))
+        game = g.fair_game.game
+        tokens = g.missions.tokens
+        for _ in range(3):                                            # Three bullseyes.
+            while math.dist(game.aim(), game.CENTER) > 6:
+                game.update(1 / 240)
+            self.press(pygame.K_RETURN)
+        g.update(1 / 60)
+        self.assertEqual((g.fair_game.mode, game.score), ("over", 150))
+        self.assertEqual(g.missions.tokens, tokens + 10 + 25 + 50 + 150)
+        self.assertTrue(g.missions.fair.closed("darts"))
+        self.press(pygame.K_ESCAPE)
+        self.assertFalse(g.fair_game.open)
+        self.press(pygame.K_e)                                        # Closed for good.
+        self.assertEqual(g.panel.chip_name, "Champion")
+        self.press(pygame.K_RETURN)
+        # A ride: one ticket, then the ride carries the player and puts them back.
+        ride = next(s for s in g.fair_level.spots if s.key == "carousel")
+        g.walker.x, g.walker.y = ride.x, ride.y
+        self.press(pygame.K_e)
+        self.assertIsNotNone(g.fair_level.ride)
+        self.assertEqual(g.missions.items["game_ticket"], 1)
+        for _ in range(int(12 / (1 / 30))):                           # Two laps of the carousel.
+            g.update(1 / 30)
+        self.assertIsNone(g.fair_level.ride)
+        self.assertEqual((g.walker.x, g.walker.y), (ride.x, ride.y))
+        # The last booth at platinum wins the F1 car and Pit Stop.
+        for game_id in list(GAMES)[1:-1]:
+            g.missions.fair.record(game_id, GAMES[game_id].thresholds[-1])
+        spot = next(s for s in g.fair_level.spots if s.key == "whack")
+        g.walker.x, g.walker.y = spot.x, spot.y
+        self.press(pygame.K_e, pygame.K_RETURN)
+        whack = g.fair_game.game
+        while not whack.over:
+            up = whack.moles_up()
+            if up:
+                whack.cursor = next(iter(up.values()))
+                whack.press()
+            g.update(1 / 60)
+        self.assertEqual(g.panel.title.text, "GRAND PRIZE")
+        self.assertTrue(g.missions.fair.f1 and g.car.f1)
+        self.assertEqual(g.state.entities[g.player_id]["record"][10:],
+                         g.state._tile("vehicle-atlas", "racer_f1"))
+        self.press(pygame.K_RETURN, pygame.K_ESCAPE)
+        exit_spot = next(s for s in g.fair_level.spots if s.kind == "exit")
+        g.walker.x, g.walker.y = exit_spot.x, exit_spot.y
+        self.press(pygame.K_e)
+        self.assertFalse(g.at_fair)
+        self.assertEqual((g.walker.x, g.walker.y), site.door)
+        g.arcade.show(g.missions.arcade, ("pit_stop",) if g.missions.fair.f1 else ())
+        self.assertTrue(g.arcade.unlocked("pit_stop"))
 
     def test_beach_travel_picks_a_pier_with_keys(self):
         g = self.game

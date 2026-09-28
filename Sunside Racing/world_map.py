@@ -39,6 +39,7 @@ KINDS = {
     "store": ((160, 96, 220), "General Store"),
     "farm": ((176, 122, 72), "Farmhouse"),
     "buyer": ((232, 196, 120), "Farm buyer"),
+    "fair": ((110, 200, 236), "Snow Fair"),
 }
 SPARE_MARKS = 12               # Room for landmarks that come and go (farm buyers).
 PANEL = (20, 32, 40, 235)
@@ -74,6 +75,9 @@ def landmarks(world, givers=(), buyers=()) -> list[Landmark]:
     shop = getattr(world, "general_store", None)
     if shop:
         out.append(Landmark("store", "General Store", *shop.door))
+    fair = getattr(world, "fair", None)
+    if fair:
+        out.append(Landmark("fair", "Snow Fair", *fair.door))
     farm = getattr(world, "farm", None)
     if farm:
         out.append(Landmark("farm", "Farmhouse", *farm.door))

@@ -255,6 +255,14 @@ class World:
         self.camps = self._choose_camps()
         self.general_store = self._choose_store()
         self.farm = self._choose_farm()
+        # The Snow Fair: its block, and its spur road down to the snow road (see fair.py).
+        from fair import choose_site, exterior_sprites
+        self.fair = choose_site(self)
+        self.snow_roads.update(self.fair.spur)
+        self._fair_sprites = {}
+        for sprite in exterior_sprites(self.fair, self.seed):
+            key = (int(sprite.x // SECTOR_SIZE), int(sprite.y // SECTOR_SIZE))
+            self._fair_sprites.setdefault(key, []).append(sprite)
         # Ferry docks face each other across the channel on the island's row.
         self.mainland_dock = (max(sx for sx in range(SECTORS)
                                   if self._landmass(sx, ISLAND_ROW) == "mainland"), ISLAND_ROW)
@@ -553,6 +561,16 @@ class World:
                 scenery[:] = [item for item in scenery if not (
                     item.name in ("street_lamp", "traffic_light")
                     and abs(item.x - center_xy[0]) < half and abs(item.y - center_xy[1]) < half)]
+        elif (sx, sy) in self.fair.sectors():
+            from fair import exterior_ground
+            bx, by = (sx - self.fair.sector[0]) * TILES_PER_SECTOR, (sy - self.fair.sector[1]) * TILES_PER_SECTOR
+            occupied |= {(x, y) for x in range(TILES_PER_SECTOR) for y in range(TILES_PER_SECTOR)}
+            for lx in range(TILES_PER_SECTOR):
+                for ly in range(TILES_PER_SECTOR):
+                    tile = exterior_ground(bx + lx, by + ly)
+                    if tile:
+                        ground[(lx, ly)] = tile
+            scenery += self._fair_sprites.get((sx, sy), [])
         elif region == "rural" and (sx, sy) == self.farm.sector:
             self._farmhouse(grid, ground, occupied, scenery, prop)
         elif region == "rural" and not center and rng.random() < 0.5 and (sx, sy) not in self.roads.sectors():

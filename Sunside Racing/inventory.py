@@ -1,4 +1,4 @@
-"""The player's inventory: a 5 x 4 grid of item stacks, each capped at its item's max
+"""The player's inventory: a 6 x 4 grid of item stacks, each capped at its item's max
 (999 unless the item says otherwise: Sunside Tokens go to TOKEN_MAX, one-time passes
 to 1).
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 STACK_MAX = 999
 TOKEN_MAX = 999_999             # The currency: store passes cost up to 100,000.
-GRID = (5, 4)                       # Columns, rows.
+GRID = (6, 4)                       # Columns, rows.
 
 
 @dataclass(frozen=True)
@@ -33,43 +33,45 @@ class Item:
 
 ITEMS = (
     Item("sunside_tokens", "Sunside Tokens", "marker-atlas", "icon_token",
-         "Sunside's currency. Earned in different ways around the island.", permanent=True,
+         "The island's currency.", permanent=True,
          max_stack=TOKEN_MAX),
     Item("fish_common", "Common fish", "people-atlas", "fish_common",
-         "Trade at a jungle fish trader for 1 mastery point each."),
+         "Trades for 1 mastery."),
     Item("fish_uncommon", "Uncommon fish", "people-atlas", "fish_uncommon",
-         "Trade at a jungle fish trader for 2 mastery points each."),
+         "Trades for 2 mastery."),
     Item("fish_rare", "Rare fish", "people-atlas", "fish_rare",
-         "Trade at a jungle fish trader for 3 mastery points each."),
+         "Trades for 3 mastery."),
     Item("fish_epic", "Epic fish", "people-atlas", "fish_epic",
-         "Trade at a jungle fish trader for 5 mastery points each."),
+         "Trades for 5 mastery."),
     Item("mastery_points", "Mastery points", "marker-atlas", "icon_points",
-         "Select to spend on any region (or Pause > Mastery > SPEND POINTS)."),
+         "Spend on any region."),
     # Sold at the General Store (aisles: seeds, items, tickets).
     Item("seeds_corn", "Corn seeds", "store-atlas", "seeds_corn",
-         "A packet of corn seeds.", price=10, aisle="seeds"),
+         "Plants one corn crop.", price=10, aisle="seeds"),
     Item("seeds_tomato", "Tomato seeds", "store-atlas", "seeds_tomato",
-         "A packet of tomato seeds.", price=20, aisle="seeds"),
+         "Plants one tomato crop.", price=20, aisle="seeds"),
     Item("seeds_lettuce", "Lettuce seeds", "store-atlas", "seeds_lettuce",
-         "A packet of lettuce seeds.", price=30, aisle="seeds"),
+         "Plants one lettuce crop.", price=30, aisle="seeds"),
     Item("super_fertilizer", "Super fertilizer", "store-atlas", "super_fertilizer",
-         "Grows a planted seed into a crop at once.", price=50, aisle="items"),
+         "Grows a sprout at once.", price=50, aisle="items"),
     Item("cow_feed", "Cow feed", "store-atlas", "cow_feed",
-         "Feed a cow at the farmhouse: one milk.", price=10, aisle="items"),
+         "Feeds a cow for 1 milk.", price=10, aisle="items"),
     Item("hen_feed", "Hen feed", "store-atlas", "hen_feed",
-         "Feed a hen at the farmhouse: one egg.", price=10, aisle="items"),
+         "Feeds a hen for 1 egg.", price=10, aisle="items"),
     # From the farm (for deliveries, coming soon).
-    Item("corn", "Corn", "farm-atlas", "corn", "Grown on your farm's plot."),
-    Item("tomato", "Tomatoes", "farm-atlas", "tomato", "Grown on your farm's plot."),
-    Item("lettuce", "Lettuce", "farm-atlas", "lettuce", "Grown on your farm's plot."),
-    Item("milk", "Milk", "farm-atlas", "milk", "From your cows."),
-    Item("eggs", "Eggs", "farm-atlas", "eggs", "From your hens."),
+    Item("corn", "Corn", "farm-atlas", "corn", "Sold to farm buyers."),
+    Item("tomato", "Tomatoes", "farm-atlas", "tomato", "Sold to farm buyers."),
+    Item("lettuce", "Lettuce", "farm-atlas", "lettuce", "Sold to farm buyers."),
+    Item("milk", "Milk", "farm-atlas", "milk", "Sold to farm buyers."),
+    Item("eggs", "Eggs", "farm-atlas", "eggs", "Sold to farm buyers."),
     Item("fair_ticket", "Fair ticket", "store-atlas", "fair_ticket",
-         "Entry to the fair.", price=100, aisle="tickets"),
+         "Entry to the Snow Fair.", price=100, aisle="tickets"),
+    Item("game_ticket", "Game ticket", "fair-atlas", "game_ticket",
+         "One fair game or ride."),
     Item("factory_pass", "Factory pass", "store-atlas", "factory_pass",
-         "One-time pass into the factory.", max_stack=1, price=20_000, aisle="tickets"),
+         "Entry to the factory.", max_stack=1, price=20_000, aisle="tickets"),
     Item("island_pass", "Island pass", "store-atlas", "island_pass",
-         "One-time pass to the island.", max_stack=1, price=100_000, aisle="tickets"),
+         "Passage to the island.", max_stack=1, price=100_000, aisle="tickets"),
 )
 BY_ID = {item.id: item for item in ITEMS}
 

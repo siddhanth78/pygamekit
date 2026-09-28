@@ -552,7 +552,7 @@ class DragRace:
 
     def __init__(self, track: dict, scale: float | None, speed_scale: float, seed: int,
                  rival_sprite: str | None = None, rival_rating: float | None = None,
-                 rival_off_day: float | None = None):
+                 rival_off_day: float | None = None, f1: bool = False):
         rng = random.Random(seed)
         corners = (generate(track["seed"], track.get("size", 5))
                    if track["kind"] == "circuit" and "seed" in track else None)
@@ -560,7 +560,7 @@ class DragRace:
                                 track.get("laps", 1), corners)
         self.speed_scale = speed_scale
         x, y, heading = self.level.start_pose(-1)
-        self.car = Car(x=x, y=y, heading=heading)
+        self.car = Car(x=x, y=y, heading=heading, f1=f1)
         rival_seed = rng.randrange(1 << 30)
         self.off_day = 0.0
         if rival_rating is not None:

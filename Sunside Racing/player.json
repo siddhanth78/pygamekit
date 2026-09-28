@@ -2,8 +2,8 @@
   "version": 3,
   "mode": "drive",
   "car": {
-    "x": 13140.0,
-    "y": 15464.0,
+    "x": 10964.0,
+    "y": 15976.0,
     "heading": 0.0
   },
   "missions": {
@@ -138,7 +138,8 @@
       "lane_dodge": 39
     },
     "inventory": {
-      "sunside_tokens": 75
+      "sunside_tokens": 265,
+      "fair_ticket": 9
     },
     "farm": {
       "owned": true,
@@ -225,6 +226,21 @@
           "value": 960
         }
       }
+    },
+    "fair": {
+      "best": {
+        "balloons": 10,
+        "ring_toss": 60,
+        "skee_ball": 240,
+        "whack": 30
+      },
+      "band": {
+        "balloons": 4,
+        "ring_toss": 2,
+        "skee_ball": 2,
+        "whack": 4
+      },
+      "f1": false
     }
   }
 }

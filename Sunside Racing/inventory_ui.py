@@ -1,4 +1,4 @@
-"""Inventory overlay (I): a 5 x 4 grid of stacks and a details panel for the chosen one."""
+"""Inventory overlay (I): a 6 x 4 grid of stacks and a details panel for the chosen one."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ SLOT = (44, 66, 76, 255)
 SLOT_EMPTY = (34, 50, 58, 255)
 SHADOW = (8, 14, 18, 150)
 
-PANEL_SIZE = (960, 640)
+PANEL_SIZE = (1080, 640)
 SLOT_SIZE = 104
 SLOT_GAP = 12
 ICON = 72
@@ -58,7 +58,7 @@ class InventoryMenu:
         self.text_program["u_viewport_size"].value = size
         self.text_program["u_texture"].value = 0
         self.text_program["u_atlas_grid"].value = (1.0, 1.0)
-        self.rect_instances = get_new_instances(96, 0, 0)[0]
+        self.rect_instances = get_new_instances(112, 0, 0)[0]
         self.rect_vao, self.rect_vbo = build_rect_objs(ctx, self.rect_program, self.rect_instances)
         self.title = DynamicLabel(ctx, (400, 56), 50, bold=True, align="center")
         self.title.set("INVENTORY")

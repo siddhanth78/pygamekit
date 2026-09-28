@@ -42,7 +42,7 @@ class InventoryTests(unittest.TestCase):
         m.unspent = 7
         self.assertEqual([(item.id, n) for item, n in contents(m)],
                          [("sunside_tokens", 0), ("fish_common", 2), ("fish_epic", 1), ("mastery_points", 7)])
-        self.assertEqual(GRID, (5, 4))
+        self.assertEqual(GRID, (6, 4))
         self.assertLessEqual(len(ITEMS), GRID[0] * GRID[1])
         for item in ITEMS:                                   # Every icon exists.
             self.assertIn(item.sprite, MANIFEST[item.atlas]["sprites"])
@@ -104,11 +104,12 @@ class InventoryTests(unittest.TestCase):
         m = self.missions({"inventory": {"sunside_tokens": 3, "not_an_item": 2, "fish_epic": -1}})
         self.assertEqual(m.items, {"sunside_tokens": 3})     # Known ids, positive counts only.
 
-    def test_notes_wrap_into_the_details_panel(self):
+    def test_notes_are_one_line_about_what_it_does(self):
         for item in ITEMS:
-            lines = wrap(item.note)
-            self.assertEqual(" ".join(l for l in lines if l), item.note)
-            self.assertTrue(all(len(l) <= 26 for l in lines))
+            self.assertEqual(wrap(item.note)[0], item.note, item.id)      # Fits one line.
+            self.assertLessEqual(len(item.note), 26, item.id)
+            for word in ("General Store", "counter", " S)", "Sold at", "Buy"):  # No where-to-get or price.
+                self.assertNotIn(word, item.note, item.id)
 
 
 if __name__ == "__main__":

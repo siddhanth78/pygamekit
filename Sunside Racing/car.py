@@ -30,6 +30,7 @@ OFF_SURFACE = (0.75, 110)
 # a little speed. Rivals slip less (see drag_race.RIVAL_ICE_*).
 ICE_TRACTION = 1.8
 ICE_SCRUB = 0.9
+F1_SPEED, F1_GRIP = 1.10, 1.20   # The F1 car (see fair.py); ratings don't count it.
 CRASH_SPEED = 40.0         # A hit that stops the car from above this counts as a crash.
 RESPAWN_STEP = 8        # Search ring spacing in pixels.
 RESPAWN_CLEARANCE = 16  # Extra width and length so the car is not left wedged.
@@ -43,6 +44,7 @@ class Car:
     speed: float = 0.0
     crashed: bool = False
     travel: float | None = None  # Direction of motion; differs from heading while sliding on ice.
+    f1: bool = False             # The fair's grand prize: +10% top speed, +20% grip everywhere.
 
     def reset(self):
         self.x, self.y, self.heading, self.speed = START_X, START_Y, 0.0, 0.0
@@ -57,9 +59,13 @@ class Car:
         (self.x, self.y), self.speed = spot, 0.0
         return True
 
+    @property
+    def sprite_name(self) -> str:
+        return "racer_f1" if self.f1 else "racer_player"
+
     def obstacle(self):
         """The car as a solid world sprite, used while the player is on foot."""
-        return Sprite("vehicle-atlas", "racer_player", self.x, self.y, 64, 64,
+        return Sprite("vehicle-atlas", self.sprite_name, self.x, self.y, 64, 64,
                       -self.heading, 24, 44)
 
     def collision_record(self, x: float | None = None, y: float | None = None):
@@ -78,6 +84,8 @@ class Car:
         surface = getattr(world, "surface_at", world.region_at)(self.x, self.y)
         grip, max_speed = SURFACES.get(surface, OFF_SURFACE)
         max_speed *= speed_scale
+        if self.f1:
+            grip, max_speed = grip * F1_GRIP, max_speed * F1_SPEED
         # Gentle acceleration (about 2 s to top speed in the city), firm brakes.
         if throttle > 0:
             self.speed += (ACCELERATION if self.speed >= 0 else BRAKING) * grip * dt
