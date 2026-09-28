@@ -9,8 +9,8 @@ again; visitors walk between the lots and the gate.
 Inside (a level, like the store): six game booths, three rides, food stands, and crowds.
 Entry costs one fair ticket (General Store). Every game attempt and every ride costs one
 game ticket, sold at the ticket counter inside the gate (GAME_TICKET_PRICE S each). Booth
-bands pay Sunside Tokens once each; platinum closes a booth for good. With all six at
-platinum the grand prize is the F1 car and a second game on the arcade at home.
+bands pay Sunside Tokens once each; booths stay open for fun after platinum. With all six
+at platinum the grand prize is the F1 car and a second game on the arcade at home.
 """
 
 from __future__ import annotations
@@ -54,11 +54,12 @@ class FairState:
     def to_dict(self) -> dict:
         return {"best": dict(self.best), "band": dict(self.band), "f1": self.f1}
 
-    def closed(self, game_id: str) -> bool:
+    def platinum(self, game_id: str) -> bool:
+        """Platinum reached (the booth stays open to play for fun)."""
         return self.band.get(game_id, 0) >= len(BANDS)
 
     def maxed(self) -> int:
-        return sum(self.closed(g) for g in GAME_IDS)
+        return sum(self.platinum(g) for g in GAME_IDS)
 
     def record(self, game_id: str, score: int):
         """An attempt ended: returns (tokens earned, bands newly reached, prize won now)."""

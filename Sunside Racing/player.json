@@ -1,10 +1,10 @@
 {
   "version": 3,
-  "mode": "walk",
+  "mode": "drive",
   "car": {
-    "x": 10964.0,
-    "y": 15976.0,
-    "heading": 0.0
+    "x": 11883.08094485605,
+    "y": 11879.192373007823,
+    "heading": 78.9910604307693
   },
   "missions": {
     "progress": {
@@ -144,8 +144,9 @@
       "tow_train"
     ],
     "inventory": {
-      "sunside_tokens": 248897,
-      "fair_ticket": 9
+      "sunside_tokens": 246267,
+      "fair_ticket": 7,
+      "game_ticket": 18
     },
     "farm": {
       "owned": true,
@@ -235,18 +236,22 @@
     },
     "fair": {
       "best": {
+        "darts": 150,
+        "hammer": 300,
         "balloons": 10,
-        "ring_toss": 60,
-        "skee_ball": 240,
+        "ring_toss": 150,
+        "skee_ball": 600,
         "whack": 30
       },
       "band": {
+        "darts": 4,
+        "hammer": 4,
         "balloons": 4,
-        "ring_toss": 2,
-        "skee_ball": 2,
+        "ring_toss": 4,
+        "skee_ball": 4,
         "whack": 4
       },
-      "f1": false
+      "f1": true
     },
     "factory": {
       "unlocked": true,
@@ -278,10 +283,5 @@
       "won": 9,
       "elite_wins": 150
     }
-  },
-  "walker": {
-    "x": 739.5554953993998,
-    "y": 286.6822919638023,
-    "heading": 90.0
   }
 }

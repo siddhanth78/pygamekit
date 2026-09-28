@@ -4,6 +4,8 @@ player wants to play, and the caller answers with begin() once a ticket is paid.
 
 from __future__ import annotations
 
+import math
+
 import moderngl
 
 from fair_games import BAND_PAY, BANDS, FIELD, GAMES, Balloons, Darts, Hammer, RingToss, SkeeBall, WhackAMole
@@ -66,7 +68,7 @@ class FairGameOverlay:
         self.rect_instances = get_new_instances(160, 0, 0)[0]
         self.rect_vao, self.rect_vbo = build_rect_objs(ctx, self.rect_program, self.rect_instances)
         # Crosshairs and markers draw over the sprites: their own buffer (no mid-frame rewrite).
-        self.front_instances = get_new_instances(24, 0, 0)[0]
+        self.front_instances = get_new_instances(128, 0, 0)[0]
         self.front_vao, self.front_vbo = build_rect_objs(ctx, self.rect_program, self.front_instances)
         self.title = DynamicLabel(ctx, (500, 50), 42, bold=True, align="center")
         self.score = DynamicLabel(ctx, (480, 28), 23, bold=True, align="center")
@@ -118,6 +120,8 @@ class FairGameOverlay:
             game.point(value[0] - left, value[1] - top)
         elif action == "click":
             game.click(value[0] - left, value[1] - top)
+        elif action == "release" and isinstance(game, SkeeBall):
+            game.release(value[0] - left, value[1] - top)
         return None
 
     def update(self, dt, move_x=0, move_y=0):
@@ -190,7 +194,7 @@ class FairGameOverlay:
     def _intro(self, rects, labels, cx, top):
         cls = GAMES[self.game_id]
         rules = wrap(cls.rules)
-        texts = rules + [f"Your best: {self.best}"] + wrap("Each band pays once; platinum closes the booth.")
+        texts = rules + [f"Your best: {self.best}"] + wrap("Each band pays once.")
         for i, (label, text) in enumerate(zip(self.lines, texts)):
             label.set(text)
             labels.append((label, label.record(cx, top + 36 + i * 28, CREAM if i < len(rules) else MUTED)))
@@ -212,7 +216,7 @@ class FairGameOverlay:
         texts = [(f"Final score {game.score}  ·  {name}", BAND_COLORS[BANDS[reached - 1]] if reached else CREAM),
                  (f"+{self.earned} Sunside Tokens" if self.earned else "No new prize this time",
                   GOOD if self.earned else CREAM)]
-        last = "PLATINUM! This booth is yours: it's closed now." if reached == 4 else f"Best {self.best}"
+        last = "PLATINUM! A perfect game." if reached == 4 else f"Best {self.best}"
         texts += [(line, CREAM) for line in wrap(last)]
         height = 60 + 34 * len(texts)
         rects.append(_rect(cx, top + FIELD[1] / 2, FIELD[0] - 40, height, (8, 16, 22, 235)))
@@ -272,19 +276,37 @@ class FairGameOverlay:
         elif isinstance(game, SkeeBall):
             # Drawn to match the scoring: the rings span the aim offsets (20-110 px) and the
             # distances that land in them (power 55-90); the corner holes sit where 92+ lands.
-            sprites.append(Sprite("fair-atlas", "skee_rings", left + 240, top + 115, 220, 110))
-            for cx in SkeeBall.CORNERS:
-                sprites.append(Sprite("fair-atlas", "skee_hole", *at(cx, 42), 40, 40))
-            rects.append(_rect(left + FIELD[0] // 2, top + 280, FIELD[0] - 20, 60, (150, 110, 70, 255)))
+            sprites.append(Sprite("fair-atlas", "skee_rings", *at(*SkeeBall.RING_CENTER), 220, 110))
+            for hole in SkeeBall.CORNERS:
+                sprites.append(Sprite("fair-atlas", "skee_hole", *at(*hole), 40, 40))
+            rects.append(_rect(left + FIELD[0] // 2, top + SkeeBall.BALL_Y, FIELD[0] - 20, 44, (150, 110, 70, 255)))
+            for low, high in SkeeBall.QUARTERS:                 # Corner shots come from the light ends.
+                low, high = max(low, 10), min(high, FIELD[0] - 10)
+                rects.append(_rect(left + (low + high) / 2, top + SkeeBall.BALL_Y, high - low, 44, (196, 152, 100, 255)))
+            for x, y, _ in game.shots[-3:]:                      # Where the last balls landed.
+                sprites.append(Sprite("fair-atlas", "skee_ball", *at(x, y), 20, 20))
             if not game.over:
-                if game.stage == "aim":
-                    sprites.append(Sprite("fair-atlas", "skee_ball", *at(game.marker(), 290), 28, 28))
+                bx, by = game.ball()
+                if game.stage == "slide":
+                    sprites.append(Sprite("fair-atlas", "skee_ball", *at(bx, by), 28, 28))
                 else:
-                    # Like ring toss: the aim is set, and a yellow bar sweeps up and down the
-                    # lane on that line; where it stops is where the ball lands.
-                    sprites.append(Sprite("fair-atlas", "skee_ball", *at(game.x, 290), 28, 28))
-                    front.append(_rect(left + game.x, top + game.landing_y(game.marker()), 40, 4,
-                                       (242, 202, 87, 255)))
+                    # A slingshot: two posts either side of where the ball stopped, the band
+                    # from them to the ball as it's pulled, and a few dots showing which way
+                    # (and roughly how far) it will fly.
+                    px, py = game.pull
+                    band = (217, 69, 63, 255)
+                    for post in (bx - 22, bx + 22):
+                        rects.append(_rect(left + post, top + by, 6, 22, (90, 60, 40, 255)))
+                        steps = max(1, int(math.dist((post, by), (px, py)) // 6))
+                        for i in range(steps + 1):
+                            t = i / steps
+                            front.append(_rect(left + post + (px - post) * t, top + by + (py - by) * t, 3, 3, band))
+                    lx, ly = game.landing()
+                    if math.dist((px, py), (bx, by)) >= SkeeBall.MIN_PULL:
+                        for t in (0.12, 0.24, 0.36, 0.48):         # Only the first half of the flight.
+                            front.append(_rect(left + bx + (lx - bx) * t, top + by + (ly - by) * t, 5, 5,
+                                               (242, 202, 87, 255)))
+                    sprites.append(Sprite("fair-atlas", "skee_ball", *at(px, py), 28, 28))
         elif isinstance(game, WhackAMole):
             up = set(game.moles_up().values())
             for hole in range(9):

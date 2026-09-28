@@ -32,7 +32,7 @@ from pedestrians import Pedestrians
 from progression import CENTER_RACES, FISHING_LEVEL, HARDER_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from grid_race import GridRace
-from island import (CLUB, CLUBS, next_badge, ISLAND_LAPS, ISLAND_RACES, ISLAND_RATINGS, ISLAND_RIVALS, LEAGUES, TOURNEY_PASS_PRICE,
+from island import (CLUB, CLUBS, ISLAND_LAPS, ISLAND_RACES, ISLAND_RATINGS, ISLAND_RIVALS, LEAGUES, TOURNEY_PASS_PRICE,
                     TOURNEY_RACES, IslandCenterInterior, Tournament, ferry_spots, league_name, payout, rivals_of)
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
@@ -73,6 +73,7 @@ FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
 FAIR_DOOR_RANGE = 52     # On foot, px from the Snow Fair's ticket booth window.
 FACTORY_RANGE = 50       # On foot, px from the factory's door, the depot, or the cargo dock.
 ISLAND_RANGE = 56        # On foot, px from a ferry kiosk or a club camp's tent.
+TEMP_START_AT_FAIR = True  # TEMP (playtest): launch on foot at the Snow Fair gate with a fair ticket.
 
 
 def ordinal(n: int) -> str:
@@ -209,6 +210,22 @@ class Game:
         self.autosave = Autosave()
         if self.missions.island.club:
             self._offer_spawn()      # Club members choose where to start.
+
+    def temp_start_at_fair(self):
+        """TEMP (playtest): on foot at the Snow Fair's ticket booth, car parked nearby,
+        holding at least one fair ticket. Skips the city home / club camp choice."""
+        self.panel.open, self.pending_spawn = False, False
+        fx, fy = self.world.fair.door
+        self._return_to_giver(type("Spot", (), {"x": fx, "y": fy - 30})())
+        # Park the car down the plaza, out of reach, so E at the booth is the fair gate.
+        self.collisions.fixed = []
+        spot = nearest_clear_spot(self.collisions, self.car.collision_record, fx, fy + 220, 12)
+        if spot:
+            self.car.x, self.car.y, self.car.heading = *spot, 0.0
+            self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
+        self.collisions.fixed = [self.car.obstacle()]
+        if not count_of(self.missions, "fair_ticket"):
+            self.missions.add_item("fair_ticket", 1)
 
     # Helpers --------------------------------------------------------------------
 
@@ -602,8 +619,7 @@ class Game:
             if self.missions.is_locked(giver):
                 self.panel.show_lines(giver.name, "Locked", (
                     f"Veterans work with {giver.region} level {HARDER_LEVEL} drivers.",
-                    f"You're {giver.region} level {self.missions.progress.levels[giver.region]}.",
-                    "Earn mastery in this region to unlock them."))
+                    f"You're {giver.region} level {self.missions.progress.levels[giver.region]}.", ""))
             elif self.missions.active:
                 self.panel.show_message(giver.name, "Finish your current mission first.")
             else:
@@ -753,13 +769,13 @@ class Game:
                 self.pending_confirm = "store_leave"
                 self.panel.show_confirm("Leaving?", "", (
                     f"Your cart has {cart.count} item{'s' if cart.count != 1 else ''} ({cart.total:,} S).",
-                    "Empty the cart to leave,", "or stay and pay at the cashier first."),
+                    "Leaving puts them back on the shelves.", ""),
                     "EMPTY CART", "STAY")
             else:
                 self._leave_store()
         elif spot.kind == "cashier":
             if not cart.count:
-                self.panel.show_message("Cashier", "Pick something from the aisles, then pay here.")
+                self.panel.show_message("Cashier", "Your cart is empty.")
                 return
             self.pending_confirm = "store_pay"
             self.panel.show_bill("Checkout", cart.bill(), f"{cart.total:,} S",
@@ -777,7 +793,7 @@ class Game:
             self.panel.show_message("Checkout", why)
         else:
             self.autosave.request()
-            note = f"New on your arcade at home: {', '.join(unlocks)}." if unlocks else ""
+            note = f"Unlocked: {', '.join(unlocks)}." if unlocks else ""
             self.panel.show_bill("Receipt", bill, f"{total:,} S  PAID", note,
                                  ("OK",), chip="Success")
 
@@ -841,8 +857,7 @@ class Game:
                                                          "the island stays open for good."), "BOARD", "NOT NOW")
             self.panel.selected = 0
         else:
-            self.panel.show_lines("Island ferry", "", ("Boarding needs an Island pass.",
-                                                       "The General Store sells it.", ""))
+            self.panel.show_lines("Island ferry", "", ("Boarding needs an Island pass.", "", ""))
 
     def _take_ferry(self):
         if not self.missions.add_item("island_pass", -1):
@@ -852,8 +867,7 @@ class Game:
         self.autosave.request()
         self._cross(to_island=True)
         self.panel.show_lines("Elite Island", "Island unlocked", (
-            "Welcome to Elite Island!", "Race at the Island Racing Center.",
-            "T on a mainland beach brings you back any time."))
+            "Welcome to Elite Island!", "T on a mainland beach travels here and back.", ""))
 
     def _cross(self, to_island: bool):
         """The ferry: an instant crossing, car and all, to the other dock."""
@@ -881,12 +895,10 @@ class Game:
         league = club[2]
         if self.missions.island.club == camp.club:
             self.panel.show_lines(club[1], "Your club", (league_name(league),
-                                                        f"Rival club: {CLUB[rivals_of(camp.club)][1]}",
-                                                        "Tournaments at the Island Racing Center."))
+                                                        f"Rival club: {CLUB[rivals_of(camp.club)][1]}", ""))
         else:
             self.panel.show_lines(club[1], "", (league_name(league),
-                                                f"Entry {LEAGUES[league][2]:,} S at the Clubs desk",
-                                                "Island Racing Center"))
+                                                f"Entry {LEAGUES[league][2]:,} S", ""))
 
     def _near_island_center(self, walker) -> bool:
         if not self.missions.island.crossed:
@@ -932,7 +944,7 @@ class Game:
     def _clubs_desk(self):
         isl, rating = self.missions.island, self.missions.progress.rating("island")
         if isl.races < 1:
-            self.panel.show_message("Clubs", "Win your first race at the Races desk to join a club.")
+            self.panel.show_message("Clubs", "Clubs open after island race 1.")
             return
         leagues = [league for league in LEAGUES if isl.can_join(league, rating)]
         if not leagues:
@@ -975,20 +987,20 @@ class Game:
         club = CLUB[club_id]
         self.panel.show_lines(f"Welcome to the {club[1]}", "Success", (
             f"{league_name(club[2])}: tournaments vs the {CLUB[rivals_of(club_id)][1]}.",
-            f"Tourney passes at the Tournaments desk ({TOURNEY_PASS_PRICE:,} S).",
+            f"Tourney pass: {TOURNEY_PASS_PRICE:,} S a tournament.",
             "You can start at your club's camp from now on."))
 
     def _tourney_desk(self):
         isl = self.missions.island
         if not isl.club:
-            self.panel.show_message("Tournaments", "Join a club at the Clubs desk first.")
+            self.panel.show_message("Tournaments", "Tournaments are for club members.")
             return
         share, mastery, pool = payout(isl.league)
         self.pending_tourney = True
         self.panel.show_choice("Tournaments", "", (
             f"{CLUB[isl.club][1]} vs {CLUB[rivals_of(isl.club)][1]}  ·  {league_name(isl.league)}",
             (f"Pool {pool:,} S  ·  a win pays you {share:,} S + {mastery} mastery" if isl.league < 4
-             else f"Pool {pool:,} S  ·  a win pays you {share:,} S and counts toward badges"),
+             else f"Pool {pool:,} S  ·  a win pays you {share:,} S"),
             f"{TOURNEY_RACES} races, 2 laps each  ·  pass {TOURNEY_PASS_PRICE:,} S"), ["BUY PASS", "START"])
 
     def _buy_tourney_pass(self):
@@ -1002,12 +1014,12 @@ class Game:
         self.missions.add_item("sunside_tokens", -TOURNEY_PASS_PRICE)
         self.autosave.request()
         self.panel.show_lines("Tournaments", "Success", ("Bought a tourney pass.",
-                                                         "START at this desk when you're ready.", ""))
+                                                         f"Paid {TOURNEY_PASS_PRICE:,} S", ""))
 
     def _start_tournament(self):
         isl = self.missions.island
         if not self.missions.add_item("tourney_pass", -1):
-            self.panel.show_message("Tournaments", "You need a tourney pass. Buy one here.")
+            self.panel.show_message("Tournaments", "Each tournament uses 1 tourney pass.")
             return
         isl.played += 1
         self.tournament = Tournament(isl.club, f"{self.world.seed}-{isl.played}")
@@ -1053,21 +1065,15 @@ class Game:
                 before = isl.badges
                 isl.elite_wins += 1
                 new = [b for b in isl.badges if b not in before]
-                upcoming = next_badge(isl.elite_wins)
-                if new:
-                    badge = f"{new[-1].title()} badge earned!"
-                elif upcoming:
-                    badge = f"{upcoming[0].title()} badge at {upcoming[1]} wins ({isl.elite_wins} so far)"
-                else:
-                    badge = f"Top-league win {isl.elite_wins}"
-                self.panel.show_lines("Tournament won!", "Success", (score, f"+{share:,} S", badge))
+                badge = f"{new[-1].title()} badge earned!" if new else ""      # Badges are a surprise.
+                self.panel.show_lines("Tournament won!", "Champion" if new else "Success",
+                                      (score, f"+{share:,} S", badge))
             else:
                 self.missions.add_universal(mastery)
                 self.panel.show_lines("Tournament won!", "Success", (
                     score, f"+{share:,} S", f"+{mastery} mastery points"))
         else:
-            self.panel.show_lines("Tournament over", "Failed", (score, f"The {away} take it this time.",
-                                                                "Try again with another tourney pass."))
+            self.panel.show_lines("Tournament over", "Failed", (score, f"The {away} take it this time.", ""))
         self.autosave.request()
 
     def _next_tournament_race(self):
@@ -1106,7 +1112,7 @@ class Game:
         self.state.render(level.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
         isl = self.missions.island
         panel = ((CLUB[isl.club][1].upper(), league_name(isl.league)) if isl.club
-                 else (f"ISLAND RACES  {isl.races} / {ISLAND_RACES}", "Win race 1 to join a club"))
+                 else (f"ISLAND RACES  {isl.races} / {ISLAND_RACES}", "Clubs open after race 1"))
         self.hud.render(0.0, "Island Racing Center", "Races  ·  Clubs  ·  Tournaments", self._island_center_prompt(),
                         show_speed=False, mission=panel, toast=self._toast())
         if self.world_map.open:
@@ -1136,8 +1142,7 @@ class Game:
             self.panel.selected = 0
         else:
             self.panel.show_lines("Mining Factory", "Locked", ("Entry needs a Factory pass.",
-                                                               "The General Store sells it.",
-                                                               "One pass unlocks the factory for good."))
+                                                               "One pass unlocks the factory for good.", ""))
 
     def _enter_factory(self):
         self.in_factory = True
@@ -1158,7 +1163,7 @@ class Game:
         if self.missions.active:
             self.panel.show_message("Biofuel depot", "Finish your current mission first.")
         elif not factory.unlocked:
-            self.panel.show_message("Biofuel depot", "It fuels the Mining Factory. Unlock the factory first.")
+            self.panel.show_message("Biofuel depot", "It opens with the Mining Factory.")
         else:
             self.pending_confirm = "depot_fill"
             self.panel.show_confirm("Biofuel depot", "", (f"Tank: {factory.tank} / {TANK_MAX} biofuel",
@@ -1177,7 +1182,7 @@ class Game:
         elif factory.tank >= TANK_MAX:
             self.panel.show_message("Biofuel depot", "The tank is full.")
         else:
-            self.panel.show_message("Biofuel depot", "You have no corn. Grow it on your farm's plot.")
+            self.panel.show_message("Biofuel depot", "You have no corn.")
 
     def _dock(self):
         if self.missions.active:
@@ -1185,7 +1190,7 @@ class Game:
             return
         rows, tokens, mastery = shipment(self.missions)
         if not rows:
-            self.panel.show_message("Cargo dock", "Bring stones from the factory to ship them.")
+            self.panel.show_message("Cargo dock", "You have no stones to ship.")
             return
         self.pending_confirm = "ship_stones"
         self.panel.show_bill("Cargo dock", self._stone_bill(rows), f"{tokens:,} S + {mastery} mastery",
@@ -1229,8 +1234,7 @@ class Game:
 
     def _run_machine(self, size):
         if not self.missions.factory.burn(size):
-            self.panel.show_message("Stone machine", f"Not enough biofuel in the tank for {size}. "
-                                                     "Fill it at the depot outside.")
+            self.panel.show_message("Stone machine", f"Not enough biofuel in the tank for {size}.")
             return
         self.factory_level.start(size, self.factory_rng)
         self.autosave.request()
@@ -1262,7 +1266,7 @@ class Game:
             self.autosave.request()
             self.panel.show_lines("Stone machine", "Success", (f"You made {'an' if stone == 'iron' else 'a'} "
                                                                f"{STONE_NAMES[stone]}!",
-                                                               "Ship stones at the cargo dock outside.", ""))
+                                                               "", ""))
         walker.update(dt, *self.inputs.walking(), self.factory_collisions)
         self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
         self.state.set_frame(self.walker_id, walker.frame())
@@ -1275,7 +1279,7 @@ class Game:
         self.state.render(level.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
         tank = self.missions.factory.tank
         panel = ((f"MAKING A STONE  ·  {level.running[0]} BIOFUEL", f"{max(0.0, level.running[2]):.1f} s")
-                 if level.running else (f"BIOFUEL  {tank} / {TANK_MAX}", "Run the stone machine"))
+                 if level.running else (f"BIOFUEL  {tank} / {TANK_MAX}", ""))
         self.hud.render(0.0, "Mining Factory", "Factory floor", self._factory_prompt(), show_speed=False,
                         mission=panel, toast=self._toast())
         if self.world_map.open:
@@ -1293,13 +1297,12 @@ class Game:
             self.panel.show_message("Snow Fair", "Finish your current mission first.")
             return
         if not count_of(self.missions, "fair_ticket"):
-            self.panel.show_lines("Snow Fair", "", ("Entry is 1 fair ticket.",
-                                                    "The General Store sells them (100 S each).",
-                                                    "Games and rides use game tickets, sold inside."))
+            self.panel.show_lines("Snow Fair", "", (f"Entry is 1 fair ticket ({BY_ID['fair_ticket'].price} S).",
+                                                    f"Games and rides use game tickets ({GAME_TICKET_PRICE} S each).", ""))
             return
         self.pending_confirm = "fair_enter"
         self.panel.show_confirm("Snow Fair", "", ("Entry: 1 fair ticket",
-                                                  f"Game tickets for games and rides: {GAME_TICKET_PRICE} S inside.",
+                                                  f"Games and rides: 1 game ticket ({GAME_TICKET_PRICE} S) each.",
                                                   f"Platinum booths: {self.missions.fair.maxed()} / 6"),
                                 "GO IN", "NOT NOW")
         self.panel.selected = 0
@@ -1329,12 +1332,7 @@ class Game:
         if spot.kind == "exit":
             self._leave_fair()
         elif spot.kind == "booth":
-            if fair.closed(spot.key):
-                self.panel.show_lines(spot.label, "Champion", ("You scored platinum here.",
-                                                                "This booth is closed for good.",
-                                                                f"Platinum booths: {fair.maxed()} / 6"))
-            else:
-                self.fair_game.show(spot.key, fair.best.get(spot.key, 0), fair.band.get(spot.key, 0))
+            self.fair_game.show(spot.key, fair.best.get(spot.key, 0), fair.band.get(spot.key, 0))
         elif spot.kind == "counter":
             self.pending_buy = True
             self.panel.show_choice("Game tickets", "", (f"{GAME_TICKET_PRICE} S each.",
@@ -1342,7 +1340,7 @@ class Game:
                                    [f"BUY {n}" for n in GAME_TICKET_PACKS])
         elif spot.kind == "ride":
             if not self._tickets():
-                self.panel.show_message(spot.label, "Rides take 1 game ticket. The ticket counter by the gate sells them.")
+                self.panel.show_message(spot.label, "Rides take 1 game ticket.")
                 return
             self.missions.add_item("game_ticket", -1)
             self.autosave.request()
@@ -1354,7 +1352,7 @@ class Game:
     def _start_fair_game(self):
         """ENTER at a booth: one ticket buys an attempt."""
         if not self._tickets():
-            self.panel.show_message("Game tickets", "You're out of game tickets. The ticket counter by the gate sells them.")
+            self.panel.show_message("Game tickets", "You're out of game tickets.")
             return
         self.missions.add_item("game_ticket", -1)
         self.autosave.request()
@@ -1406,8 +1404,7 @@ class Game:
         if spot is None:
             return ""
         if spot.kind == "booth":
-            return (f"{spot.label}  ·  closed (platinum)" if self.missions.fair.closed(spot.key)
-                    else f"E   Play {spot.label}  ·  1 ticket")
+            return f"E   Play {spot.label}  ·  1 ticket"
         if spot.kind == "ride":
             return f"E   Ride the {spot.label.lower()}  ·  1 ticket"
         if spot.kind == "counter":
@@ -1470,8 +1467,7 @@ class Game:
                 self._refresh_landmarks()          # Farm buyers appear on the map.
                 self.autosave.request()
                 self.panel.show_lines("Farmhouse", "Success", (
-                    "The farmhouse is yours!", f"+{FARM_GIFT} Sunside Tokens to get you started.",
-                    "Seeds, fertilizer, and feed: the General Store."))
+                    "The farmhouse is yours!", f"+{FARM_GIFT} Sunside Tokens to get you started.", ""))
             else:
                 self.panel.show_lines("Abandoned farmhouse", "Locked", (
                     "The windows are boarded up; nobody lives here.",
@@ -1499,7 +1495,7 @@ class Game:
         if cell is None:
             crops = farm.seeds_owned(self.missions)
             if not crops:
-                self.panel.show_message("Farm plot", "You have no seeds. The General Store sells them.")
+                self.panel.show_message("Farm plot", "You have no seeds.")
             elif len(crops) == 1:
                 self._plant(index, crops[0])
             else:
@@ -1560,22 +1556,21 @@ class Game:
         elif orders.active == order.region:
             self.panel.show_lines(title, chip, (
                 "Still waiting for " + ",  ".join(f"{n} {BY_ID[g].name.lower()}" for g, n in missing.items()),
-                order.pay_line(), "Grow crops on your plot; milk and eggs come from the farmhouse."))
+                order.pay_line(), ""))
         else:
             self.pending_confirm = f"order:{order.region}"
             switching = orders.active and orders.orders.get(orders.active)
             self.panel.show_confirm(title, chip, (
                 f"Wants {order.goods_line()}", order.pay_line(),
                 f"Instead of the {orders.active.title()} order (it stays open)" if switching
-                else "Bring the goods here to deliver."), "TAKE ORDER", "NOT NOW")
+                else ""), "TAKE ORDER", "NOT NOW")
             self.panel.selected = 0
 
     def _show_orders(self):
         """O: every open order, from wherever the player is (house, store, ...)."""
         m, orders = self.missions, self.missions.orders
         if not m.farm.owned:
-            self.orders_menu.show([], f"No orders yet. Farm buyers come once the farmhouse is yours "
-                                      f"(rural level {FARM_LEVEL}).")
+            self.orders_menu.show([], "No orders yet.")
             return
         here = self._where()
         rows = []
@@ -1627,7 +1622,7 @@ class Game:
         paid = (f"+{order.value:,} Sunside Tokens" if order.pay == "tokens"
                 else f"+{order.points} mastery points")
         self.panel.show_lines(order.title, "Success", (f"Delivered {order.goods_line()}", paid,
-                                                       f"A new {region} buyer is waiting somewhere else."))
+                                                       ""))
 
     def _interact_farm(self):
         spot = self.farmhouse.spot_near(self.walker.x, self.walker.y)
@@ -1693,13 +1688,13 @@ class Game:
         if not self.missions.fish.count:
             unspent = self.missions.unspent
             self.panel.show_lines(title, "", (
-                "Bring me fish from the beach piers.",
-                "I pay mastery points you can spend on any region.",
+                "I trade fish for mastery points,",
+                "spent on any region.",
                 f"You have {unspent} unspent point{'s' if unspent != 1 else ''}" if unspent else ""))
             return
         count, value = self.missions.trade_fish()
         if not count:
-            self.panel.show_message(title, f"Your mastery points are full ({STACK_MAX}). Spend some first.")
+            self.panel.show_message(title, f"Your mastery points are full ({STACK_MAX}).")
             return
         self.autosave.request()
         # The points go to the inventory; the player spends them from there (or Mastery).
@@ -1757,8 +1752,7 @@ class Game:
             return
         if won >= CENTER_RACES:
             self.panel.show_lines(title, "Champion", (
-                f"You rule the {region} circuit: all {CENTER_RACES} races won.",
-                self._island_status(), ""))
+                f"You rule the {region} circuit: all {CENTER_RACES} races won.", "", ""))
             return
         race = won + 1
         name, line, _ = rival(region, race)
@@ -1778,8 +1772,7 @@ class Game:
         title = "Island Racing Center"
         won = self.missions.island.races
         if won >= ISLAND_RACES:
-            self.panel.show_lines(title, "Champion", (f"All {ISLAND_RACES} island races won.",
-                                                      "Tournaments are where it's at now.", ""))
+            self.panel.show_lines(title, "Champion", (f"All {ISLAND_RACES} island races won.", "", ""))
             return
         race = won + 1
         name, line, _, rating_ = self._center_rival("island", race)
@@ -1825,13 +1818,13 @@ class Game:
                 lines = [f"You beat {name} in {race.times['player']:.1f} s",
                          ("Island champion! All five races won." if isl.races >= ISLAND_RACES
                           else f"Race {isl.races + 1} unlocked  ·  {isl.races}/{ISLAND_RACES} won"),
-                         "The clubs are open: see the Clubs desk." if isl.races == 1 else ""]
+                         "The clubs are open." if isl.races == 1 else ""]
                 chip = "Champion" if isl.races >= ISLAND_RACES else "Success"
             else:
                 chip = "Failed"
                 lines = [(f"You quit the race against {name}" if getattr(race, "quit", False)
                           else f"{name} finished first ({race.times['rival']:.1f} s)"),
-                         "Try again at the Races desk",
+                         "You can race it again any time",
                          f"{name} ({rating_}) VS You ({progress.rating('island')})"]
             self.autosave.request()
             self.panel.show_lines("Island Racing Center", chip, lines)
@@ -1845,7 +1838,7 @@ class Game:
                       else f"Race {won + 1} unlocked  ·  {won}/{CENTER_RACES} won")]
             if progress.island_unlocked() and not was_unlocked:
                 chip = "Island unlocked"
-                lines.append("Elite Island is open: take the island ferry")
+                lines.append("Elite Island is open!")
             else:
                 lines.append(self._island_status() if won >= CENTER_RACES else "")
         else:
@@ -1853,18 +1846,14 @@ class Game:
             beaten_by = (f"You quit the race against {name}" if getattr(race, "quit", False)
                          else f"{name} finished first ({race.times['rival']:.1f} s)")
             lines = [beaten_by,
-                     "Talk to the center to try again",
+                     "You can race it again any time",
                      f"{name} ({RIVAL_RATINGS[number - 1]}) VS You ({progress.rating(region)})"]
         self.autosave.request()
         self.panel.show_lines(title, chip, lines)
 
     def _island_status(self):
-        progress = self.missions.progress
-        if progress.island_unlocked():
-            return ("Elite Island is open: T on a mainland beach" if self.missions.island.crossed
-                    else "Elite Island is open: take the island ferry")
-        return (f"Elite Island: centers {progress.centers_done()}/{len(REGIONS)}  ·  "
-                f"best level {max(progress.levels.values())}/{ISLAND_LEVEL}")
+        # Nothing about the island until it opens: it's a surprise.
+        return "Elite Island is open" if self.missions.progress.island_unlocked() else ""
 
     # Elite Island -----------------------------------------------------------------
 
@@ -2281,6 +2270,8 @@ def main():
         if not run_title(ctx):
             return   # EXIT (or closing the window) before anything was loaded or saved.
         game = Game(ctx)
+        if TEMP_START_AT_FAIR:
+            game.temp_start_at_fair()
         clock = pygame.time.Clock()
         running = True
         while running:

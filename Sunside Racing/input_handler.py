@@ -47,6 +47,8 @@ class InputHandler:
                 intents.append(("pointer", event.pos))
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 intents.append(("click", event.pos))
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                intents.append(("release", event.pos))
             elif event.type == pygame.KEYUP:
                 self.keys_held.discard(event.key)
             elif event.type == pygame.VIDEORESIZE:

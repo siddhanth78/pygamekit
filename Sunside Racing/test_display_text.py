@@ -30,5 +30,23 @@ class FitTests(unittest.TestCase):
         self.assertGreaterEqual(max(drawn) - min(drawn) + 2, font(36, True).size("OK")[0] - 4)   # Unshrunk.
 
 
+class WordingTests(unittest.TestCase):
+    """Player-facing text explains mechanics and costs only: no directions ("the General
+    Store sells it", "at the Clubs desk") and nothing about final prizes before they happen."""
+    BANNED = ("General Store sells", "General Store,", "the General Store.", "desk first", "at the Clubs desk",
+              "at the Tournaments desk", "at the Races desk", "Buy one here", "at the dock outside",
+              "depot outside", "cargo dock outside", "Grow it on", "talk to them", "Talk to the center",
+              "Earn mastery in this region", "grand prize\"", "Bring me fish", "fish trader\"",
+              "ticket counter by the gate", "centers {", "best level {")
+
+    def test_no_directions_or_prize_spoilers(self):
+        for path in PROJECT_ROOT.glob("*.py"):
+            if path.name.startswith("test_") or path.name == "asset_sources.py":
+                continue
+            source = path.read_text()
+            for phrase in self.BANNED:
+                self.assertNotIn(phrase, source, f"{path.name}: {phrase!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

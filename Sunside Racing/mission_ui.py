@@ -83,7 +83,7 @@ class MissionPanel:
         if result["success"]:
             lines.append(f"+{result['mastery']} mastery" if result["mastery"] else "No mastery earned")
         else:
-            lines.append("Back at the mission giver  ·  talk to them to retry")
+            lines.append("The same mission can be retried")
         level, (have, need) = result["level"], result["progress"]
         if result["levels"]:
             chip = "Level up"

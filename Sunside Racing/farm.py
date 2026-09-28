@@ -85,7 +85,7 @@ class Farm:
         if not cell or cell[1] != "sprout":
             return "There's nothing here to fertilize."
         if count_of(missions, "super_fertilizer") <= 0:
-            return "You need super fertilizer (General Store, 50 S)."
+            return f"You need super fertilizer ({BY_ID['super_fertilizer'].price} S)."
         missions.add_item("super_fertilizer", -1)
         cell[1] = "ripe"
         return None
@@ -107,7 +107,7 @@ def feed(missions, animal: str) -> str | None:
     """Feed one animal: one feed in, one milk (cow) or egg (hen) out. Returns why not."""
     feed_id, product = ANIMAL_FEED[animal]
     if count_of(missions, feed_id) <= 0:
-        return f"You need {BY_ID[feed_id].name.lower()} (General Store, {BY_ID[feed_id].price} S)."
+        return f"You need {BY_ID[feed_id].name.lower()} ({BY_ID[feed_id].price} S)."
     if room(count_of(missions, product), product) <= 0:
         return f"You can't carry more {BY_ID[product].name.lower()} ({BY_ID[product].max_stack})."
     missions.add_item(feed_id, -1)

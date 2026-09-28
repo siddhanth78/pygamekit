@@ -2415,3 +2415,74 @@ Badge board (built, 2026-09-28; supersedes the badge wall above)
 - Tests: the wall has only the board, the 3-2-1 layout, and a real-key flow
   (2 earned + 4 grey, no popup, E closes). 293 passing.
 
+Skee-ball slingshot (built, 2026-09-28; supersedes the aim-then-power skee-ball)
+- User: skee-ball was unbeatable (the corner needed the aim within 10 px and a
+  92+ power stop, both on moving markers). Now it plays like a slingshot:
+  - The ball slides along the lane (y 250, x 40-440). ENTER or a mouse press
+    stops it. Pull back and let go: the ball flies the opposite way, 3 px for
+    every px of pull (up to 100 px of pull), and lands exactly where aimed.
+    Mouse: press anywhere, drag (relative to where you grabbed), release.
+    Keyboard: the arrows pull the band (160 px/s), ENTER throws. A pull under
+    8 px throws nothing.
+  - Scoring by where it lands: touching a corner hole at all (within the
+    hole's 17 px + the ball's 10 px) is 100; the rings (drawn ellipses,
+    radii 18 / 41 / 69 / 101 px wide) pay 50 / 40 / 30 / 20; elsewhere up the
+    lane 10; short of y 175 it rolls back for 0. Bands unchanged
+    (100 / 180 / 280 / 600).
+  - Drawn: two slingshot posts where the ball stopped, the band to the ball,
+    and four yellow dots along the first half of the flight (direction and
+    rough distance, not the landing). The last three landings stay on the
+    board. A corner is reachable from anywhere the ball stops.
+- InputHandler now sends ("release", pos) on mouse-up (only skee-ball uses it).
+- Tests: rim touches count, reach from every stop, keyboard pulling and the
+  pull cap, tiny tugs throw nothing, and a flawless run is platinum.
+
+Skee-ball corners by quarter; booths stay open (built, 2026-09-28)
+- A corner only counts from its own quarter of the lane: the left hole when
+  the ball was stopped at x <= 120, the right hole at x >= 360
+  (SkeeBall.QUARTERS). The two quarters are lighter wood at the ends of the
+  lane. A corner touched from anywhere else bounces off the rim: 10 ("Off the
+  rim +10"), and the ball ends up just below the hole. Each quarter can reach
+  its corner with a full pull.
+- A corner ball (even a rim touch from the right quarter) drops into the
+  middle of the hole.
+- Booths no longer close at platinum (supersedes "platinum closes the booth"):
+  they stay open to play for fun. FairState.closed() is now platinum() (still
+  counted for the "Platinum booths n / 6" panel and the F1 prize); replays pay
+  nothing new. The booth prompt is always "E Play <booth> · 1 ticket", the
+  intro says "Each band pays once.", and a platinum result reads "PLATINUM! A
+  perfect game."
+- Tests updated (quarters, centered corner ball, rim bounce, booth open after
+  platinum). All passing.
+
+Wording rule: mechanics and costs only, no prize spoilers (built, 2026-09-28)
+- User rule for every description, prompt, and popup: (1) never mention final
+  prizes; finishing everything a place offers is a surprise, like the F1 car;
+  (2) explain only mechanics and costs, with no directions ("go there to do
+  this"). Applies to all future text too.
+- Spoilers removed:
+  - The Elite Island progress line (Mastery page, center champion popups) is
+    empty until the island opens, then just "Elite Island is open".
+  - The help page's T row is "Sea travel (once unlocked)".
+  - Locked arcade games only say "Unlocks later" (no "Win the Snow Fair's
+    grand prize" or "Sold at the General Store").
+  - Badges: the Tournaments desk no longer mentions them, and a league-4 win
+    shows "<Badge> badge earned!" only when one is earned (no "next at N").
+- Directions removed: every "The General Store sells it", "at the Clubs /
+  Tournaments / Races desk", "Buy one here", "START at this desk", "at the
+  dock / depot outside", "Grow it on your plot", "talk to them to retry",
+  "Bring me fish from the beach piers", "at a jungle fish trader", "the ticket
+  counter by the gate", "Earn mastery in this region", "Tournaments are where
+  it's at now", buyer hints, and the orders-view unlock hint. Costs now appear
+  instead where useful (fair ticket 100 S, game tickets 50 S, super fertilizer
+  and feed prices, tourney pass 2,000 S a tournament).
+- Guard: test_display_text.WordingTests fails if any banned direction or
+  spoiler phrase comes back in game source. 295 passing.
+
+TEMP playtest override (2026-09-28; remove when done)
+- main.TEMP_START_AT_FAIR = True: launching the game (main() only, not tests)
+  calls Game.temp_start_at_fair(): on foot at the Snow Fair's ticket booth,
+  the car parked 220 px south in the lot, at least one fair ticket, and no
+  city home / club camp choice. Set it False (or delete the flag and method)
+  to go back to opening at home.
+

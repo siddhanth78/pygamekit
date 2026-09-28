@@ -173,7 +173,7 @@ class InventoryMenu:
         else:
             self.name.set("Empty slot")
             self.amount.set("")
-            note = wrap("Items you find will show up here.")
+            note = []
         labels += [(self.title, self.title.record(cx, top + 58, ACCENT)),
                    (self.name, self.name.record(detail_x, detail_y + 24, CREAM)),
                    (self.amount, self.amount.record(detail_x, detail_y + 60, ACCENT)),

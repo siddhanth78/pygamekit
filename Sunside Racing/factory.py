@@ -144,7 +144,7 @@ def ship(missions, rng: random.Random | None = None) -> str | None:
     not, or None when shipped and paid."""
     rows, tokens, mastery = shipment(missions)
     if not rows:
-        return "Bring stones from the factory to ship them."
+        return "You have no stones to ship."
     if missions.tokens + tokens > BY_ID["sunside_tokens"].max_stack:
         return "Your Sunside Tokens are full."
     if mastery > room(missions.unspent):
@@ -314,9 +314,9 @@ class FactoryInterior:
                       Spot("market", "Stone market", *at(*MARKET_SPOT), 46),
                       Spot("machine", "Stone machine", *at(MACHINE[0], MACHINE[1] + 2.05), 52),
                       Spot("look", "Stone bin", *at(BIN[0], BIN[1] + 1.35), 44,
-                           "Finished stones drop here. Ship them at the dock outside."),
+                           "Finished stones drop here."),
                       Spot("look", "Biofuel pipe", *at(3.0, MACHINE[1] + 0.9), 44,
-                           "Biofuel comes in from the depot's tank outside.")]
+                           "Biofuel feeds the stone machine.")]
         self.workers = [Pedestrian(kind, path, 30, start, {0: ("pause", (2.0, 5.0))})
                         for kind, path, start in (
                             ("city_d", [at(2.0, 6.4), at(6.0, 6.4), at(6.0, 8.0), at(2.0, 8.0)], 0.0),

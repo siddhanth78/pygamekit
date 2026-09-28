@@ -20,7 +20,7 @@ from ui_text import DynamicLabel
 
 GAMES = (("lane_dodge", "LANE DODGE"), ("pit_stop", "PIT STOP"), ("tow_train", "TOW TRAIN"))
 LOCKED_NOTE = "Unlocks later"
-LOCKED_NOTES = {"pit_stop": "Win the Snow Fair's grand prize", "tow_train": "Sold at the General Store"}
+LOCKED_NOTES = {}                     # No hints: how a game unlocks is a surprise.
 TOW_GRID = (12, 16)           # Columns, rows of 30 px cells on the 360 x 480 screen.
 TOW_CELL = 30
 TOW_STEP = (0.2, 0.07)        # Seconds per move: at the start, and the fastest it gets.

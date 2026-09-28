@@ -91,7 +91,7 @@ class Cart:
         if item_id == "factory_pass" and factory is not None and factory.unlocked:
             return "The factory is already yours; no pass needed."
         if item.unlocks and item.unlocks in getattr(missions, "arcade_unlocked", ()):
-            return f"You already own {item.name.removesuffix(' cartridge')}. It's on your arcade at home."
+            return f"You already own {item.name.removesuffix(' cartridge')}."
         if item.max_stack == 1 and (have or wanted):
             return f"You already have the {item.name.lower()}." if have else \
                 f"The {item.name.lower()} is already in your cart."

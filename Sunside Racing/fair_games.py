@@ -2,7 +2,7 @@
 
 Every game is a short attempt with limited tries; its score is compared against four
 bands. Bronze, silver, and gold pay Sunside Tokens the first time they're reached;
-platinum is the game's maximum score, pays the most, and closes that booth for good.
+platinum is the game's maximum score and pays the most (the booth stays open after).
 Platinum always needs a flawless run (every dart a bullseye, every mole whacked, ...).
 
 Games share one small interface: update(dt, move_x, move_y), press(), point(x, y),
@@ -215,61 +215,146 @@ class RingToss(Game):
 
 
 class SkeeBall(Game):
-    """6 balls up the lane: stop the aim, then the power. Corner holes pay 100."""
+    """6 balls, slingshot style. The ball slides along the bottom of the lane: stop it,
+    then pull back and let go (like a slingshot). It flies the opposite way from the pull,
+    farther the longer the pull, and lands where it's aimed. Touching a top corner hole
+    at all (even its rim) is a corner, 100, but only when the ball was stopped in that
+    corner's quarter of the lane (left quarter for the left hole, right for the right);
+    from anywhere else it bounces out off the rim (10). A corner ball drops into the
+    middle of the hole."""
     name, tries = "SKEE-BALL", 6
-    CORNERS = (70, 410)
-    CORNER_AIM = 10                   # Aim within this of a corner hole's x ...
-    CORNER_POWER = 92                 # ... with at least this much power drops in for 100.
-    RINGS = ((20, 50), (45, 40), (75, 30), (110, 20))     # (|aim - center|, points); else 10.
-    LANE = (340, 30)                  # Where a ball lands at power 0 and 100 (field y), shown
-                                      # by the yellow bar sweeping the lane.
+    BALL_Y = 250                      # The ball slides along this line,
+    SLIDE = (40, 440)                 # between these x.
+    MAX_PULL = 100                    # px the band stretches;
+    STRETCH = 3.0                     # a pull of p px sends the ball 3p px.
+    MIN_PULL = 8                      # Letting go of a shorter pull throws nothing.
+    PULL_SPEED = 160                  # px/s the arrows pull the band.
+    CORNERS = ((70, 42), (410, 42))   # Corner holes (field px),
+    QUARTERS = ((0, FIELD[0] / 4), (FIELD[0] * 3 / 4, FIELD[0]))   # where each must be shot from,
+    HOLE_R, BALL_R = 17, 10           # a hole's and the ball's drawn radius.
+    RING_CENTER = (240, 115)          # The ring target (drawn 220 x 110, so rings are ellipses
+    RINGS = ((18, 50), (41, 40), (69, 30), (101, 20))    # twice as wide as tall): (radius, points).
+    ROLL_BACK = 175                   # Landing below this line: it rolls back down (0).
     thresholds = (100, 180, 280, 600)
-    rules = "6 balls. ENTER stops the aim, then the yellow bar (how far it rolls). Top corners pay 100."
-
-    @classmethod
-    def landing_y(cls, power: float) -> float:
-        bottom, top = cls.LANE
-        return bottom - (bottom - top) * power / 100
+    rules = ("6 balls. ENTER or click stops the ball; pull back and let go to throw "
+             "(or ARROWS, then ENTER). A corner pays 100, shot from its own light end of the lane.")
 
     def __init__(self, seed=None):
         super().__init__(seed)
-        self.stage = "aim"
-        self.x = None
+        self.stage = "slide"              # slide, then pull.
         self.travel = self.rng.uniform(0, 400)
-        self.last = None
+        self.x = None                     # Where the ball stopped.
+        self.pull = None                  # The band's end (field px) while pulling.
+        self.dragging = False             # The mouse is holding the band,
+        self.grab = (0.0, 0.0)            # grabbed here: the band moves as the mouse does from it.
+        self.shots: list[tuple[float, float, int]] = []    # (x, y, points) where balls landed.
 
     def marker(self) -> float:
-        if self.stage == "aim":
-            return _bounce(self.travel, 40, 440)
-        return _bounce(self.travel, 0, 100)
+        """The sliding ball's x."""
+        return _bounce(self.travel, *self.SLIDE)
+
+    def ball(self):
+        return (self.x if self.stage == "pull" else self.marker()), self.BALL_Y
 
     def update(self, dt, move_x=0, move_y=0):
         super().update(dt)
-        if not self.over:
-            self.travel += (330 + 20 * self.used if self.stage == "aim" else 150 + 15 * self.used) * dt
-
-    @classmethod
-    def points_for(cls, x, power) -> int:
-        if power >= cls.CORNER_POWER and any(abs(x - c) <= cls.CORNER_AIM for c in cls.CORNERS):
-            return 100
-        if power < 55:
-            return 0                                      # Rolls back down the lane.
-        if power > 90:
-            return 10                                     # Jumps the rings.
-        off = abs(x - 240)
-        return next((p for r, p in cls.RINGS if off <= r), 10)
-
-    def press(self):
         if self.over:
             return
-        if self.stage == "aim":
-            self.x, self.stage, self.travel = self.marker(), "power", 0.0
+        if self.stage == "slide":
+            self.travel += (300 + 20 * self.used) * dt
+        elif (move_x or move_y) and not self.dragging:
+            px, py = self.pull
+            self._set_pull(px + move_x * self.PULL_SPEED * dt, py + move_y * self.PULL_SPEED * dt)
+
+    def _set_pull(self, x, y):
+        """The band's end, kept within MAX_PULL of the ball."""
+        bx, by = self.ball()
+        dx, dy = x - bx, y - by
+        d = math.hypot(dx, dy)
+        if d > self.MAX_PULL:
+            dx, dy = dx * self.MAX_PULL / d, dy * self.MAX_PULL / d
+        self.pull = (bx + dx, by + dy)
+
+    def _stop(self):
+        self.x, self.stage = self.marker(), "pull"
+        self.pull = self.ball()
+
+    def landing(self):
+        """Where the ball lands if let go now (field px, kept on the field)."""
+        (bx, by), (px, py) = self.ball(), self.pull
+        x = bx + (bx - px) * self.STRETCH
+        y = by + (by - py) * self.STRETCH
+        return min(FIELD[0] - 10, max(10, x)), min(FIELD[1] - 10, max(20, y))
+
+    @classmethod
+    def corner_hit(cls, x, y):
+        """The corner hole the ball at (x, y) touches, or None."""
+        return next((i for i, hole in enumerate(cls.CORNERS)
+                     if math.dist((x, y), hole) <= cls.HOLE_R + cls.BALL_R), None)
+
+    @classmethod
+    def points_at(cls, x, y, from_x=None) -> int:
+        """Points for a ball landing at (x, y), thrown from x = from_x (None: from the
+        corner's own quarter)."""
+        corner = cls.corner_hit(x, y)
+        if corner is not None:
+            low, high = cls.QUARTERS[corner]
+            return 100 if from_x is None or low <= from_x <= high else 10     # Off the rim.
+        cx, cy = cls.RING_CENTER
+        d = math.hypot(x - cx, (y - cy) * 2)
+        ring = next((p for r, p in cls.RINGS if d <= r), None)
+        if ring:
+            return ring
+        return 0 if y >= cls.ROLL_BACK else 10
+
+    def _throw(self):
+        (bx, by), (px, py) = self.ball(), self.pull
+        self.dragging = False
+        if math.hypot(px - bx, py - by) < self.MIN_PULL:
+            self.pull = self.ball()                        # Too short: nothing thrown.
             return
-        power = self.marker()
-        self.last = (self.x, power)
-        points = self.points_for(self.x, power)
-        self.stage, self.travel = "aim", self.rng.uniform(0, 400)
-        self._use(points, "CORNER! +100" if points == 100 else f"+{points}" if points else "Rolled back")
+        x, y = self.landing()
+        points = self.points_at(x, y, self.x)
+        corner = self.corner_hit(x, y)
+        if points == 100:
+            x, y = self.CORNERS[corner]                    # It drops into the middle of the hole.
+        elif corner is not None:                           # Off the rim: it ends up just below
+            hx, hy = self.CORNERS[corner]                  # the hole, clear of it.
+            x, y = hx, hy + self.HOLE_R + self.BALL_R + 4
+        self.shots.append((x, y, points))
+        self.stage, self.pull, self.travel = "slide", None, self.rng.uniform(0, 400)
+        status = ("CORNER! +100" if points == 100 else "Off the rim  +10"
+                  if corner is not None else f"+{points}" if points else "Rolled back")
+        self._use(points, status)
+
+    def press(self):
+        """ENTER: stop the ball, or throw with the band as pulled."""
+        if self.over:
+            return
+        if self.stage == "slide":
+            self._stop()
+        else:
+            self._throw()
+
+    def click(self, x, y):
+        """Mouse down (anywhere): stop the ball if it's sliding, and grab the band."""
+        if self.over:
+            return
+        if self.stage == "slide":
+            self._stop()
+        self.dragging = True
+        px, py = self.pull
+        self.grab = (x - px, y - py)
+
+    def point(self, x, y):
+        if self.dragging and not self.over:
+            self._set_pull(x - self.grab[0], y - self.grab[1])
+
+    def release(self, x, y):
+        """Mouse up: let go of the band."""
+        if self.dragging and not self.over:
+            self.point(x, y)
+            self._throw()
 
 
 class WhackAMole(Game):

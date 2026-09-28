@@ -71,7 +71,7 @@ class StateTests(unittest.TestCase):
 
     def test_shipping_pays_the_market_price_and_universal_mastery(self):
         m = self.missions()
-        self.assertIn("Bring stones", ship(m))
+        self.assertIn("no stones to ship", ship(m))
         m.add_item("stone_gold", 2)
         m.add_item("stone_iron", 1)
         market = m.factory.market

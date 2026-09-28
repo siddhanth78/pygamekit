@@ -53,11 +53,13 @@ def perfect(game_id):
             assert advance_until(game, lambda: abs(game.marker() - 70) <= 2)
             game.press()
     elif isinstance(game, SkeeBall):
-        for _ in range(6):
-            assert advance_until(game, lambda: abs(game.marker() - 70) <= 3)
-            game.press()
-            assert advance_until(game, lambda: game.marker() >= 97)
-            game.press()
+        for i in range(6):
+            quarter = SkeeBall.QUARTERS[i % 2]                 # Stop in a corner's own quarter,
+            assert advance_until(game, lambda: quarter[0] + 10 <= game.marker() <= quarter[1] - 10)
+            bx, by = game.ball()
+            game.click(bx, by)                                # Stop it and grab the ball,
+            hole = min(SkeeBall.CORNERS, key=lambda h: abs(h[0] - bx))
+            game.release(*sling_pull(game, hole))              # pull back, and let go.
     elif isinstance(game, WhackAMole):
         while not game.over:
             up = game.moles_up()
@@ -68,7 +70,63 @@ def perfect(game_id):
     return game
 
 
+def sling_pull(game, target):
+    """Where to pull the band so the ball lands on target."""
+    bx, by = game.ball()
+    return bx - (target[0] - bx) / SkeeBall.STRETCH, by - (target[1] - by) / SkeeBall.STRETCH
+
+
 class GameTests(unittest.TestCase):
+    def test_skee_ball_slingshot(self):
+        # A corner counts the moment the ball touches the hole, rim included.
+        (hx, hy), reach = SkeeBall.CORNERS[0], SkeeBall.HOLE_R + SkeeBall.BALL_R
+        self.assertEqual(SkeeBall.points_at(hx + reach - 0.5, hy), 100)
+        self.assertNotEqual(SkeeBall.points_at(hx + reach + 2, hy + 2), 100)
+        self.assertEqual(SkeeBall.points_at(*SkeeBall.RING_CENTER), 50)
+        self.assertEqual(SkeeBall.points_at(240, 220), 0)                  # Too short: rolls back.
+        # A corner only counts from its own quarter of the lane; from elsewhere it's 10.
+        self.assertEqual(SkeeBall.points_at(hx, hy, from_x=100), 100)
+        self.assertEqual(SkeeBall.points_at(hx, hy, from_x=240), 10)
+        self.assertEqual(SkeeBall.points_at(*SkeeBall.CORNERS[1], from_x=100), 10)
+        self.assertEqual(SkeeBall.points_at(*SkeeBall.CORNERS[1], from_x=380), 100)
+        # From anywhere in a quarter, its corner is within a full pull.
+        for corner, (low, high) in zip(SkeeBall.CORNERS, SkeeBall.QUARTERS):
+            for x in range(max(int(low), SkeeBall.SLIDE[0]), min(int(high), SkeeBall.SLIDE[1]) + 1, 5):
+                self.assertLessEqual(math.dist((x, SkeeBall.BALL_Y), corner) / SkeeBall.STRETCH, SkeeBall.MAX_PULL)
+        # A corner (even a rim touch) drops the ball into the middle of the hole; a corner
+        # shot from the middle of the lane bounces off the rim.
+        game = SkeeBall(9)
+        assert advance_until(game, lambda: game.marker() <= 100)
+        bx, by = game.ball()
+        game.click(bx, by)
+        game.release(*sling_pull(game, (hx + reach - 1, hy)))
+        self.assertEqual(game.shots[-1], (hx, hy, 100))
+        assert advance_until(game, lambda: abs(game.marker() - 240) <= 3)
+        bx, by = game.ball()
+        game.click(bx, by)
+        game.release(*sling_pull(game, (hx, hy)))
+        self.assertEqual(game.shots[-1][2], 10)
+        self.assertNotEqual(game.shots[-1][:2], (hx, hy))
+        # Keyboard: ENTER stops it, the arrows pull the band (never past MAX_PULL), ENTER throws.
+        game = SkeeBall(4)
+        game.update(0.2)
+        game.press()
+        self.assertEqual(game.stage, "pull")
+        for _ in range(240):
+            game.update(1 / 60, 0, 1)                                     # Hold down: pull back.
+        bx, by = game.ball()
+        self.assertAlmostEqual(game.pull[1] - by, SkeeBall.MAX_PULL, places=3)
+        game.press()
+        self.assertEqual(game.used, 1)
+        self.assertLess(game.shots[0][1], by)                             # It flew up the lane.
+        # A tiny tug throws nothing.
+        game.update(0.2)
+        bx, by = game.ball()
+        game.click(bx, by)
+        game.release(bx, by + 3)
+        self.assertEqual((game.used, game.stage), (1, "pull"))
+
+
     def test_a_flawless_run_is_platinum_in_every_game(self):
         for game_id, cls in GAMES.items():
             game = perfect(game_id)
@@ -121,12 +179,13 @@ class GameTests(unittest.TestCase):
 
 
 class StateTests(unittest.TestCase):
-    def test_bands_pay_once_platinum_closes_and_six_win_the_f1(self):
+    def test_bands_pay_once_and_six_platinums_win_the_f1(self):
         state = FairState()
         self.assertEqual(state.record("darts", 60), (35, ["bronze", "silver"], False))
         self.assertEqual(state.record("darts", 40), (0, [], False))            # Nothing new.
         self.assertEqual(state.record("darts", 150), (200, ["gold", "platinum"], False))
-        self.assertTrue(state.closed("darts"))
+        self.assertTrue(state.platinum("darts"))
+        self.assertEqual(state.record("darts", 150), (0, [], False))           # Replays pay nothing new.
         for game_id in GAME_IDS[1:-1]:
             state.record(game_id, GAMES[game_id].thresholds[-1])
         self.assertFalse(state.f1)

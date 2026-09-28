@@ -920,7 +920,7 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_o)                                        # Before the farm: none.
         self.assertTrue(g.orders_menu.open)
         self.assertEqual(g.orders_menu.rows, [])
-        self.assertIn("rural level 6", g.orders_menu.empty)
+        self.assertEqual(g.orders_menu.empty, "No orders yet.")
         self.press(pygame.K_o)
         self.assertFalse(g.orders_menu.open)
         g.missions.progress.add("rural", mastery_to_reach(FARM_LEVEL))
@@ -1028,12 +1028,13 @@ class GameFlowTests(unittest.TestCase):
         g.update(1 / 60)
         self.assertEqual((g.fair_game.mode, game.score), ("over", 150))
         self.assertEqual(g.missions.tokens, tokens + 10 + 25 + 50 + 150)
-        self.assertTrue(g.missions.fair.closed("darts"))
+        self.assertTrue(g.missions.fair.platinum("darts"))
         self.press(pygame.K_ESCAPE)
         self.assertFalse(g.fair_game.open)
-        self.press(pygame.K_e)                                        # Closed for good.
-        self.assertEqual(g.panel.chip_name, "Champion")
-        self.press(pygame.K_RETURN)
+        self.assertEqual(g._fair_prompt(), "E   Play Darts  ·  1 ticket")   # Still open for fun.
+        self.press(pygame.K_e)
+        self.assertTrue(g.fair_game.open and g.fair_game.mode == "intro")
+        self.press(pygame.K_ESCAPE)
         # A ride: one ticket, then the ride carries the player and puts them back.
         ride = next(s for s in g.fair_level.spots if s.key == "carousel")
         g.walker.x, g.walker.y = ride.x, ride.y
@@ -1194,7 +1195,7 @@ class GameFlowTests(unittest.TestCase):
         desk = {s.kind: s for s in g.island_level.spots}
         g.walker.x, g.walker.y = desk["clubs"].x, desk["clubs"].y
         self.press(pygame.K_e)                                        # Clubs wait for race 1.
-        self.assertIn("first race", g.panel.lines[0].text)
+        self.assertIn("after island race 1", g.panel.lines[0].text)
         self.press(pygame.K_RETURN)
         g.walker.x, g.walker.y = desk["races"].x, desk["races"].y
         self.press(pygame.K_e)

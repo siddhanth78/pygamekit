@@ -268,7 +268,7 @@ class FishingSession:
                     f"{STACK_MAX} is the most you can carry  ·  trade at a jungle camp")
         if self.phase == "caught":
             return (f"Caught: {self.rarity.title()} {self.name}!",
-                    f"Worth {VALUE[self.rarity]} mastery at a jungle fish trader")
+                    f"Worth {VALUE[self.rarity]} mastery")
         if self.phase == "escaped":
             return "It got away...", "E to cast again"
         return "", ""
