@@ -76,6 +76,10 @@ def _pieces():
 
 
 LAMPS = {"living": at(6.9, 5.9), "bedroom": at(12.5, 1.45)}
+# The badge board: a white board on the bedroom's east wall, between the bed and the
+# wardrobe. E in front of it shows the badges.
+BADGE_BOARD = at(12.6, 4.35)
+BADGE_SPOT = at(11.9, 4.35)
 
 
 def _spots():
@@ -93,6 +97,7 @@ def _spots():
         Spot("sleep", "Sleep", *at(10.3, 2.4), 40, *at(11.3, 2.35), 180.0),
         Spot("lamp", "Bedside lamp", *at(12.4, 2.5), 44, key="bedroom"),
         Spot("look", "Wardrobe", *at(11.55, 6.6), 40, key="Racing suits, hung up neatly."),
+        Spot("badges", "Badge board", *BADGE_SPOT, 40),
         Spot("look", "Plant", *at(8.3, 6.7), 36, key="It could use some water."),
     )
 
@@ -156,6 +161,7 @@ class HomeInterior:
         if self.lamps["bedroom"]:
             x, y = LAMPS["bedroom"]
             out.append(Sprite("home-atlas", "lamp_on", x, y, 48, 48))
+        out.append(Sprite("home-atlas", "badge_board", *BADGE_BOARD, 64, 64, 90.0))   # Facing into the room.
         return out
 
     # Things to do ---------------------------------------------------------------------

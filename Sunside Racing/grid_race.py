@@ -16,7 +16,8 @@ from dataclasses import dataclass
 
 from car import Car
 from collision_manager import CollisionManager
-from drag_race import CLEAN_LAP, COUNTDOWN, RIVAL_CUT, TrackLevel, Rival, calibrated_corner, flawless_time
+from drag_race import (CLEAN_LAP, COUNTDOWN, RIVAL_CUT, STRAIGHT_BOOST, TrackLevel, Rival, calibrated_corner,
+                       flawless_time)
 from progression import RATING_EDGE, rating_speed
 from track_gen import generate
 from world import TILE_SIZE
@@ -25,11 +26,12 @@ from world import TILE_SIZE
 ROWS, LANES = 4, (-1, 1)
 ROW_GAP = 0.95                 # Tiles between grid rows (a start straight has 4 tiles behind the line).
 FIRST_ROW = 1.0
-PLAYER_SLOT = 4                # Third row, left lane.
 # The grid alternates like a chessboard (slots front row first, left then right):
-#   row 1: teammate, opponent   row 2: opponent, teammate
-#   row 3: player,   opponent   row 4: opponent, teammate
-TEAM_SLOTS = {"home": (0, 3, 7), "away": (1, 2, 5, 6)}
+#   row 1: home, away   row 2: away, home   row 3: home, away   row 4: away, home
+# The player's team (the player and 3 teammates) takes the home squares, the rival club
+# the away squares; each race everyone is shuffled onto their team's squares, the player
+# included.
+TEAM_SLOTS = {"home": (0, 3, 4, 7), "away": (1, 2, 5, 6)}
 
 
 @dataclass
@@ -68,6 +70,7 @@ def rated_rival(level: TrackLevel, rating: float, seed: int, sprite: str, start)
     rival.rate(rating_speed(rating), math.inf)
     target = flawless_time(level, multiplier=rating_speed(rating - RATING_EDGE)) * CLEAN_LAP * 1.005
     rival.rate(rating_speed(rating), calibrated_corner(rival, target))
+    rival.top *= STRAIGHT_BOOST                    # A little quicker down the straights.
     return rival
 
 
@@ -81,10 +84,12 @@ class GridRace:
         self.speed_scale = speed_scale
         self.entrants = entrants
         slots = grid_slots(self.level)
-        self.car = Car(*slots[PLAYER_SLOT][:2], heading=slots[PLAYER_SLOT][2], f1=f1)
-        # Each team fills its own squares of the chessboard, in a random order.
+        # Each team fills its own squares of the chessboard in a random order; the player
+        # draws one of the home squares first.
         free = {team: rng.sample(TEAM_SLOTS[team], len(TEAM_SLOTS[team])) for team in TEAM_SLOTS}
-        taken = {PLAYER_SLOT}
+        self.player_slot = free["home"].pop()
+        self.car = Car(*slots[self.player_slot][:2], heading=slots[self.player_slot][2], f1=f1)
+        taken = {self.player_slot}
         self.slots = []
         for e in entrants:
             own = [s for s in free.get(e.team, []) if s not in taken]

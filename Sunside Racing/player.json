@@ -2,19 +2,19 @@
   "version": 3,
   "mode": "walk",
   "car": {
-    "x": 28968.0,
-    "y": 16308.0,
+    "x": 10964.0,
+    "y": 15976.0,
     "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
-        "level": 27,
-        "mastery": 295,
+        "level": 28,
+        "mastery": 470,
         "completed": {
           "delivery": 5,
           "speed": 10,
-          "drag": 19
+          "drag": 26
         },
         "races": 10
       },
@@ -40,7 +40,7 @@
       },
       "snow": {
         "level": 24,
-        "mastery": 0,
+        "mastery": 17,
         "completed": {
           "delivery": 0,
           "speed": 0,
@@ -59,27 +59,8 @@
         "races": 10
       }
     },
-    "counter": 55,
+    "counter": 63,
     "offers": {
-      "city-drag-hard": {
-        "type": "drag",
-        "scale": 1.0,
-        "target": null,
-        "track": {
-          "kind": "straight",
-          "theme": "city"
-        },
-        "seed": 725194909,
-        "levels": {
-          "city": 5,
-          "jungle": 3,
-          "desert": 1,
-          "snow": 3,
-          "rural": 2
-        },
-        "rating": 146,
-        "declines": 0
-      },
       "city-speed": {
         "type": "speed",
         "scale": 0.752,
@@ -117,23 +98,44 @@
         },
         "rating": null,
         "declines": 0
+      },
+      "city-drag-hard": {
+        "type": "drag",
+        "scale": 1.0,
+        "target": null,
+        "track": {
+          "kind": "circuit",
+          "theme": "city",
+          "seed": 903937348,
+          "size": 6
+        },
+        "seed": 903937348,
+        "levels": {
+          "city": 28,
+          "jungle": 24,
+          "desert": 24,
+          "snow": 24,
+          "rural": 24
+        },
+        "rating": 374,
+        "declines": 0
       }
     },
     "fish": {
       "bag": {
-        "common": 4,
-        "uncommon": 12,
-        "rare": 7,
+        "common": 0,
+        "uncommon": 0,
+        "rare": 0,
         "epic": 0
       },
       "caught": {
-        "common": 66,
-        "uncommon": 24,
-        "rare": 8,
+        "common": 86,
+        "uncommon": 43,
+        "rare": 33,
         "epic": 0
       }
     },
-    "unspent_mastery": 150,
+    "unspent_mastery": 0,
     "arcade": {
       "lane_dodge": 50,
       "tow_train": 17
@@ -142,7 +144,7 @@
       "tow_train"
     ],
     "inventory": {
-      "sunside_tokens": 214897,
+      "sunside_tokens": 248897,
       "fair_ticket": 9
     },
     "farm": {
@@ -272,13 +274,14 @@
       "crossed": true,
       "races": 1,
       "club": "palm",
-      "played": 6,
-      "won": 4
+      "played": 14,
+      "won": 9,
+      "elite_wins": 150
     }
   },
   "walker": {
-    "x": 28928.0,
-    "y": 16308.0,
-    "heading": 0.0
+    "x": 739.5554953993998,
+    "y": 286.6822919638023,
+    "heading": 90.0
   }
 }

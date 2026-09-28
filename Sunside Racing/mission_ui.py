@@ -89,6 +89,8 @@ class MissionPanel:
             chip = "Level up"
             lines.append(f"{result['region'].title()} level {level}!  Rating {rating(level)}"
                          + ("  ·  veteran givers unlocked" if 5 in result["levels"] else ""))
+        elif result.get("max"):
+            lines.append(f"{result['region'].title()} level {level}  ·  MAX")
         else:
             lines.append(f"{result['region'].title()} level {level}  ·  {have}/{need} mastery to next")
         self._show("result", result["title"], chip, lines, ("CONTINUE",))

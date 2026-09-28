@@ -71,7 +71,7 @@ class RivalTests(unittest.TestCase):
                 self.assertLessEqual(len(f'{name}: "{line}"'), 64)  # Fits the offer panel.
                 self.assertTrue(sprite.startswith("racer_"))
 
-    def test_every_race_is_won_by_a_clean_lap_ten_below_its_rating_and_lost_twenty_below(self):
+    def test_every_race_is_won_by_a_clean_lap_two_below_its_rating_and_lost_twelve_below(self):
         self.assertEqual(RIVAL_RATINGS, (100, 110, 120, 140, 150, 170, 220, 260, 300, 350))
         self.assertEqual(rating(25) + RATING_EDGE, RIVAL_RATINGS[-1])   # The champion needs level 25.
         for region in REGIONS:
@@ -86,11 +86,12 @@ class RivalTests(unittest.TestCase):
                     dry = center_race(region, number)
                     dry.level.is_ice = lambda x, y: False
                     ice = seconds / rival_time(dry)
-                # A clean human lap (CLEAN_LAP off the flat-out model) 10 below always wins,
-                # 20 below never does (running wide at half the corners costs rivals < 10 points).
+                # A clean human lap (CLEAN_LAP off the flat-out model) 2 below always wins, 12
+                # below never does: rivals are calibrated so 10 below just wins, then run
+                # STRAIGHT_BOOST faster down the straights (about 5 rating points harder).
                 clean = lambda rated: flawless_time(race.level, multiplier=rating_speed(rated)) * CLEAN_LAP * ice
-                self.assertLess(clean(rated - 10), seconds, (region, number))
-                self.assertGreater(clean(rated - 20), seconds, (region, number))
+                self.assertLess(clean(rated - 2), seconds, (region, number))
+                self.assertGreater(clean(rated - 12), seconds, (region, number))
         self.assertEqual(rival("snow", 10)[0], "The Glacier")
 
 

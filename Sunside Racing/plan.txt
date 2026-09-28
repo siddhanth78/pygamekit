@@ -2257,3 +2257,161 @@ Chessboard starting grid (built, 2026-09-28)
   4). Which racer takes each of their team's squares is random per race.
   Test: the rows alternate and every car starts on its square. 287 passing.
 
+Tournament ratings, final mix (built, 2026-09-28; supersedes the offsets above)
+- Offsets are rolled once per tournament and added to the player's rating in
+  each track's region. Racers are shuffled onto their team's chessboard
+  squares each race.
+  - Teammates: one -5..0, one +1..+5, one +3..+8 (island.HOME_OFFSETS).
+  - Rivals: one -5..0, one level with the player (+0), one +1..+5, one
+    +3..+8 (island.AWAY_OFFSETS).
+- 287 passing.
+
+The player's starting square varies too (built, 2026-09-28)
+- The player is part of the home team's chessboard squares (TEAM_SLOTS home
+  0, 3, 4, 7; away 1, 2, 5, 6). Each race the player draws one of the four
+  home squares at random (GridRace.player_slot) and the teammates take the
+  rest, so the player no longer always starts in row 3. Test: over 40 races
+  the player starts on all four home squares. 287 passing.
+
+Tournament team balance (built, 2026-09-28; supersedes the rivals' offsets above)
+- User: the two teams' overall ratings (the average of their four cars; the
+  player counts as +0) may differ by at most 5.
+- island.team_offsets, once per tournament:
+  1. Roll the teammates first: one -5..0, one +1..+5, one +3..+8.
+  2. Draw the edge: -5..+5 (+ favors the player's team, - the rivals).
+  3. Roll two rivals: one -5..0, one +3..+8.
+  4. The other two rivals split what's left evenly, so the home average minus
+     the away average is exactly the edge. They may land outside the usual
+     ranges; only the team total matters.
+  - Offsets are then shuffled among the names, and each race everyone is
+    shuffled onto their team's chessboard squares.
+- Tests: over 300 tournaments the average gap is exactly the edge, and every
+  edge from -5 to +5 happens; the two balancing rivals differ by at most 1.
+  287 passing.
+
+Text never clips (built, 2026-09-28)
+- User: the tournament race card cut off "TOURNAMENT · RACE n/4" (the "4").
+  The title is now "TOURNAMENT n/4" (the lap and distance are right under
+  it). ui_text._blit_text now shrinks any text too wide for its label, a
+  point at a time, until it fits (never below 10); text that fits keeps its
+  size. That covers every label (HUD, panels, bills, menus). Test:
+  test_display_text.py. 288 passing.
+
+No "(inventory)" in popups; shorter tournament win (built, 2026-09-28)
+- User: the player knows things go to the inventory, and the pool is already
+  shown at the Tournaments desk. The tournament win popup now reads: the
+  score, "+10,000 S", "+50 mastery points". Removed every "in your inventory"
+  / "(I)" line: the store receipt (only an arcade unlock keeps a note), the
+  dock bill and shipping receipt, the stone machine popup, a mastery-paying
+  delivery, the fish trade popup, and the spend menu's default note ("Unspent
+  points are kept; spend them any time."). 288 passing.
+
+Map layout refresh (built, 2026-09-28)
+- User: the legend sat low and landmarks crowded each other. The map is now
+  768 x 640 (12 x 10 px per sector, a little wider than tall), on the right,
+  40 px from the edge and centered vertically. The left column (x 40-420)
+  holds the MAP title at the top, the legend (You plus every kind, 36 px
+  apart) centered vertically, and the guide line and controls at the bottom.
+  world_map.CELL_X / CELL_Y / MAP_MARGIN / COLUMN / LEGEND_GAP. 288 passing.
+
+Tournaments are 3 races (built, 2026-09-28; supersedes 4)
+- island.TOURNEY_RACES = 3: three tracks on three different region surfaces,
+  2 laps each. The team with more points after 3 races wins; a tie goes to
+  the best finisher of race 3. The desk, the standings ("Race n / 3"), and
+  the race title ("TOURNAMENT n/3") all follow the constant. 288 passing.
+
+Tournament racing lines off the edge (built, 2026-09-28)
+- User: opponents drove right along the edge after cutting. Rival lines cut to
+  an apex 84 px inside the centerline (the car's side on the 96 px curb), and
+  between two same-way cuts on a short straight they held that line (8% of
+  every lap hugging the edge).
+- Tournament racers (Rival(clean_line=True), from grid_race.rated_rival):
+  - They cut to RIVAL_APEX = 70 (the side stays 14 px clear of the curb).
+  - Between two same-way cuts they cross the middle of the straight
+    HOLD_OFFSET = 36 px inside: two long shallow straights instead of riding
+    the curb.
+  - Worst offset 70 px, 0% of the line at the edge. Their corner speed is
+    still calibrated to their rating.
+- One-on-one rivals (racing centers, mission drag races) keep their old lines:
+  shallower apexes made a few finely tuned center rivals easier than their
+  ratings (the calibration test). Test: tournament racers never get past 70
+  px. 289 passing.
+
+All rivals non-solid; original racing lines kept (built, 2026-09-28)
+- User: a rival hugging the inside edge drove into the player trying the
+  inside line (struggling against a +7). Every rival is now non-solid to the
+  player: DragRace (mission drag races, racing centers, island center races)
+  like GridRace (tournaments). Walls and tire stacks still stop the car. The
+  rival-bump momentum rule (RIVAL_BUMP_SPEED) is gone with it.
+- The tournament clean-line change above is reverted at the user's request:
+  every rival, tournaments included, drives the original line (apex 84 px, and
+  holding the inside between same-way cuts). The tournament ice handling
+  (TOURNEY_ICE) stays.
+- Test: the player drives through a rival nose to tail, and barriers still
+  stop them. 288 passing.
+
+Rivals a little faster on straights (built, 2026-09-28)
+- User: with non-solid rivals the races got a little too easy. Every rated
+  rival on a circuit (racing centers, island center races, mission circuit
+  drags, tournaments) now runs drag_race.STRAIGHT_BOOST = 1.02 x its top
+  speed. It's added after its corner speed is calibrated, so it's only
+  faster down the straights; corners are unchanged. Quarter-mile straight
+  drags stay exactly at the rival's rating (so their labels stay honest).
+- Measured on the city, desert, rural, and jungle ladders: a clean lap now
+  ties a rival when rated 4-10.6 below it (avg 6.6), against 10-20 before:
+  about 5 rating points harder.
+- Note: the Easy/Medium/Hard labels (RATING_EDGE 10) weren't changed, so a
+  "Medium" circuit rival near +10 is now a little harder than the label
+  suggests.
+- Tests: a clean lap 2 below always wins and 12 below never does (was 10 /
+  20), a rival's circuit top speed x STRAIGHT_BOOST, and quarter miles
+  unboosted. 288 passing.
+
+Island leagues lowered (built, 2026-09-28; supersedes the league ranges above)
+- User: lower the grind. League ranges (and the rating to join): 1: 360-400
+  (after race 1), 2: 410-480 (410), 3: 490-590 (490), 4: 600+ (600). Fees
+  and payouts unchanged. The desk labels follow the table. 288 passing.
+
+Tournament mastery lowered; regions MAX at level 51 (built, 2026-09-28)
+- Tournament win mastery by league: 50 / 100 / 150 / 200
+  (island.TOURNEY_MASTERY; tokens unchanged at 10k / 20k / 40k / 80k).
+- progression.MAX_LEVEL = 51 (rating 600, exactly league 4's floor).
+  - A region that reaches it is MAX: Progress.add keeps nothing more there
+    (a level-up that lands on 51 zeroes the leftover), and saves above 51
+    load as 51.
+  - Missions.spend refuses points for a MAX region (they stay unspent; the
+    spend menu says "<Region> is MAX").
+  - The Mastery page and spend menu show "MAX" with a full bar; a mission
+    result shows "<Region> level 51 · MAX".
+- Tests: the cap, nothing added past it, old saves clamped, points kept,
+  MAX rows, and the new payouts. 289 passing.
+
+League 4 badges (built, 2026-09-28; supersedes league 4's 200 mastery above)
+- User: in league 4 the player is maxed, so a tournament win pays tokens
+  (80,000 S) but no mastery; it counts toward badges instead.
+- Badges (island.BADGES) by top-league tournament wins: bronze 10, silver 25,
+  gold 50, green 75, blue 100, purple 150. island.elite_wins counts league-4
+  wins (saved in missions "island" as "elite_wins"); IslandState.badges and
+  next_badge() derive the rest. TOURNEY_MASTERY[4] = 0.
+- Win popup in league 4: the score, "+80,000 S", then "<Badge> badge earned!"
+  or "<Next> badge at N wins (n so far)". The Tournaments desk says "a win
+  pays you 80,000 S and counts toward badges".
+- Bedroom badge wall (home.BADGE_WALL): earned badges hang on the east wall
+  between the bed and the wardrobe, bronze at the top. "E Badge wall" lists
+  the earned badges, the win count, and the next badge. New home-atlas art
+  (now 4 x 5): badge_bronze ... badge_purple, medals on ribbons.
+- Tests: thresholds, next badge, saving, and the wall drawing only earned
+  badges. 291 passing; bootstrap refreshed.
+
+Badge board (built, 2026-09-28; supersedes the badge wall above)
+- User: more elegant. The bedroom's east wall has one plain white board
+  (home-atlas "badge_board", home.BADGE_BOARD) instead of hanging medals.
+  "E Badge board" opens badge_ui.BadgeBoard: a white board on a dimmed screen
+  with the six badges as an inverted pyramid, 3 / 2 / 1 (bronze, silver,
+  gold; green, blue; purple at the tip). Earned badges show in color, the rest
+  as grey slots ("badge_empty"). No text at all. E, Enter, Esc, or a click
+  closes it; the game pauses while it's open. home-atlas is now 4 x 6.
+- The tournament win popup and the Tournaments desk wording are unchanged.
+- Tests: the wall has only the board, the 3-2-1 layout, and a real-key flow
+  (2 earned + 4 grey, no popup, E closes). 293 passing.
+

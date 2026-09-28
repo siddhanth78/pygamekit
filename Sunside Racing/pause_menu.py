@@ -168,7 +168,8 @@ class PauseMenu:
                     cell.set(text)
                 continue
             done = row["completed"]
-            texts = (row["region"].title(), str(row["level"]), f"{row['mastery']} / {row['need']}",
+            texts = (row["region"].title(), str(row["level"]),
+                     "MAX" if row.get("max") else f"{row['mastery']} / {row['need']}",
                      f"{row['races']} / 10", str(row["rating"]),
                      "",   # COMPLETED shows as three sub-columns (done_cells).
                      row["mission"] or "—", TRAVEL_TEXT[row["travel"]],
@@ -385,7 +386,7 @@ class PauseMenu:
                 continue
             # Progress bar toward the next level.
             bar_x = left + MASTERY_COLUMNS[PROGRESS_COL][1]
-            fraction = min(1.0, row["mastery"] / row["need"])
+            fraction = 1.0 if row.get("max") else min(1.0, row["mastery"] / row["need"])
             half = BAR_WIDTH // 2
             rects.append(_rect(bar_x + half, y + 13, BAR_WIDTH, 8, (20, 30, 36, 255)))
             if fraction:

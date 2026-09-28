@@ -8,11 +8,12 @@ drives at the best region's speed.
 The island racing center is a level: the races desk (five races, rivals rated 360 to 550),
 the clubs desk (join a club: one-time entry fee per league, never back down), and the
 tournaments desk (tourney passes; each pass starts a tournament). Clubs are encampments
-around the island; the two clubs of a league race each other in tournaments of four
-races on four tracks from around Sunside (two laps each): you and three teammates against
+around the island; the two clubs of a league race each other in tournaments of three
+races on tracks from around Sunside (two laps each): you and three teammates against
 the other club's four. Places score 10-8-6-5-4-3-2-1; the team with more points wins (a
 tie goes to the team whose best finisher placed higher in the last race). A win pays the
-player a quarter of the league's pool plus mastery.
+player a quarter of the league's pool plus mastery; in the top league (league 4) the
+player is maxed out, so wins count toward badges instead of mastery.
 """
 
 from __future__ import annotations
@@ -39,8 +40,8 @@ ISLAND_RIVALS = (
 )
 
 # League -> (lowest rating, highest rating or None, entry fee, rating needed to join).
-LEAGUES = {1: (350, 490, 20_000, 0), 2: (500, 600, 40_000, 500),
-           3: (610, 800, 80_000, 610), 4: (810, None, 150_000, 810)}
+LEAGUES = {1: (360, 400, 20_000, 0), 2: (410, 480, 40_000, 410),
+           3: (490, 590, 80_000, 490), 4: (600, None, 150_000, 600)}
 # (id, name, league, flag color, racer sprite, roster)
 CLUBS = (
     ("palm", "Palm Runners", 1, "#e05a4a", "racer_orange", ("Kai Moana", "Tess Reyes", "Duke Palmer", "Ivy Hale")),
@@ -54,14 +55,46 @@ CLUBS = (
 )
 CLUB = {c[0]: c for c in CLUBS}
 TOURNEY_PASS_PRICE = 2_000
-TOURNEY_RACES = 4
+TOURNEY_MASTERY = {1: 50, 2: 100, 3: 150, 4: 0}      # A win's mastery by league (league 4: maxed,
+                                                    # badges instead).
+# Top-league (league 4) tournament wins earn badges, shown on the bedroom wall at home.
+BADGES = (("bronze", 10), ("silver", 25), ("gold", 50), ("green", 75), ("blue", 100), ("purple", 150))
+
+
+def badges_for(elite_wins: int) -> list[str]:
+    return [name for name, wins in BADGES if elite_wins >= wins]
+
+
+def next_badge(elite_wins: int):
+    """(badge, wins it needs) still to come, or None when all six are earned."""
+    return next(((name, wins) for name, wins in BADGES if elite_wins < wins), None)
+
+
+TOURNEY_RACES = 3
 TOURNEY_LAPS = 2
 POINTS = (10, 8, 6, 5, 4, 3, 2, 1)
 # AI ratings: the player's rating in each track's region plus an offset rolled once when
-# the tournament starts (kept for all four tracks). Teammates: one -5..0, two +1..+8.
-# Rivals: one -5..0, two +1..+5, one +2..+8.
-HOME_OFFSETS = ((-5, 0), (1, 8), (1, 8))
-AWAY_OFFSETS = ((-5, 0), (1, 5), (1, 5), (2, 8))
+# the tournament starts (kept for all its tracks). Teammates: one -5..0, one +1..+5, one
+# +3..+8. Rivals: see team_offsets (the teams' averages differ by a -5..+5 edge).
+HOME_OFFSETS = ((-5, 0), (1, 5), (3, 8))
+AWAY_ROLLED = ((-5, 0), (3, 8))      # Two rivals are rolled; the other two balance the teams.
+# The teams' overall ratings (the average of their four cars, the player counting as 0)
+# differ by an edge drawn from -5..+5: + favors the player's team, - the rivals.
+TEAM_EDGE = (-5, 5)
+
+
+def team_offsets(rng: random.Random):
+    """(teammates' offsets, rivals' offsets, edge). The teammates are rolled first. Two
+    rivals are rolled (one -5..0, one +3..+8); the other two share what's left evenly,
+    so the home average minus the away average is exactly the edge (they may land
+    outside the usual ranges)."""
+    home = [rng.randint(*r) for r in HOME_OFFSETS]
+    edge = rng.randint(*TEAM_EDGE)
+    away = [rng.randint(*r) for r in AWAY_ROLLED]
+    rest = (sum(home) + 0) - 4 * edge - sum(away)   # The player (+0) is on the home team.
+    low = rest // 2
+    away += [low, rest - low]
+    return home, away, edge
 
 
 def league_name(league: int) -> str:
@@ -72,7 +105,7 @@ def league_name(league: int) -> str:
 def payout(league: int):
     """(the player's tokens, mastery, the pool) for winning a tournament in `league`."""
     share = 10_000 * 2 ** (league - 1)
-    return share, 50 * 2 ** (league - 1), 4 * share
+    return share, TOURNEY_MASTERY[league], 4 * share
 
 
 def rivals_of(club_id: str) -> str:
@@ -93,10 +126,16 @@ class IslandState:
         self.club = data.get("club") if data.get("club") in CLUB else None
         self.played = data.get("played") if type(data.get("played")) is int and data["played"] >= 0 else 0
         self.won = data.get("won") if type(data.get("won")) is int and data["won"] >= 0 else 0
+        elite = data.get("elite_wins")
+        self.elite_wins = elite if type(elite) is int and elite >= 0 else 0   # League 4 wins.
 
     def to_dict(self) -> dict:
         return {"crossed": self.crossed, "races": self.races, "club": self.club,
-                "played": self.played, "won": self.won}
+                "played": self.played, "won": self.won, "elite_wins": self.elite_wins}
+
+    @property
+    def badges(self) -> list[str]:
+        return badges_for(self.elite_wins)
 
     @property
     def league(self) -> int:
@@ -147,8 +186,7 @@ class Tournament:
         self.last_order = []
         # Each AI racer's rating offset, fixed for the whole tournament (shuffled so the
         # strong and weak racers aren't always the same names).
-        home_offsets = [rng.randint(*r) for r in HOME_OFFSETS]
-        away_offsets = [rng.randint(*r) for r in AWAY_OFFSETS]
+        home_offsets, away_offsets, self.edge = team_offsets(rng)
         rng.shuffle(home_offsets)
         rng.shuffle(away_offsets)
         self.offsets = {"home": home_offsets, "away": away_offsets}

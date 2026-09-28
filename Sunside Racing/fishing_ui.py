@@ -145,7 +145,7 @@ class SpendMenu(_Overlay):
 
     def show(self, missions, note: str = ""):
         self.open, self.selected = True, 0
-        self.note.set(note or "Unspent points stay in your inventory (I); spend them any time.")
+        self.note.set(note or "Unspent points are kept; spend them any time.")
         self.status.set("")
         self.refresh(missions)
 
@@ -154,12 +154,13 @@ class SpendMenu(_Overlay):
         self.unspent = missions.unspent
         self.rows = [{"region": region, "level": progress.levels[region],
                       "mastery": progress.mastery[region],
-                      "need": mastery_to_next(progress.levels[region])} for region in REGIONS]
+                      "need": mastery_to_next(progress.levels[region]),
+                      "max": progress.is_max(region)} for region in REGIONS]
         self.points.set(f"{self.unspent} point{'s' if self.unspent != 1 else ''} to spend")
         for i, row in enumerate(self.rows):
             self.names[i].set(row["region"].title())
             self.levels[i].set(f"Lvl {row['level']}")
-            self.progress[i].set(f"{row['mastery']} / {row['need']}")
+            self.progress[i].set("MAX" if row["max"] else f"{row['mastery']} / {row['need']}")
         if status is not None:
             self.status.set(status)
 
@@ -254,7 +255,7 @@ class SpendMenu(_Overlay):
             labels += [(self.names[r], self.names[r].record(left, y, CREAM)),
                        (self.levels[r], self.levels[r].record(left + 150, y, ACCENT))]
             bar_left = left + 260
-            fraction = min(1.0, row["mastery"] / row["need"])
+            fraction = 1.0 if row["max"] else min(1.0, row["mastery"] / row["need"])
             rects.append(_rect(bar_left + SPEND_BAR / 2, y - 6, SPEND_BAR, 8, (20, 30, 36, 255)))
             if fraction:
                 rects.append(_rect(bar_left + SPEND_BAR * fraction / 2, y - 6, SPEND_BAR * fraction, 8,

@@ -32,7 +32,7 @@ from pedestrians import Pedestrians
 from progression import CENTER_RACES, FISHING_LEVEL, HARDER_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
 from grid_race import GridRace
-from island import (CLUB, CLUBS, ISLAND_LAPS, ISLAND_RACES, ISLAND_RATINGS, ISLAND_RIVALS, LEAGUES, TOURNEY_PASS_PRICE,
+from island import (CLUB, CLUBS, next_badge, ISLAND_LAPS, ISLAND_RACES, ISLAND_RATINGS, ISLAND_RIVALS, LEAGUES, TOURNEY_PASS_PRICE,
                     TOURNEY_RACES, IslandCenterInterior, Tournament, ferry_spots, league_name, payout, rivals_of)
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
@@ -50,6 +50,7 @@ from inventory import STACK_MAX
 from inventory_ui import InventoryMenu
 from orders_ui import OrdersMenu
 from market_ui import MarketBoard
+from badge_ui import BadgeBoard
 from world import HOME_DOOR, HOME_HOUSE, HOME_PARK
 from player_save import PlayerSave
 from traffic import Traffic
@@ -178,7 +179,7 @@ class Game:
         self.island_level = IslandCenterInterior(world.seed)
         self.island_collisions = CollisionManager(None, self.island_level)
         self.in_island_center = False
-        self.tournament = None       # The tournament under way (4 races), if any.
+        self.tournament = None       # The tournament under way (TOURNEY_RACES races), if any.
         self.tour_entrants = None    # The current tournament race's AI racers.
         self.pending_tour = False    # Closing the standings starts the next race.
         self.pending_spawn = False   # City home or club camp?
@@ -186,6 +187,7 @@ class Game:
         self.pending_club = None     # Clubs the clubs desk offered.
         self.pending_tourney = False  # Buy a pass or start?
         self.market_board = MarketBoard(ctx, TOOLKIT_ROOT, viewport, self.state)
+        self.badge_board = BadgeBoard(ctx, TOOLKIT_ROOT, viewport, self.state)
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
         self.orders_menu = OrdersMenu(ctx, TOOLKIT_ROOT, viewport)                # O
@@ -344,6 +346,9 @@ class Game:
         if self.market_board.open:
             self.market_board.handle(action, value)
             return True
+        if self.badge_board.open:
+            self.badge_board.handle(action, value)
+            return True
         if self.orders_menu.open:
             outcome = self.orders_menu.handle(action, value)
             if isinstance(outcome, tuple):
@@ -388,6 +393,7 @@ class Game:
                 levels = self.missions.spend(region, amount)
                 spent = before - self.missions.unspent
                 self.spend_menu.refresh(self.missions, level_up_line(region, levels) if levels
+                                        else f"{region.title()} is MAX" if self.missions.progress.is_max(region)
                                         else f"+{spent} {region.title()} mastery")
                 self.autosave.request()
             return True
@@ -666,6 +672,8 @@ class Game:
         elif spot.kind == "arcade":
             extra = (("pit_stop",) if self.missions.fair.f1 else ()) + tuple(self.missions.arcade_unlocked)
             self.arcade.show(self.missions.arcade, extra)
+        elif spot.kind == "badges":
+            self.badge_board.show(self.missions.island.badges)
         else:
             self.panel.show_message(spot.label, spot.key)
 
@@ -769,8 +777,7 @@ class Game:
             self.panel.show_message("Checkout", why)
         else:
             self.autosave.request()
-            note = (f"New on your arcade at home: {', '.join(unlocks)}." if unlocks
-                    else "It's all in your inventory (I).")
+            note = f"New on your arcade at home: {', '.join(unlocks)}." if unlocks else ""
             self.panel.show_bill("Receipt", bill, f"{total:,} S  PAID", note,
                                  ("OK",), chip="Success")
 
@@ -980,7 +987,8 @@ class Game:
         self.pending_tourney = True
         self.panel.show_choice("Tournaments", "", (
             f"{CLUB[isl.club][1]} vs {CLUB[rivals_of(isl.club)][1]}  ·  {league_name(isl.league)}",
-            f"Pool {pool:,} S  ·  a win pays you {share:,} S + {mastery} mastery",
+            (f"Pool {pool:,} S  ·  a win pays you {share:,} S + {mastery} mastery" if isl.league < 4
+             else f"Pool {pool:,} S  ·  a win pays you {share:,} S and counts toward badges"),
             f"{TOURNEY_RACES} races, 2 laps each  ·  pass {TOURNEY_PASS_PRICE:,} S"), ["BUY PASS", "START"])
 
     def _buy_tourney_pass(self):
@@ -1040,9 +1048,23 @@ class Game:
             isl.won += 1
             share, mastery, pool = payout(isl.league)
             self.missions.add_item("sunside_tokens", share)
-            self.missions.add_universal(mastery)
-            self.panel.show_lines("Tournament won!", "Success", (
-                score, f"Your quarter of the {pool:,} S pool: +{share:,} S", f"+{mastery} mastery points (inventory)"))
+            if isl.league == 4:
+                # The top league is maxed out: wins count toward badges instead of mastery.
+                before = isl.badges
+                isl.elite_wins += 1
+                new = [b for b in isl.badges if b not in before]
+                upcoming = next_badge(isl.elite_wins)
+                if new:
+                    badge = f"{new[-1].title()} badge earned!"
+                elif upcoming:
+                    badge = f"{upcoming[0].title()} badge at {upcoming[1]} wins ({isl.elite_wins} so far)"
+                else:
+                    badge = f"Top-league win {isl.elite_wins}"
+                self.panel.show_lines("Tournament won!", "Success", (score, f"+{share:,} S", badge))
+            else:
+                self.missions.add_universal(mastery)
+                self.panel.show_lines("Tournament won!", "Success", (
+                    score, f"+{share:,} S", f"+{mastery} mastery points"))
         else:
             self.panel.show_lines("Tournament over", "Failed", (score, f"The {away} take it this time.",
                                                                 "Try again with another tourney pass."))
@@ -1167,7 +1189,7 @@ class Game:
             return
         self.pending_confirm = "ship_stones"
         self.panel.show_bill("Cargo dock", self._stone_bill(rows), f"{tokens:,} S + {mastery} mastery",
-                             "Mastery points go to your inventory.", ("SHIP", "NOT NOW"))
+                             "", ("SHIP", "NOT NOW"))
 
     def _stone_bill(self, rows):
         """Bill lines at today's market prices."""
@@ -1183,7 +1205,7 @@ class Game:
             return
         self.autosave.request()
         self.panel.show_bill("Shipped", bill, f"{tokens:,} S + {mastery} mastery  PAID",
-                             "The mastery points are in your inventory (I).", ("OK",), chip="Success")
+                             "", ("OK",), chip="Success")
 
     def _interact_factory(self):
         spot = self.factory_level.spot_near(self.walker.x, self.walker.y)
@@ -1240,8 +1262,7 @@ class Game:
             self.autosave.request()
             self.panel.show_lines("Stone machine", "Success", (f"You made {'an' if stone == 'iron' else 'a'} "
                                                                f"{STONE_NAMES[stone]}!",
-                                                               "It's in your inventory (I).",
-                                                               "Ship stones at the cargo dock outside."))
+                                                               "Ship stones at the cargo dock outside.", ""))
         walker.update(dt, *self.inputs.walking(), self.factory_collisions)
         self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
         self.state.set_frame(self.walker_id, walker.frame())
@@ -1604,7 +1625,7 @@ class Game:
         self._refresh_landmarks()                    # A new buyer elsewhere in the region.
         self.autosave.request()
         paid = (f"+{order.value:,} Sunside Tokens" if order.pay == "tokens"
-                else f"+{order.points} mastery points (in your inventory)")
+                else f"+{order.points} mastery points")
         self.panel.show_lines(order.title, "Success", (f"Delivered {order.goods_line()}", paid,
                                                        f"A new {region} buyer is waiting somewhere else."))
 
@@ -1683,8 +1704,7 @@ class Game:
         self.autosave.request()
         # The points go to the inventory; the player spends them from there (or Mastery).
         self.panel.show_lines(title, "", (
-            f"Traded {count} fish for {value} mastery point{'s' if value != 1 else ''}.",
-            "They're in your inventory (I): select them to spend.", ""))
+            f"Traded {count} fish for {value} mastery point{'s' if value != 1 else ''}.", "", ""))
 
     def _fishing_prompt(self, walker):
         """Bottom prompt at a trader or a pier's end, or while the rod is out."""
@@ -1898,7 +1918,7 @@ class Game:
         if self.arcade.open:
             self.arcade.update(dt)
             return
-        if self.inventory.open or self.orders_menu.open or self.market_board.open:
+        if self.inventory.open or self.orders_menu.open or self.market_board.open or self.badge_board.open:
             return   # Paused while the inventory or the orders are open.
         if self.menu.open or self.panel.open or self.spend_menu.open or self.world_map.open:
             return
@@ -2038,6 +2058,8 @@ class Game:
             self.orders_menu.render()
         if self.market_board.open:
             self.market_board.render()
+        if self.badge_board.open:
+            self.badge_board.render()
         if self.menu.open:
             if self.menu.page in ("mastery", "docks"):
                 self._refresh_mastery()
@@ -2170,7 +2192,7 @@ class Game:
         self.hud.top_speed = TOP_SPEED * race.speed_scale * (F1_SPEED if race.car.f1 else 1.0)
         if self.tournament and isinstance(race, GridRace):
             tour = self.tournament
-            title = f"Tournament  ·  race {tour.race + 1}/{TOURNEY_RACES}"
+            title = f"Tournament {tour.race + 1}/{TOURNEY_RACES}"
             guide = f"Lap {race.lap()}/{race.level.laps}  ·  {remaining:.0f} m to go"
             panel = (f"{CLUB[tour.home][1].upper()} {tour.points['home']} - {tour.points['away']}",
                      f"{place} of 8  ·  Lap {race.lap()}/{race.level.laps}  ·  {clock:.1f} s")

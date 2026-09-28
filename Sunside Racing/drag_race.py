@@ -42,8 +42,10 @@ COUNTDOWN = 3.0
 # A skilled human's clean lap vs flawless_time's model (flat out through every corner on
 # the apex line): measured at about 3.6% slower on a size-5 city circuit.
 CLEAN_LAP = 1.04
-RIVAL_BUMP_SPEED = 20.0       # px/s kept when the player bumps the rival with the throttle down.
 OFF_DAY = 10.0                # A rated rival's worst day costs it this many rating points.
+STRAIGHT_BOOST = 1.02         # Rated rivals on circuits: this x top speed, added after their
+                              # corner speed is calibrated, so they're a little faster down the
+                              # straights than their rating (corners unchanged).
 RIVAL_CUT = 0.5               # Rated rivals cut half the corners (seeded) and run wide at the rest.
 CORNER_SPEED = 70.0           # AI corner speed at scale 1; a clean player line carries more.
 AI_TURN_RATE = 300.0
@@ -604,18 +606,8 @@ class DragRace:
             return rival
         target = flawless_time(self.level, multiplier=rating_speed(rated - RATING_EDGE)) * CLEAN_LAP * 1.005
         rival.rate(rating_speed(rated), calibrated_corner(rival, target))
+        rival.top *= STRAIGHT_BOOST
         return rival
-
-    def _blocked_only_by_rival(self) -> bool:
-        """Whether the car's next step forward is clear once the rival is ignored."""
-        car = self.car
-        heading = math.radians(car.heading)
-        step_x, step_y = car.x + math.sin(heading) * 12, car.y - math.cos(heading) * 12
-        record = car.collision_record(step_x, step_y)
-        self.collisions.fixed = []
-        clear_without = self.collisions.can_move(record)
-        self.collisions.fixed = [self.rival.sprite()]
-        return clear_without and not self.collisions.can_move(record)
 
     @property
     def countdown(self):
@@ -628,14 +620,11 @@ class DragRace:
         self.clock += dt
         if self.clock < 0:
             return
-        # The rival is solid to the player; it holds its line regardless.
-        self.collisions.fixed = [self.rival.sprite()]
-        before = self.car.speed
+        # The rival isn't solid: it holds its line regardless of the player, so a solid
+        # rival could drive into the player on the inside of a corner. Walls still stop the car.
+        self.collisions.fixed = []
         self.car.update(dt, throttle, steer, self.level, self.collisions,
                         self.speed_scale)
-        if throttle > 0 and before > 0 and self.car.speed == 0 and self._blocked_only_by_rival():
-            # Bumping the rival with the throttle down keeps a little momentum (walls don't).
-            self.car.speed = min(before, RIVAL_BUMP_SPEED)
         self.rival.update(dt, self.clock)
         self.player_progress = self.level.progress_of(self.car.x, self.car.y, self.player_progress)
         length = self.level.race_length

@@ -14,7 +14,7 @@ if str(TOOLKIT_ROOT) not in sys.path:
 
 from car import ACCELERATION, TOP_SPEED, Car
 from collision_manager import CollisionManager
-from drag_race import CLEAN_LAP, RIVAL_BUMP_SPEED, DragRace, TrackLevel, flawless_time, off_day
+from drag_race import CLEAN_LAP, DragRace, TrackLevel, flawless_time, off_day
 from missions import DELIVERY_PENALTY, Missions, Offer, difficulty
 from player_save import PlayerSave
 from progression import Progress, mastery_to_next, mastery_to_reach, rating_difficulty, rating_speed, reward
@@ -464,8 +464,11 @@ class DragRaceTests(unittest.TestCase):
         circuit = {"kind": "circuit", "theme": "city", "seed": 370177870, "size": 5}
         race = DragRace(circuit, None, rating_speed(120), 3, rival_rating=114, rival_off_day=0.0)
         top, accel = race.rival.top, race.rival.accel
-        self.assertAlmostEqual(top, 170 * rating_speed(114))
-        self.assertLess(top, 170 * rating_speed(120))
+        from drag_race import STRAIGHT_BOOST
+        self.assertAlmostEqual(top, 170 * rating_speed(114) * STRAIGHT_BOOST)   # A little quicker on straights,
+        self.assertLess(top, 170 * rating_speed(120))                           # still slower than a 120.
+        straight = DragRace({"kind": "straight", "theme": "city"}, None, 1.0, 3, rival_rating=114, rival_off_day=0.0)
+        self.assertAlmostEqual(straight.rival.top, 170 * rating_speed(114))     # Quarter miles: exactly its rating.
         self.assertEqual(accel, ACCELERATION)          # The player's acceleration: no boost.
         days = {round(DragRace({"kind": "straight", "theme": "city"}, None, 1.0, 3, rival_rating=120).off_day, 3)
                 for _ in range(30)}
@@ -473,18 +476,18 @@ class DragRaceTests(unittest.TestCase):
         self.assertTrue(all(0 <= day <= 10 for day in days))
         self.assertEqual([round(off_day(u), 2) for u in (0, 0.5, 1)], [0, 1.25, 10])
 
-    def test_bumping_the_rival_under_throttle_keeps_some_momentum_walls_do_not(self):
+    def test_the_rival_is_not_solid_but_walls_are(self):
         straight = {"kind": "straight", "theme": "city"}
         race = DragRace(straight, None, 1.0, 3, rival_rating=100, rival_off_day=0.0)
         race.clock, race.rival.reaction = 0.0, 1e9         # Racing; the rival sits still.
         car = race.car
         race.rival.x, race.rival.y, race.rival.heading = car.x + 45, car.y, car.heading  # Nose to tail.
         car.speed = 150.0
+        x0 = car.x
         race.update(1 / 60, 1, 0)
-        self.assertEqual(car.speed, RIVAL_BUMP_SPEED)
-        car.speed = 150.0
-        race.update(1 / 60, 0, 0)                   # Off the throttle: a dead stop.
-        self.assertEqual(car.speed, 0.0)
+        self.assertGreater(car.x, x0)                      # Straight through the rival.
+        self.assertGreater(car.speed, 100)
+        self.assertEqual(race.collisions.fixed, [])
         race = DragRace(straight, None, 1.0, 3, rival_rating=100, rival_off_day=0.0)
         race.clock, race.rival.reaction = 0.0, 1e9
         car = race.car

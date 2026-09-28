@@ -629,13 +629,38 @@ def props() -> Atlas:
 
 
 HOME_FURNITURE = ("couch", "tv", "arcade", "bed", "lamp_off", "lamp_on", "dining_table",
-                  "chair", "coffee_table", "bookshelf", "rug", "plant", "wardrobe", "nightstand")
+                  "chair", "coffee_table", "bookshelf", "rug", "plant", "wardrobe", "nightstand",
+                  *(f"badge_{c}" for c in ("bronze", "silver", "gold", "green", "blue", "purple")),
+                  "badge_empty", "badge_board")
+BADGE_COLORS = {"bronze": ("#cd7f32", "#8a5222"), "silver": ("#d8dee4", "#8a9aa4"),
+                "gold": ("#f2ca57", "#b8862a"), "green": ("#5fd08a", "#2f8a52"),
+                "blue": ("#5a9aea", "#2f5aa8"), "purple": ("#b07ae8", "#6a3aa8")}
 WOOD, WOOD_DARK, SHADE = "#8a6440", "#5a3d28", "#3a2a22"
 
 
 def furniture(p: Painter, name: str):
     """House furniture seen from above in 64 px cells (drawn at 2x, like floor tiles).
     Each piece's front faces north; the engine turns it into place."""
+    if name == "badge_board":                             # The white badge board on the wall.
+        p.rect(10, 10, 56, 56, SHADE)
+        p.rect(8, 8, 54, 54, "#c9ced2")
+        p.rect(10, 10, 52, 52, "#f7f7f2")
+        return
+    if name == "badge_empty":                             # A badge not yet earned: a grey slot.
+        p.ellipse(32, 36, 20, 20, "#5d666b")
+        p.ellipse(32, 36, 15, 15, "#7d868b")
+        return
+    if name.startswith("badge_"):
+        face, rim = BADGE_COLORS[name.removeprefix("badge_")]
+        p.rect(26, 6, 38, 20, "#3f7fd0")                  # A ribbon
+        p.rect(30, 6, 34, 20, "#d9453f")
+        p.ellipse(33, 38, 20, 20, "#1d2a30")              # and a medal:
+        p.ellipse(32, 36, 20, 20, rim)
+        p.ellipse(32, 36, 15, 15, face)
+        for x, y in ((32, 26), (26, 36), (38, 36), (29, 44), (35, 44)):
+            p.rect(x - 1, y - 1, x + 2, y + 2, rim)        # a star,
+        p.rect(27, 30, 30, 32, "#fff4d6")                  # shine.
+        return
     if name == "couch":
         p.rect(4, 22, 62, 50, SHADE)                      # Shadow,
         p.rect(2, 18, 62, 46, "#3f6f9a")                  # frame,
@@ -722,7 +747,7 @@ def furniture(p: Painter, name: str):
 
 
 def home() -> Atlas:
-    a = Atlas("home-atlas", 64, 4, 4)
+    a = Atlas("home-atlas", 64, 4, 6)
     for i, name in enumerate(HOME_FURNITURE):
         furniture(a.tile(name, i % 4, i // 4), name)
     return a

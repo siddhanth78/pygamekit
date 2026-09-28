@@ -20,7 +20,13 @@ from ui_text import DynamicLabel
 from world import CENTERS, SECTOR_SIZE, SECTORS, WORLD_SIZE
 
 
-CELL = 9                       # Screen px per sector: 64 sectors -> a 576 px map.
+# Screen px per sector: 64 sectors -> a 768 x 640 map, stretched a little wider than
+# tall so landmarks spread out. It sits on the right; the left column holds the title,
+# the legend (centered), and the guide line and controls.
+CELL_X, CELL_Y = 12, 10
+MAP_MARGIN = 40                # px from the window's right edge (and centered vertically).
+COLUMN = (40, 420)             # The left column's x range.
+LEGEND_GAP = 36
 DIAMOND = 16                   # Diamond size, px.
 PLAYER_DOT = (60, 150, 255)    # You: a bright blue dot with a dark rim.
 DOT_RADIUS, DOT_RIM = 6, 3
@@ -126,7 +132,7 @@ class WorldMap:
         self.text_program["u_atlas_grid"].value = (1.0, 1.0)
         # The regions never change: pack them once.
         left, top = self.origin()
-        tiles = [_rect(left + (sx + 0.5) * CELL, top + (sy + 0.5) * CELL, CELL, CELL,
+        tiles = [_rect(left + (sx + 0.5) * CELL_X, top + (sy + 0.5) * CELL_Y, CELL_X, CELL_Y,
                        (*REGION_COLORS.get(world.region(sx, sy), (0, 0, 0)), 255))
                  for sy in range(SECTORS) for sx in range(SECTORS)]
         # The highway, its ramps, and exits, dotted along their paths.
@@ -134,7 +140,7 @@ class WorldMap:
         for road in getattr(world, "highway_roads", ()):
             dot = 6 if road.kind == "hwy" else 4
             for x, y in road.points[::2]:
-                tiles.append(_rect(left + x / SECTOR_SIZE * CELL, top + y / SECTOR_SIZE * CELL,
+                tiles.append(_rect(left + x / SECTOR_SIZE * CELL_X, top + y / SECTOR_SIZE * CELL_Y,
                                    dot, dot, (*road_colors[road.kind], 255)))
         self.tile_count = len(tiles)
         tile_instances = get_new_instances(len(tiles), 0, 0)[0]
@@ -150,8 +156,8 @@ class WorldMap:
         self.rect_vao, self.rect_vbo = build_rect_objs(ctx, self.rect_program, self.rect_instances)
         self.title = DynamicLabel(ctx, (200, 44), 40, bold=True, align="center")
         self.title.set("MAP")
-        self.info = DynamicLabel(ctx, (700, 28), 24, bold=True, align="center")
-        self.hint = DynamicLabel(ctx, (700, 24), 18, align="center")
+        self.info = DynamicLabel(ctx, (COLUMN[1] - COLUMN[0], 28), 24, bold=True, align="center")
+        self.hint = DynamicLabel(ctx, (COLUMN[1] - COLUMN[0], 24), 17, align="center")
         self.hint.set("Click a diamond to set the guide  ·  C clear  ·  M close")
         self.legend = [DynamicLabel(ctx, (220, 26), 20, bold=True) for _ in range(len(KINDS) + 1)]
         for label, text in zip(self.legend, ["You"] + [text for _, text in KINDS.values()]):
@@ -172,11 +178,11 @@ class WorldMap:
 
     def origin(self):
         width, height = self.viewport
-        return width // 2 - SECTORS * CELL // 2, height // 2 - SECTORS * CELL // 2
+        return width - MAP_MARGIN - SECTORS * CELL_X, height // 2 - SECTORS * CELL_Y // 2
 
     def to_screen(self, x, y):
         left, top = self.origin()
-        return left + x / SECTOR_SIZE * CELL, top + y / SECTOR_SIZE * CELL
+        return left + x / SECTOR_SIZE * CELL_X, top + y / SECTOR_SIZE * CELL_Y
 
     def _diamonds(self):
         return [_rect(*self.to_screen(m.x, m.y), DIAMOND, DIAMOND, (0, 0, 0, 0), 45.0) for m in self.marks]
@@ -218,10 +224,10 @@ class WorldMap:
     def render(self, player_x, player_y, selected: Landmark | None):
         width, height = self.viewport
         left, top = self.origin()
-        span = SECTORS * CELL
+        span_x, span_y = SECTORS * CELL_X, SECTORS * CELL_Y
         frame = [
             _rect(width // 2, height // 2, width, height, (8, 16, 22, 190)),       # Dim the game.
-            _rect(width // 2, height // 2, span + 16, span + 16, (*ACCENT, 255)),   # Frame.
+            _rect(left + span_x / 2, top + span_y / 2, span_x + 16, span_y + 16, (*ACCENT, 255)),   # Frame.
         ]
         to_gl(frame, self.frame_instances, "rect")
         self.frame_vbo.write(self.frame_instances.tobytes(), offset=0)
@@ -234,10 +240,15 @@ class WorldMap:
             outline = DIAMOND + (8 if chosen else 4)
             rects.append(_rect(x, y, outline, outline, (255, 255, 255, 255) if chosen else (*INK, 255), 45.0))
             rects.append(_rect(x, y, DIAMOND, DIAMOND, (*KINDS[mark.kind][0], 255), 45.0))
-        legend_x, legend_y = left - 250, height // 2 - 70
+        # The legend ("You" and every kind) is centered in the left column, top to bottom.
+        entries = len(KINDS) + 1
+        column_mid = (COLUMN[0] + COLUMN[1]) // 2
+        legend_x = column_mid - 100
+        legend_y = height // 2 - (entries - 1) * LEGEND_GAP / 2
         for i, (color, _) in enumerate(KINDS.values(), 1):
-            rects.append(_rect(legend_x, legend_y + i * 40, DIAMOND + 4, DIAMOND + 4, (*INK, 255), 45.0))
-            rects.append(_rect(legend_x, legend_y + i * 40, DIAMOND, DIAMOND, (*color, 255), 45.0))
+            y = legend_y + i * LEGEND_GAP
+            rects.append(_rect(legend_x, y, DIAMOND + 4, DIAMOND + 4, (*INK, 255), 45.0))
+            rects.append(_rect(legend_x, y, DIAMOND, DIAMOND, (*color, 255), 45.0))
         self._draw_rects(rects)
         px, py = self.to_screen(max(0, min(WORLD_SIZE, player_x)), max(0, min(WORLD_SIZE, player_y)))
         self._dot(0, px, py)                   # On top of the diamonds.
@@ -245,12 +256,11 @@ class WorldMap:
         focus = self.hovered or selected
         self.info.set(f"{'Guide: ' if focus == selected and focus else ''}{focus.name}" if focus
                       else "No guide selected")
-        labels = [(self.title, self.title.record(width // 2, top - 22, ACCENT)),
-                  (self.info, self.info.record(width // 2, top + span + 26,
-                                               CREAM if focus else MUTED)),
-                  (self.hint, self.hint.record(width // 2, top + span + 52, MUTED))]
+        labels = [(self.title, self.title.record(column_mid, top + 20, ACCENT)),
+                  (self.info, self.info.record(column_mid, top + span_y - 36, CREAM if focus else MUTED)),
+                  (self.hint, self.hint.record(column_mid, top + span_y - 8, MUTED))]
         for i, label in enumerate(self.legend):
-            labels.append((label, label.record(legend_x + 22, legend_y + i * 40 + 1, CREAM)))
+            labels.append((label, label.record(legend_x + 22, legend_y + i * LEGEND_GAP + 1, CREAM)))
         for label, record in labels:
             instances, vao, vbo = self.quads[id(label)]
             to_gl([record], instances, "tex")

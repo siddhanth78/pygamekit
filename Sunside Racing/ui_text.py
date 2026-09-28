@@ -18,8 +18,16 @@ def font(size: int, bold: bool = False) -> pygame.font.Font:
     return _fonts[key]
 
 
+MIN_FIT_SIZE = 10
+
+
 def _blit_text(surface, text, size, bold, align, cell_rect):
+    """Draw text in its cell; text too wide for the cell shrinks until it fits (never
+    clipped). Text that already fits keeps its size."""
     image = font(size, bold).render(text, True, (255, 255, 255))
+    while image.get_width() > cell_rect.width - 8 and size > MIN_FIT_SIZE:
+        size -= 1
+        image = font(size, bold).render(text, True, (255, 255, 255))
     if align == "left":
         rect = image.get_rect(midleft=(cell_rect.left + 4, cell_rect.centery))
     elif align == "right":

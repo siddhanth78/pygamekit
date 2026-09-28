@@ -504,7 +504,7 @@ class Missions:
         self.active = None
         return {"success": success, "title": giver.name, "detail": detail, "mastery": earned,
                 "region": giver.region, "levels": levels, "giver": giver,
-                "level": self.progress.levels[giver.region],
+                "level": self.progress.levels[giver.region], "max": self.progress.is_max(giver.region),
                 "progress": (self.progress.mastery[giver.region],
                              mastery_to_next(self.progress.levels[giver.region]))}
 
@@ -564,6 +564,7 @@ class Missions:
             rows.append({
                 "region": region, "level": level,
                 "mastery": self.progress.mastery[region], "need": mastery_to_next(level),
+                "max": self.progress.is_max(region),
                 "speed": round((self.progress.speed_scale(region) - 1) * 100),
                 "rating": self.progress.rating(region),
                 "veterans": self.progress.harder_unlocked(region),
@@ -637,7 +638,7 @@ class Missions:
     def spend(self, region: str, amount: int = 1) -> list[int]:
         """Put up to amount unspent points into a region; returns the levels reached."""
         amount = min(amount, self.unspent)
-        if amount <= 0 or region not in REGIONS:
-            return []
+        if amount <= 0 or region not in REGIONS or self.progress.is_max(region):
+            return []                                  # A MAX region takes no more points.
         self.unspent -= amount
         return self.progress.add(region, amount)

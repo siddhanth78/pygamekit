@@ -371,6 +371,20 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_e)
         self.assertEqual(g.panel.lines[0].text, "The TV is off.")
 
+    def test_badge_board_shows_earned_badges_and_grey_slots(self):
+        g = self.enter_home()
+        g.missions.island.elite_wins = 26                           # Bronze and silver.
+        board = self.spot(g, "badges")
+        self.walk_to(board.x, board.y)
+        self.assertEqual(g._home_prompt(), "E   Badge board")
+        self.press(pygame.K_e)
+        self.assertTrue(g.badge_board.open)
+        self.assertFalse(g.panel.open)                              # No text popup.
+        self.assertEqual([s.name for s in g.badge_board.icons()],
+                         ["badge_bronze", "badge_silver"] + ["badge_empty"] * 4)
+        self.press(pygame.K_e)
+        self.assertFalse(g.badge_board.open)
+
     def test_arcade_plays_lane_dodge_and_keeps_the_best_score(self):
         g = self.enter_home()
         cab = self.spot(g, "arcade")
@@ -764,7 +778,7 @@ class GameFlowTests(unittest.TestCase):
         # The points go to the inventory; the trader says so, and no spend menu opens.
         self.assertFalse(g.spend_menu.open)
         self.assertEqual(g.panel.lines[0].text, "Traded 2 fish for 10 mastery points.")
-        self.assertIn("inventory (I)", g.panel.lines[1].text)
+        self.assertEqual(g.panel.lines[1].text, "")                 # No "(inventory)" lines.
         self.assertEqual((g.missions.unspent, g.missions.fish.count), (10, 0))
         self.press(pygame.K_RETURN)
         self.assertFalse(g.panel.open)
@@ -1203,7 +1217,7 @@ class GameFlowTests(unittest.TestCase):
         self.press(pygame.K_RETURN, pygame.K_RETURN)                  # PALM, then JOIN.
         self.assertEqual((g.missions.island.club, g.missions.tokens), ("palm", 10_000))
         self.press(pygame.K_RETURN)
-        # A tournament: buy a pass, start, four races.
+        # A tournament: buy a pass, start, three races.
         g.walker.x, g.walker.y = desk["tourney"].x, desk["tourney"].y
         self.press(pygame.K_e, pygame.K_RETURN)                       # BUY PASS.
         self.assertEqual((g.missions.items["tourney_pass"], g.missions.tokens), (1, 8_000))
@@ -1211,15 +1225,15 @@ class GameFlowTests(unittest.TestCase):
         self.assertIsInstance(g.race, GridRace)
         self.assertEqual(len(g.race.rivals), 7)
         themes = [t.theme for t in g.tournament.tracks]
-        self.assertEqual(len(set(themes)), 4)
+        self.assertEqual(len(set(themes)), 3)
         self.assertAlmostEqual(g.race.speed_scale, progress.speed_scale(themes[0]))   # That region's.
         tokens, points = g.missions.tokens, g.missions.unspent
-        for n in range(4):
+        for n in range(3):
             race = g.race
             race.times[-1] = 1.0                                      # The player wins each race.
             race.finish()
             g._end_race()
-            self.assertEqual(g.tournament.race if g.tournament else 4, n + 1)
+            self.assertEqual(g.tournament.race if g.tournament else 3, n + 1)
             self.press(pygame.K_RETURN)
         self.assertIsNone(g.tournament)
         self.assertEqual(g.missions.tokens, tokens + 10_000)          # A quarter of the 40,000 S pool.

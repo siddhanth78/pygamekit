@@ -12,6 +12,7 @@ FAST_TRAVEL_LEVEL = 3    # Reaching this level lets the player fast travel to th
 CENTER_RACES = 10        # Races at each region's racing center.
 FISHING_LEVEL = 4        # Any region at this level opens beach fishing and fast travel there.
 ISLAND_LEVEL = 25        # With every center complete, one region at this level opens the island.
+MAX_LEVEL = 51           # A region at this level is MAX: no more mastery, no more levels.
 RATING_BASE = 100        # A level-1 (stock) car's rating.
 RATING_PER_LEVEL = 10    # Each level adds this much rating (and SPEED_PER_LEVEL top speed).
 # On circuits a clean, corner-cutting race is worth this much rating: a circuit rival rated
@@ -69,7 +70,8 @@ class Progress:
             if region in REGIONS and isinstance(state, dict):
                 level, mastery = state.get("level"), state.get("mastery")
                 if type(level) is int and level >= 1 and type(mastery) is int and mastery >= 0:
-                    self.levels[region], self.mastery[region] = level, mastery
+                    self.levels[region] = min(level, MAX_LEVEL)
+                    self.mastery[region] = mastery if level < MAX_LEVEL else 0
                 races = state.get("races")  # Absent in saves from before racing centers.
                 if type(races) is int and 0 <= races <= CENTER_RACES:
                     self.races[region] = races
@@ -99,14 +101,23 @@ class Progress:
     def record_completion(self, region: str, kind: str):
         self.completed[region][kind] += 1
 
+    def is_max(self, region: str) -> bool:
+        return self.levels.get(region, 1) >= MAX_LEVEL
+
     def add(self, region: str, amount: int) -> list[int]:
-        """Add mastery; return every new level reached (possibly several)."""
+        """Add mastery; return every new level reached (possibly several). A region stops
+        at MAX_LEVEL: nothing more is kept there."""
         gained = []
+        if self.is_max(region):
+            return gained
         self.mastery[region] += amount
         while self.mastery[region] >= mastery_to_next(self.levels[region]):
             self.mastery[region] -= mastery_to_next(self.levels[region])
             self.levels[region] += 1
             gained.append(self.levels[region])
+            if self.is_max(region):
+                self.mastery[region] = 0
+                break
         return gained
 
     def best_level(self) -> int:
