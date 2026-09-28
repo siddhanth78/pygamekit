@@ -1547,6 +1547,10 @@ Rural Farm (agreed)
 - Buyers ask for crops, milk, and eggs. Prices per item delivered: corn 100 S,
   tomato 120 S, lettuce 140 S, milk 40 S, eggs 25 S, plus a distance bonus
   (buyers farther from the farm pay more).
+- Agreed: each buyer chooses how they pay, Sunside Tokens or mastery. Mastery
+  from deliveries is universal (see "Universal mastery in the inventory").
+  Proposed: a mastery payer gives 1 point per 20 S the order is worth (e.g. a
+  400 S order pays 20 points); the order shows which it pays before you accept.
 - Proposed: planting by standing on a plot tile, E, pick a seed you own, E
   with fertilizer grows it; E on a grown crop harvests it to the inventory.
   1 seed + 1 fertilizer = 1 crop. Crops, milk, and eggs are new inventory
@@ -1556,18 +1560,60 @@ Rural Farm (agreed)
   still 15 max. Awaiting the user's answer.
 - Biofuel from crops: see the factory.
 
-Desert Mining Factory (partly agreed)
+Desert Mining Factory (mostly agreed)
 - On the desert's shoreline, so stones can be shipped. A biofuel depot stands
   next to it (separate from the factory); biofuel from the depot powers the
   factory. Entry needs the Factory Pass (20,000 S, one-time).
 - The factory produces four kinds of stone: copper, iron, silver, gold.
   Shipped stones pay high amounts of Sunside Tokens and mastery.
+- Agreed: the factory is a level you walk into. Shipping uses the factory's
+  own dock on the shore. Shipping mastery is universal (see "Universal mastery
+  in the inventory").
+- Agreed: the player can put in more biofuel to guarantee a better stone.
+  Proposed tiers: 1 biofuel = random stone; 3 = iron or better; 6 = silver or
+  better; 10 = gold.
 - Proposed (not confirmed): any crop at the depot becomes biofuel, 5 crops per
-  biofuel (milk and eggs stay for deliveries). 1 biofuel runs the factory once
-  and instantly makes a random stone: copper 50% (300 S + 3 mastery), iron 30%
-  (600 S + 5), silver 15% (1,200 S + 10), gold 5% (3,000 S + 25). Stones are
-  new inventory items (999 each).
-- Open questions: which mastery shipping pays (desert, or universal points
-  like traded fish); whether the factory is a level you walk into with
-  machines, or just the depot and a shipping dock used with E outside; whether
-  shipping has its own dock beside the factory or uses a fishing pier.
+  biofuel (milk and eggs stay for deliveries). A 1-biofuel run's odds: copper
+  50% (300 S + 3 mastery), iron 30% (600 S + 5), silver 15% (1,200 S + 10),
+  gold 5% (3,000 S + 25). Stones are new inventory items (999 each).
+
+Universal mastery in the inventory (built for fish, 2026-09-27; farm and
+factory use it when they are built)
+- All universal mastery (traded fish, delivery payouts, shipped stones) lands
+  in the inventory as Mastery points. Nothing opens by itself: trading fish
+  just adds the points (today the spend menu opens right after a trade).
+- Selecting Mastery points in the inventory (Enter/E, or click) opens the
+  spend menu, where points go into any region.
+- Agreed: keep both ways to spend: the inventory (select Mastery points) and
+  the pause menu's Mastery page SPEND POINTS button.
+- Agreed: the Mastery page shows the available (unspent) points, e.g.
+  "Available points: 37" near the SPEND POINTS button (shown at 0 too).
+- Built: Missions.add_universal(points) adds to the Mastery points stack (up
+  to STACK_MAX, returns how many fit); trade_fish uses it, and farm
+  deliveries and factory shipping should use it too. The trader now says
+  "Traded N fish for M mastery points. They're in your inventory (I): select
+  them to spend." and the spend menu does not open. In the inventory, Enter,
+  E, or a click on Mastery points closes it and opens the spend menu;
+  whatever isn't spent stays in the inventory. The Mastery page SPEND POINTS
+  button is kept. "Available points: N" sits left of the MASTERY title (the
+  space by the buttons is taken by the island line). Hints and the item note
+  mention selecting it.
+
+Fixes: no declines for veterans or centers, veteran offers, late mastery
+curve (2026-09-27, built)
+- Veterans' offers and racing-center races show only ACCEPT (no DECLINE).
+  Missions.can_decline is False for veteran givers; center offers pass
+  can_decline False. Older saved veteran offers that were eased or straight
+  are replaced by a new one.
+- Veterans: time trials and deliveries roll scale 0.8-1.25 (Medium or Hard,
+  as before). Drag: circuits only, no quarter-mile straights, and only
+  Medium: rival rated +1..+10 over the player (VETERAN_RATING_GAP).
+  Supersedes "veterans 0..+15" above.
+- Mastery per level: 15 x level below level 10, then 30 x level from level
+  10 on (10 -> 11 needs 300, 11 -> 12 needs 330). Read "after level 10" as
+  the levels after reaching 10. progression.LATE_LEVEL = 10,
+  LATE_MASTERY_PER_LEVEL = 30. Totals: level 10 675, level 11 975, level 12
+  1305.
+- Tests: late curve, veterans' circuits only and Medium with no decline,
+  center offers ACCEPT only, add_universal cap and partial spend, the trade
+  -> inventory -> spend flow with keys, "Available points". 226 passing.

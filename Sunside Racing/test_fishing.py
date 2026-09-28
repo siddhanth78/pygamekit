@@ -7,6 +7,8 @@ import random
 import sys
 import tempfile
 import unittest
+
+from inventory import STACK_MAX
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -184,6 +186,15 @@ class TradeTests(unittest.TestCase):
         self.assertEqual(missions.spend("snow", 5), [2])   # Level 1 needs 15.
         self.assertEqual(missions.spend("city", 1), [])
         self.assertEqual(missions.spend("beach", 1), [])
+
+    def test_universal_points_stack_in_the_inventory_up_to_the_cap(self):
+        missions = Missions(self.world, self.world.seed)
+        self.assertEqual(missions.add_universal(12), 12)
+        missions.spend("city", 5)                            # Partly spent: the rest stays.
+        self.assertEqual(missions.unspent, 7)
+        missions.unspent = STACK_MAX - 3
+        self.assertEqual(missions.add_universal(10), 3)
+        self.assertEqual(missions.unspent, STACK_MAX)
 
     def test_unspent_points_and_the_bag_are_saved(self):
         missions = Missions(self.world, self.world.seed)

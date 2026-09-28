@@ -145,7 +145,7 @@ class SpendMenu(_Overlay):
 
     def show(self, missions, note: str = ""):
         self.open, self.selected = True, 0
-        self.note.set(note or "Unspent points are kept; spend them any time from Mastery.")
+        self.note.set(note or "Unspent points stay in your inventory (I); spend them any time.")
         self.status.set("")
         self.refresh(missions)
 

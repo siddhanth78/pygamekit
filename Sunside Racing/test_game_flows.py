@@ -91,6 +91,7 @@ class GameFlowTests(unittest.TestCase):
         g._step_out(Walker(cx, cy + 110))
         self.press(pygame.K_e)
         self.assertEqual(g.panel.lines[1].text, "Mara Quill (140) VS You (120)")
+        self.assertEqual(g.panel.buttons, ("ACCEPT",))    # Center races can't be declined.
 
     def test_left_and_right_pick_the_confirm_buttons(self):
         g = self.game
@@ -749,18 +750,33 @@ class GameFlowTests(unittest.TestCase):
         self.at_trader()
         self.assertEqual(g._fishing_prompt(g.walker), "E   Trade 2 fish")
         self.press(pygame.K_e)
-        self.assertTrue(g.spend_menu.open)
+        # The points go to the inventory; the trader says so, and no spend menu opens.
+        self.assertFalse(g.spend_menu.open)
+        self.assertEqual(g.panel.lines[0].text, "Traded 2 fish for 10 mastery points.")
+        self.assertIn("inventory (I)", g.panel.lines[1].text)
         self.assertEqual((g.missions.unspent, g.missions.fish.count), (10, 0))
+        self.press(pygame.K_RETURN)
+        self.assertFalse(g.panel.open)
+        # I, then pick Mastery points in the grid: the spend menu opens.
+        self.press(pygame.K_i)
+        slot = [item.id for item, _ in g.inventory.stacks].index("mastery_points")
+        self.press(*[pygame.K_RIGHT] * (slot % 4), *[pygame.K_DOWN] * (slot // 4), pygame.K_RETURN)
+        self.assertFalse(g.inventory.open)
+        self.assertTrue(g.spend_menu.open)
         # City +1 starts selected; Down to Jungle +1, Right to Jungle +5, spend it.
         self.press(pygame.K_DOWN, pygame.K_RIGHT, pygame.K_RETURN)
         self.assertEqual((g.missions.progress.mastery["jungle"], g.missions.unspent), (5, 5))
         self.press(pygame.K_ESCAPE)                               # Keep the other 5.
         self.assertFalse(g.spend_menu.open)
         self.assertEqual(g.missions.unspent, 5)
+        self.press(pygame.K_i)                                    # Still in the inventory.
+        self.assertIn(("mastery_points", 5), [(item.id, n) for item, n in g.inventory.stacks])
+        self.press(pygame.K_i)
         # Pause > Mastery; Back starts selected and SPEND POINTS sits just before it.
         self.press(pygame.K_ESCAPE, pygame.K_DOWN, pygame.K_RETURN)
         self.assertEqual(g.menu.page, "mastery")
         self.assertIn("spend", g.menu.items)
+        self.assertEqual(g.menu.available.text, "Available points: 5")
         self.press(pygame.K_UP, pygame.K_RETURN)
         self.assertTrue(g.spend_menu.open)
         self.assertFalse(g.menu.open)

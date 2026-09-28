@@ -36,12 +36,15 @@ def rating_speed(value: float) -> float:
     return 1.0 + SPEED_PER_LEVEL * (value - RATING_BASE) / RATING_PER_LEVEL
 
 
-MASTERY_PER_LEVEL = 15  # Mastery to go from level L to L + 1 is this x L.
+MASTERY_PER_LEVEL = 15  # Mastery to go from level L to L + 1 is this x L ...
+LATE_LEVEL = 10         # ... and LATE_MASTERY_PER_LEVEL x L from this level on.
+LATE_MASTERY_PER_LEVEL = 30
 
 
 def mastery_to_next(level: int) -> int:
-    """Mastery needed to go from level to level + 1."""
-    return MASTERY_PER_LEVEL * level
+    """Mastery needed to go from level to level + 1 (15 x level below level 10, then 30 x
+    level: late-game mastery comes easily)."""
+    return (LATE_MASTERY_PER_LEVEL if level >= LATE_LEVEL else MASTERY_PER_LEVEL) * level
 
 
 def mastery_to_reach(level: int) -> int:

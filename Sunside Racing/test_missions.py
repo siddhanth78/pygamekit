@@ -40,6 +40,11 @@ class ProgressionTests(unittest.TestCase):
         self.assertEqual((progress.levels["city"], progress.mastery["city"]), (4, 0))
         self.assertEqual(progress.levels["snow"], 1)  # Levels are per region.
 
+    def test_levels_cost_thirty_times_level_from_level_ten(self):
+        self.assertEqual([mastery_to_next(level) for level in (8, 9, 10, 11, 15)],
+                         [120, 135, 300, 330, 450])
+        self.assertEqual(mastery_to_reach(12), 15 * sum(range(1, 10)) + 300 + 330)
+
     def test_rewards_grow_by_one_per_level_and_double_for_veterans(self):
         self.assertEqual(reward(2, 1), 2)
         self.assertEqual(reward(2, 4), 5)
@@ -114,9 +119,30 @@ class GiverAndOfferTests(unittest.TestCase):
             for _ in range(60):
                 missions.offers.pop(giver.id, None)
                 gaps.add(missions.offer_for(giver).rating - base)
+            if giver.harder:
+                continue   # See test_veterans_race_only_medium_circuits.
             self.assertLessEqual(max(gaps), 15)
-            self.assertGreaterEqual(min(gaps), 0 if giver.harder else -10, giver.id)
+            self.assertGreaterEqual(min(gaps), -10, giver.id)
             self.assertGreater(len(gaps), 8)
+
+    def test_veterans_race_only_medium_circuits_and_set_medium_or_hard_trials(self):
+        missions = Missions(self.world, self.world.seed,
+                            {"progress": {region: {"level": 6, "mastery": 0} for region in ("city", "desert")}})
+        for giver in (g for g in missions.givers if g.harder and g.region in ("city", "desert")):
+            base = missions.progress.rating(giver.region)
+            gaps = set()
+            for _ in range(40):
+                missions.offers.pop(giver.id, None)
+                offer = missions.offer_for(giver)
+                self.assertFalse(missions.preview(offer)["can_decline"], giver.id)
+                self.assertIn(missions.label(offer), ("Medium", "Hard"), giver.id)
+                if offer.type == "drag":
+                    self.assertEqual(offer.track["kind"], "circuit")
+                    self.assertEqual(missions.label(offer), "Medium")
+                    gaps.add(offer.rating - base)
+            if giver.type == "drag":
+                self.assertTrue(1 <= min(gaps) and max(gaps) <= 10, gaps)
+                self.assertGreater(len(gaps), 5)
 
     def test_drag_difficulty_is_the_rating_gap_and_the_rival_keeps_its_rating(self):
         missions = Missions(self.world, self.world.seed,
@@ -169,7 +195,7 @@ class GiverAndOfferTests(unittest.TestCase):
     def test_each_decline_offers_an_easy_one_for_half_the_mastery_down_to_one(self):
         missions = Missions(self.world, self.world.seed,
                             {"progress": {"city": {"level": 3, "mastery": 0}}})
-        for giver in (g for g in missions.givers if g.region == "city"):
+        for giver in (g for g in missions.givers if g.region == "city" and not g.harder):
             offer = missions.offer_for(giver)
             self.assertFalse(offer.eased)
             while missions.can_decline(offer):
@@ -189,12 +215,15 @@ class GiverAndOfferTests(unittest.TestCase):
         self.assertEqual(chain, [5, 2, 1])
         veteran = missions.by_id["city-drag-hard"]
         missions.progress.levels["city"] = 5                          # Veterans: (3+4) x 2 = 14.
+        offer = missions.offer_for(veteran)
+        self.assertEqual(missions.reward_for(offer, 3), 14)
+        self.assertFalse(missions.can_decline(offer))                 # Veterans: no declining.
+        self.assertIs(missions.decline(veteran), offer)
+        # A straight (or eased) veteran offer from an older save is replaced by a circuit.
         missions.offers[veteran.id] = Offer(veteran.id, "drag", 1.0, None, {"kind": "straight", "theme": "city"},
-                                            1, dict(missions.progress.levels), 140)
-        chain = [missions.reward_for(missions.offer_for(veteran), 3)]
-        while missions.can_decline(missions.offer_for(veteran)):
-            chain.append(missions.reward_for(missions.decline(veteran), 3))
-        self.assertEqual(chain, [14, 7, 3, 1])
+                                            1, dict(missions.progress.levels), 140, 1)
+        offer = missions.offer_for(veteran)
+        self.assertEqual((offer.track["kind"], offer.declines), ("circuit", 0))
         missions.progress.levels["city"] = 3
         restored = Missions(self.world, self.world.seed, json.loads(json.dumps(missions.to_dict())))
         self.assertEqual(restored.offers[giver.id].declines, 2)

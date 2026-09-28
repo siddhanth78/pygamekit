@@ -116,6 +116,8 @@ class PauseMenu:
         self.mastery_rows = []
         self.headers = [DynamicLabel(ctx, (160, 24), 20, bold=True) for _ in MASTERY_COLUMNS]
         self.footer = DynamicLabel(ctx, (760, 26), 20, bold=True, align="center")
+        self.available = DynamicLabel(ctx, (320, 30), 24, bold=True)   # Unspent mastery points.
+        self.available.set("Available points: 0")
         for label, (text, _) in zip(self.headers, MASTERY_COLUMNS):
             label.set(text)
         self.cells = [[DynamicLabel(ctx, (w, 30), 30 if c == 1 else 22,
@@ -134,7 +136,7 @@ class PauseMenu:
         self.dock_notes = {name: DynamicLabel(ctx, (300, 22), 18, bold=True, align="center")
                            for name in self.docks}
         self.quads = {}
-        for label in (self.headers + [self.footer] + list(self.dock_notes.values())
+        for label in (self.headers + [self.footer, self.available] + list(self.dock_notes.values())
                       + [cell for row in self.cells for cell in row] + self.sub_headers
                       + [cell for row in self.done_cells for cell in row]):
             instances = get_new_instances(0, 0, 1)[2]
@@ -145,6 +147,8 @@ class PauseMenu:
         re-render when their text changes."""
         if getattr(self, "footer", None) is not None:
             self.footer.set(footer)
+            points = sum(row.get("unspent", 0) for row in rows)
+            self.available.set(f"Available points: {points}")
         # Keep the same button selected when the set of travel buttons changes.
         current = self.items[self.selected] if self.page == "mastery" else None
         self.mastery_rows = rows
@@ -357,7 +361,7 @@ class PauseMenu:
 
     def _mastery_table(self, rects, left, top, panel_w):
         """Add the table's rects; return (label, record) pairs for its text."""
-        cells = []
+        cells = [(self.available, self.available.record(left + 44, top + 82, ACCENT))]  # Beside the title.
         header_y = top + 160
         for label, (_, x) in zip(self.headers, MASTERY_COLUMNS):
             cells.append((label, label.record(left + x, header_y, MUTED)))

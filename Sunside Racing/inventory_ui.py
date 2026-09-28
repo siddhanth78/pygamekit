@@ -68,7 +68,7 @@ class InventoryMenu:
         self.amount = DynamicLabel(ctx, (DETAIL_WIDTH, 26), 22)
         self.note = [DynamicLabel(ctx, (DETAIL_WIDTH, 24), 18) for _ in range(3)]
         self.hint = DynamicLabel(ctx, (600, 22), 18, align="center")
-        self.hint.set("ARROWS move  ·  I or ESC close")
+        self.hint.set("ARROWS move  ·  ENTER use  ·  I or ESC close")
         self.quads = {}
         for label in (self.title, *self.counts, self.name, self.amount, *self.note, self.hint):
             instances = get_new_instances(0, 0, 1)[2]
@@ -99,8 +99,13 @@ class InventoryMenu:
 
     # Input ------------------------------------------------------------------------------
 
+    def selected_item(self):
+        """The Item in the selected slot, or None for an empty slot."""
+        return self.stacks[self.selected][0] if self.selected < len(self.stacks) else None
+
     def handle(self, action, value):
-        """Returns 'close' when the inventory closes, else None."""
+        """Returns 'close' when the inventory closes, 'spend' when the player picks their
+        mastery points (the caller opens the spend menu), else None."""
         columns, total = GRID[0], GRID[0] * GRID[1]
         if action in ("inventory", "pause"):
             self.open = False
@@ -118,6 +123,18 @@ class InventoryMenu:
             hits = check_mouse_collisions(*value, records, "rect")
             if hits:
                 self.selected = hits[0]
+            if action == "click" and hits:
+                return self._use()
+        elif action in ("confirm", "interact"):
+            return self._use()
+        return None
+
+    def _use(self):
+        """Selecting an item: mastery points open the spend menu; nothing else is usable yet."""
+        item = self.selected_item()
+        if item and item.id == "mastery_points":
+            self.open = False
+            return "spend"
         return None
 
     # Render -------------------------------------------------------------------------------

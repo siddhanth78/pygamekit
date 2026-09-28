@@ -30,6 +30,7 @@ BASE_REWARD = {"delivery": 2, "speed": 1, "drag": 3}
 MAX_SCALE = 1.25
 DRAG_RATING_GAP = (-10, 15)   # Drag rivals: rated this far from the player's rating when offered.
 STRAIGHT_RATING_GAP = (-10, 10)  # Straights have no corners: above +10 not even an off-day wins.
+VETERAN_RATING_GAP = (1, 10)  # Veterans' circuits: always Medium (see RATING_EDGE).
 EASED_RATING_GAP = (-10, 0)   # After a decline: never above the player.
 EASED_SCALE = 0.79            # After a decline, time trials and deliveries roll 0.5 up to this (Easy).  # Delivery at 75+ points; 1 at 50+.
 DELIVERY_PENALTY = {"Easy": 5, "Medium": 10, "Hard": 15}
@@ -256,13 +257,18 @@ class Missions:
         return giver.harder and not self.progress.harder_unlocked(giver.region)
 
     def offer_for(self, giver: Giver) -> Offer:
+        old = self.offers.get(giver.id)
+        if old and giver.harder and (old.declines or old.type == "drag" and old.track.get("kind") != "circuit"):
+            del self.offers[giver.id]   # Saved before veterans became circuits-only, no declines.
         if giver.id not in self.offers:
             self.offers[giver.id] = self._new_offer(giver)
         return self._snapshot(self.offers[giver.id])
 
     def can_decline(self, offer: Offer) -> bool:
         """Declining halves the reward (rounded down, never below 1); an offer already
-        paying 1 mastery can't be declined."""
+        paying 1 mastery can't be declined, and veterans' offers never can."""
+        if self.by_id[offer.giver_id].harder:
+            return False
         return self.reward_for(offer, BASE_REWARD[offer.type]) > 1
 
     def decline(self, giver: Giver) -> Offer:
@@ -283,16 +289,15 @@ class Missions:
             scale = round(rng.uniform(0.8 if giver.harder else 0.5, MAX_SCALE), 3)
         seed = rng.randrange(1 << 30)
         if giver.type == "drag":
-            kind = rng.choice(("straight", "circuit"))
+            # Veterans only race circuits, and only Medium ones.
+            kind = "circuit" if giver.harder else rng.choice(("straight", "circuit"))
             track = {"kind": kind, "theme": giver.region}
             if kind == "circuit":
                 track.update(seed=seed, size=rng.randint(4, 7))  # Its own generated layout.
             # The rival is rated around the player's rating now, and keeps it; veterans'
             # rivals are never below the player. Eased offers are never above them.
-            low, high = (EASED_RATING_GAP if eased else
+            low, high = (EASED_RATING_GAP if eased else VETERAN_RATING_GAP if giver.harder else
                          STRAIGHT_RATING_GAP if kind == "straight" else DRAG_RATING_GAP)
-            if giver.harder and not eased:
-                low = 0
             rival = self.progress.rating(giver.region) + rng.randint(low, high)
             return Offer(giver.id, "drag", 1.0, None, track, seed, dict(self.progress.levels), rival,
                          declines)
@@ -553,12 +558,20 @@ class Missions:
                 "fish": self.fish.to_dict(), "unspent_mastery": self.unspent,
                 "arcade": dict(self.arcade), "inventory": dict(self.items)}
 
+    def add_universal(self, points: int) -> int:
+        """Universal mastery (fish trades now; farm deliveries and factory stones later)
+        goes to the inventory's Mastery points stack, up to STACK_MAX; spend() puts it into
+        regions and whatever isn't spent stays. Returns how many were added."""
+        added = max(0, min(points, room(self.unspent)))
+        self.unspent += added
+        return added
+
     def trade_fish(self):
-        """Hand fish to a jungle fish trader: returns (fish, points). The points join the
-        unspent pool (spend() puts them into regions); fish that would push it past the
-        stack limit stay in the bag."""
+        """Hand fish to a jungle fish trader: returns (fish, points). The points go to the
+        inventory (add_universal); fish that would push it past the stack limit stay in
+        the bag."""
         count, value = self.fish.take_bag(room(self.unspent))
-        self.unspent += value
+        self.add_universal(value)
         return count, value
 
     def add_item(self, item_id: str, amount: int = 1) -> int:

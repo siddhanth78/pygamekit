@@ -44,7 +44,7 @@ ITEMS = (
     Item("fish_epic", "Epic fish", "people-atlas", "fish_epic",
          "Trade at a jungle fish trader for 5 mastery points each."),
     Item("mastery_points", "Mastery points", "marker-atlas", "icon_points",
-         "Spend on any region: Pause > Mastery > SPEND POINTS."),
+         "Select to spend on any region (or Pause > Mastery > SPEND POINTS)."),
     # Sold at the General Store (aisles: seeds, items, tickets).
     Item("seeds_corn", "Corn seeds", "store-atlas", "seeds_corn",
          "A packet of corn seeds.", price=10, aisle="seeds"),

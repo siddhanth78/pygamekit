@@ -264,7 +264,8 @@ class Game:
         if action == "quit":
             return False
         if self.inventory.open:
-            self.inventory.handle(action, value)
+            if self.inventory.handle(action, value) == "spend":
+                self.spend_menu.show(self.missions)
             return True
         if self.arcade.open:
             if self.arcade.handle(action, value) == "close":
@@ -618,7 +619,7 @@ class Game:
             self.fishing = FishingSession(dock, self.walker.x, self.walker.y)
 
     def _talk_to_trader(self):
-        """Trade the whole bag for universal points, then choose where they go."""
+        """Trade the whole bag for universal points, which go to the inventory."""
         title = "Fish trader"
         if not self.missions.progress.fishing_unlocked():
             self.panel.show_message(title, f"Fishing and trading open at level {FISHING_LEVEL} in any region.")
@@ -635,7 +636,10 @@ class Game:
             self.panel.show_message(title, f"Your mastery points are full ({STACK_MAX}). Spend some first.")
             return
         self.autosave.request()
-        self.spend_menu.show(self.missions, f"Traded {count} fish for {value} point{'s' if value != 1 else ''}")
+        # The points go to the inventory; the player spends them from there (or Mastery).
+        self.panel.show_lines(title, "", (
+            f"Traded {count} fish for {value} mastery point{'s' if value != 1 else ''}.",
+            "They're in your inventory (I): select them to spend.", ""))
 
     def _fishing_prompt(self, walker):
         """Bottom prompt at a trader or a pier's end, or while the rod is out."""
@@ -687,6 +691,7 @@ class Game:
             "reward": f"{LAPS} laps on {SURFACE_NAMES[region]}  ·  "
                       + ("win to become champion" if race == CENTER_RACES
                          else f"win to unlock race {race + 1}"),
+            "can_decline": False,
         })
 
     def _start_center_race(self, region):
