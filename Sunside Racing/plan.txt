@@ -2078,3 +2078,151 @@ Unity port (future; agreed idea, not started)
   pipeline.
 - Order: finish the island first.
 
+Elite Island (agreed design, 2026-09-28; BUILT, see "Elite Island (built)" at the end)
+The final unlock and the late game: the ferry, the island racing center, clubs,
+leagues, and tournaments.
+- Access (supersedes "T Travel to Elite Island" from any beach):
+  - The ferry runs from the mainland ferry dock (sector 47, 31) to the island
+    dock (52, 31). It can be taken once every racing center is complete (all
+    5 x 10 races), a region is at level 25, and the Island pass (General
+    Store, 100,000 S) has been bought.
+  - Once unlocked, the ferry is available and an "Island ferry" landmark
+    shows on the map.
+  - The first visit must be by ferry; that unlocks fast travel to the island.
+- Island racing center: a level you walk into (like the store), with a club
+  sign-up desk, the center races, and tournaments.
+  - Center races: a set of 5, rivals rated 360, 390, 450, 500, 550.
+  - Winning the first center race opens the clubs.
+  - Tourney passes are sold here; each one starts one tournament.
+- Clubs: 8 clubs, each an encampment somewhere on the island, in 4 leagues
+  (two clubs per league):
+
+  | League | Racer ratings | Can join at |
+  |---|---|---|
+  | 1 | 350-490 | any rating (after race 1) |
+  | 2 | 500-600 | rating 500+ |
+  | 3 | 610-800 | rating 610+ |
+  | 4 | 810+ | rating 810+ |
+
+  - Joining costs an entry fee paid once: 20,000 S for league 1, more for
+    each higher league.
+  - Once in a club there is no leaving, and once you move up a league you
+    can't come back down.
+  - A club's racers are your teammates.
+- Tournaments (free to enter apart from the tourney pass): best of 5 races,
+  you and 3 teammates against the 4 racers of the other club in your league.
+  - Before each race every AI gets a random rating within the club's range,
+    never more than 8 above the player's current rating.
+  - Payouts are made every tournament and are better in higher leagues.
+- Spawn choice: once in a club, opening the game or choosing GO HOME asks
+  whether to start at the club's encampment or at the city home.
+- Answered (user, 2026-09-28):
+  - The player's rating on the island = the best region's rating (the
+    highest region level), used for island speed and for club eligibility.
+    For example, rating 550 needs a region at level 46.
+  - Club entry fees by league: 20,000 / 40,000 / 80,000 / 150,000 S.
+  - Tournament = 4 races (supersedes best of 5). Each race gives points by
+    finishing place: 10, 8, 6, 5, 4, 3, 2, 1. The team with the most points
+    after 4 races wins the tournament.
+  - Payout, only when the player's team wins: the pool is 4 x the player's
+    share, and the player gets a quarter (NPCs get nothing; the pool is for
+    show). League 1: pool 40,000 S, the player gets 10,000 S + 50 mastery. It
+    doubles each league up: league 2 is 20,000 S + 100, league 3 is 40,000 S +
+    200, league 4 is 80,000 S + 400 (pools 40k / 80k / 160k / 320k).
+    Mastery is universal (into the inventory).
+  - Tourney pass: 2,000 S (island racing center).
+  - Moving up: once the player's rating qualifies, they can join a club in a
+    higher league at the racing center by paying that league's fee (never
+    back down).
+  - Ferry: an instant crossing. The Island pass is used up on the first
+    crossing, and the island stays unlocked for good (fast travel from then
+    on).
+- Agreed (user): a points tie after 4 races goes to the team whose best
+  finisher placed higher in race 4 ("whoever finishes above").
+- Engine note: races today are the player against one rival. Tournaments
+  need 8 cars in a race (7 AI), with team scoring.
+
+Elite Island (built, 2026-09-28)
+- User additions at build time: tournaments use 4 different tracks, 2 laps
+  each, each with a region's surface (ice, mud, grass, sand, asphalt). On a
+  tournament track the player drives at that region's speed (not the best
+  region's; that is only for the island's own races and roads). Teammates
+  and opponents are rated -5 to +10 around the player's rating in that
+  track's region (this supersedes the club rating ranges and the +8 cap for
+  AI ratings; the club ranges now only set who can join). The island gets new
+  assets and its own track set.
+- Ferry (island.ferry_spots / ferry_sprites): a ticket kiosk beside the
+  mainland ferry dock, the ferry moored beside it, and a kiosk on the island
+  dock. "E Island ferry" works once Progress.island_unlocked() (all centers
+  and a region at 25; the "Island ferry" map diamond (90, 200, 200) appears
+  then).
+  - Without an Island pass: a popup says to buy one.
+  - With it: BOARD / NOT NOW. BOARD uses up the pass, sets island.crossed,
+    and crosses instantly, car and all (fast_travel.land_near).
+  - From then on the ferry is free both ways and T on a mainland beach
+    travels there (T was every-beach before and is now gated on crossed).
+  - The island's own speed is the best region's (Progress.level_at("island")).
+- Island Racing Center (island.IslandCenterInterior, 16 x 10): E near the
+  island center building (once crossed) walks in. It has three desks: Races,
+  Clubs, and Tournaments, plus trophy cases, a podium, and visitors.
+  - Races desk: 5 races on 3-lap island-clay circuits (new track set
+    "island" in track-atlas, 8 x 5 now), rivals Coral Jax 360, Mako Senn 390,
+    Lani Kade 450, Riptide Rue 500, The Admiral 550. The player drives at the
+    best region's speed. Saved as island.races.
+- Clubs (island.CLUBS): 8 clubs in 4 leagues, each with a camp on the island
+  interior (island.choose_camps: rules only, spread apart, the same on every
+  seed). A camp has a race tent, the club's flag, two club cars, and
+  members; "E <club>" tells its league and rival.
+
+  | League | Clubs | Racer range | Joins at | Entry fee |
+  |---|---|---|---|---|
+  | 1 | Palm Runners, Reef Raiders | 350-490 | any (after race 1) | 20,000 S |
+  | 2 | Lagoon Kings, Coral Crew | 500-600 | 500 | 40,000 S |
+  | 3 | Volcano Vipers, Tidebreakers | 610-800 | 610 | 80,000 S |
+  | 4 | Summit Aces, Sunside Elite | 810+ | 810 | 150,000 S |
+
+  - The Clubs desk offers only leagues above the player's (L1-L4, with the
+    fee and the two clubs shown for the highlighted one). Then it offers the
+    two clubs, then JOIN / NOT NOW, which pays the fee. No leaving, never
+    down. Saved as island.club. Map: "Island club" diamonds (255, 150, 90)
+    once crossed.
+- Tournaments desk: BUY PASS (tourney_pass item, 2,000 S) / START (uses a
+  pass).
+  - A tournament (island.Tournament) is 4 races on 4 different mainland
+    surfaces, generated circuits of size 5-9 with 2 laps each: you and 3
+    teammates against the 4 racers of the other club in your league.
+  - The races are grid_race.GridRace: 8 cars on a 2-lane, 4-row grid (you in
+    row 3). The AIs are rated Rivals with each their own start slot.
+  - Places score 10-8-6-5-4-3-2-1; the race ends when you finish (those
+    still racing are behind you) or when all 7 have finished (you're last).
+  - The standings popup ("NEXT RACE") follows each race.
+  - After 4 races the team with more points wins (a tie goes to the team
+    whose best finisher placed higher in race 4). A win pays a quarter of the
+    league pool, 10,000 S x 2^(league-1), plus 50 x 2^(league-1) universal
+    mastery.
+  - Quitting a race (pause) puts you last and the tournament goes on.
+  - The race HUD shows your place of 8, the lap, and the team score.
+  - F1 speed applies; ratings don't count it.
+- Spawn choice: once in a club, opening the game and GO HOME ask CITY HOME /
+  CLUB CAMP (the car waits in the camp's lot).
+- New assets: island-atlas (96 px, 4 x 5): ferry, kiosk, race tent, 8 club
+  flags, the three desks, trophy case, podium, and the tourney pass. Plus the
+  island track set. GameState draws island-atlas.
+- Saved as missions "island": crossed, races, club, played, won.
+  GENERATOR_VERSION is now 17.
+- Tests: test_island.py (fees and payouts, the join rules and saving, island
+  speed = best region, tournament tracks, ratings, and scoring with the tie
+  rule, the camps, the center's desks, and the grid and finishing order) and
+  a real-key flow (ferry locked then boarded, center race 1, join the Palm
+  Runners, buy a pass, a 4-race tournament won and paid, spawn at the camp).
+  283 passing.
+
+Island map diamonds hidden until the first crossing (built, 2026-09-28)
+- User: hide the island's map diamonds until the player has taken the ferry
+  there. The club camps already wait for island.crossed. The island racing
+  center's diamond (drawn with the mainland centers today) should wait for it
+  too. The "Island ferry" diamond still appears once the ferry is unlocked.
+- Built: world_map.landmarks skips the island racing center until
+  island.crossed (the same flag that shows the club camps). The map test
+  counts 5 centers before the crossing. 283 passing.
+

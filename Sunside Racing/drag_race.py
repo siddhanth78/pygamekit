@@ -36,7 +36,7 @@ CIRCUITS = (
 # Region -> off-track ground tile. The track itself is that region's surface, driven with
 # the region's grip and top speed (car.SURFACES); the runoff off the track is slower.
 THEMES = {"city": "city_concrete", "rural": "rural_grass", "snow": "snow",
-          "desert": "desert_sand", "jungle": "jungle_ground"}
+          "desert": "desert_sand", "jungle": "jungle_ground", "island": "island_grass"}
 OFF_TRACK = "offtrack"        # Not in car.SURFACES, so it drives with car.OFF_SURFACE.
 COUNTDOWN = 3.0
 # A skilled human's clean lap vs flawless_time's model (flat out through every corner on
@@ -274,12 +274,14 @@ class Rival:
     plays out the same way): a shallow drift from mid-straight to the apex and back."""
 
     def __init__(self, level: TrackLevel, scale: float, rng: random.Random,
-                 sprite: str | None = None, cut_chance: float = 0.0, wide_misses: bool = False):
+                 sprite: str | None = None, cut_chance: float = 0.0, wide_misses: bool = False,
+                 start=None):
         self.level = level
         self.name = sprite or rng.choice(RIVALS)
         self.reaction = rng.uniform(0.2, 0.6)
         self.set_scale(scale)
-        x, y, self.heading = level.start_pose(1)  # Starts in the right-hand grid slot.
+        # Starts in the right-hand grid slot, or `start` (x, y, heading) on a bigger grid.
+        x, y, self.heading = start or level.start_pose(1)
         points, self.cuts = [(x, y)], 0
         brake_points = set()  # Indexes into points where the rival slows for a corner.
         if level.closed:

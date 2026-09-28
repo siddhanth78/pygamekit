@@ -109,13 +109,22 @@ class Progress:
             gained.append(self.levels[region])
         return gained
 
+    def best_level(self) -> int:
+        return max(self.levels.values())
+
+    def level_at(self, region: str) -> int:
+        """The level that counts in a place: a region's own; on Elite Island the best
+        region's (the island has no mastery of its own); beaches and the sea have none."""
+        if region == "island":
+            return self.best_level()
+        return self.levels.get(region, 1)
+
     def speed_scale(self, region: str) -> float:
-        """Top-speed multiplier where the car is; beaches, sea, and island have no level."""
-        level = self.levels.get(region, 1)
-        return 1.0 + SPEED_PER_LEVEL * (level - 1)
+        """Top-speed multiplier where the car is (see level_at)."""
+        return 1.0 + SPEED_PER_LEVEL * (self.level_at(region) - 1)
 
     def rating(self, region: str) -> int:
-        return rating(self.levels.get(region, 1))
+        return rating(self.level_at(region))
 
     def fishing_unlocked(self) -> bool:
         return max(self.levels.values()) >= FISHING_LEVEL

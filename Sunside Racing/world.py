@@ -266,6 +266,15 @@ class World:
         for sprite in factory.exterior_sprites(self.factory):
             key = (int(sprite.x // SECTOR_SIZE), int(sprite.y // SECTOR_SIZE))
             self._factory_sprites.setdefault(key, []).append(sprite)
+        # Elite Island: the eight club camps and the ferry (see island.py).
+        import island
+        self.island_camps = island.choose_camps(self)
+        self._camp_sectors = {camp.sector: camp for camp in self.island_camps.values()}
+        self._island_sprites = {}
+        extra = [s for camp in self.island_camps.values() for s in island.camp_sprites(camp, self.seed)]
+        for sprite in extra + island.ferry_sprites(self):
+            key = (int(sprite.x // SECTOR_SIZE), int(sprite.y // SECTOR_SIZE))
+            self._island_sprites.setdefault(key, []).append(sprite)
         self.camps = self._choose_camps()
         self.general_store = self._choose_store()
         self.farm = self._choose_farm()
@@ -617,6 +626,14 @@ class World:
                         if tile:
                             ground[(lx, ly)] = tile
             scenery += self._factory_sprites.get((sx, sy), [])
+        if (sx, sy) in self._camp_sectors:
+            from island import camp_ground
+            occupied |= {(x, y) for x in range(TILES_PER_SECTOR) for y in range(TILES_PER_SECTOR)}
+            for lx in range(TILES_PER_SECTOR):
+                for ly in range(TILES_PER_SECTOR):
+                    if camp_ground(lx, ly):
+                        ground[(lx, ly)] = camp_ground(lx, ly)
+        scenery += self._island_sprites.get((sx, sy), [])
 
         result: list[Sprite] = []
         for ly in range(TILES_PER_SECTOR):

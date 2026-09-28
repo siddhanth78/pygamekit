@@ -21,6 +21,7 @@ import world_save
 from progression import mastery_to_next, mastery_to_reach, rating_speed
 from missions import Offer
 from walker import Walker
+from fast_travel import on_island
 
 
 class GameFlowTests(unittest.TestCase):
@@ -593,14 +594,14 @@ class GameFlowTests(unittest.TestCase):
         from world_map import KINDS
         g = self.game
         kinds = [m.kind for m in g.landmarks]
-        self.assertEqual(kinds.count("center"), 6)
+        self.assertEqual(kinds.count("center"), 5)                   # The island's waits for the ferry.
         self.assertEqual(kinds.count("dock"), 3)
         self.assertEqual(kinds.count("camp"), sum(r == "jungle" for r in g.world.camps.values()))
         self.assertEqual({k: v[0] for k, v in KINDS.items()},
                          {"center": (212, 80, 66), "dock": (242, 150, 60), "camp": (236, 120, 170),
                           "veteran": (150, 226, 140), "store": (160, 96, 220), "farm": (176, 122, 72),
                           "buyer": (232, 196, 120), "fair": (110, 200, 236),
-                          "factory": (170, 180, 196)})
+                          "factory": (170, 180, 196), "ferry": (90, 200, 200), "club": (255, 150, 90)})
         self.assertEqual(kinds.count("store"), 1)
         self.assertEqual(kinds.count("farm"), 1)
         self.assertEqual(kinds.count("buyer"), 0)                    # Until the farm is owned.
@@ -1141,6 +1142,95 @@ class GameFlowTests(unittest.TestCase):
         self.assertEqual(g.panel.bill_right[-1].text, f"{price:,} S + 25 mastery  PAID")
         self.assertEqual(len(g.missions.factory.market.history["gold"]), min(12, shipments + 1))
         self.assertEqual(g.panel.title.text, "Shipped")
+
+    def test_elite_island_ferry_races_club_and_tournament_with_keys(self):
+        from grid_race import GridRace
+        from progression import REGIONS
+        g = self.game
+        progress = g.missions.progress
+        for region in REGIONS:
+            progress.races[region] = 10
+        progress.add("city", mastery_to_reach(25))
+        g._refresh_landmarks()
+        self.assertIn("ferry", [m.kind for m in g.landmarks])
+        mainland, island = __import__("island").ferry_spots(g.world)
+        g._step_out(Walker(*mainland))
+        g.collisions.fixed = []
+        self.assertEqual(g._ferry_side(g.walker), "mainland")
+        self.press(pygame.K_e)                                        # No pass yet.
+        self.assertIn("Island pass", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.missions.add_item("island_pass", 1)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("BOARD", "NOT NOW"))
+        self.press(pygame.K_RETURN)
+        self.assertTrue(g.missions.island.crossed)
+        self.assertEqual(g.missions.items.get("island_pass", 0), 0)   # Used up, open for good.
+        self.assertTrue(on_island(g.world, g.car.x, g.car.y))
+        self.assertIn("club", [m.kind for m in g.landmarks])
+        self.assertIn("Island racing center", [m.name for m in g.landmarks])
+        self.press(pygame.K_RETURN)
+        # The island racing center: race 1 against a 360.
+        cx, cy = g.missions.center_position("island")
+        g._step_out(Walker(cx, cy + 110))
+        g.collisions.fixed = []
+        self.assertEqual(g._near_island_center(g.walker), True)
+        self.press(pygame.K_e)
+        self.assertTrue(g.in_island_center)
+        desk = {s.kind: s for s in g.island_level.spots}
+        g.walker.x, g.walker.y = desk["clubs"].x, desk["clubs"].y
+        self.press(pygame.K_e)                                        # Clubs wait for race 1.
+        self.assertIn("first race", g.panel.lines[0].text)
+        self.press(pygame.K_RETURN)
+        g.walker.x, g.walker.y = desk["races"].x, desk["races"].y
+        self.press(pygame.K_e)
+        self.assertIn("(360)", g.panel.lines[1].text)
+        self.press(pygame.K_RETURN)
+        self.assertEqual((g.center_race, g.race.level.surface), (("island", 1), "island"))
+        self.assertAlmostEqual(g.race.speed_scale, progress.speed_scale("city"))   # The best region's.
+        g.race.times["player"], g.race.result = 60.0, "win"
+        g._end_race()
+        self.assertEqual(g.missions.island.races, 1)
+        self.press(pygame.K_RETURN)
+        # Join the Palm Runners (league 1, 20,000 S).
+        g._enter_island_center()
+        g.walker.x, g.walker.y = desk["clubs"].x, desk["clubs"].y
+        g.missions.add_item("sunside_tokens", 30_000)
+        self.press(pygame.K_e)
+        self.assertEqual(g.panel.buttons, ("L1",))
+        self.press(pygame.K_RETURN)
+        self.assertEqual(g.panel.buttons, ("PALM", "REEF"))
+        self.press(pygame.K_RETURN, pygame.K_RETURN)                  # PALM, then JOIN.
+        self.assertEqual((g.missions.island.club, g.missions.tokens), ("palm", 10_000))
+        self.press(pygame.K_RETURN)
+        # A tournament: buy a pass, start, four races.
+        g.walker.x, g.walker.y = desk["tourney"].x, desk["tourney"].y
+        self.press(pygame.K_e, pygame.K_RETURN)                       # BUY PASS.
+        self.assertEqual((g.missions.items["tourney_pass"], g.missions.tokens), (1, 8_000))
+        self.press(pygame.K_RETURN, pygame.K_e, pygame.K_RIGHT, pygame.K_RETURN)   # START.
+        self.assertIsInstance(g.race, GridRace)
+        self.assertEqual(len(g.race.rivals), 7)
+        themes = [t.theme for t in g.tournament.tracks]
+        self.assertEqual(len(set(themes)), 4)
+        self.assertAlmostEqual(g.race.speed_scale, progress.speed_scale(themes[0]))   # That region's.
+        tokens, points = g.missions.tokens, g.missions.unspent
+        for n in range(4):
+            race = g.race
+            race.times[-1] = 1.0                                      # The player wins each race.
+            race.finish()
+            g._end_race()
+            self.assertEqual(g.tournament.race if g.tournament else 4, n + 1)
+            self.press(pygame.K_RETURN)
+        self.assertIsNone(g.tournament)
+        self.assertEqual(g.missions.tokens, tokens + 10_000)          # A quarter of the 40,000 S pool.
+        self.assertEqual(g.missions.unspent, points + 50)
+        self.assertEqual(g.missions.island.won, 1)
+        # GO HOME asks: city home or club camp.
+        g._offer_spawn()
+        self.assertEqual(g.panel.buttons, ("CITY HOME", "CLUB CAMP"))
+        self.press(pygame.K_RIGHT, pygame.K_RETURN)
+        camp = g.world.island_camps["palm"]
+        self.assertEqual((g.car.x, g.car.y), camp.parking[:2])
 
     def test_beach_travel_picks_a_pier_with_keys(self):
         g = self.game

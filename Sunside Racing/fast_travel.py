@@ -33,6 +33,11 @@ def island_destination(world, collisions, car, to_island: bool):
     sector = ISLAND_CENTER if to_island else MAINLAND_DOCK
     x, y = world.center_position(*sector)
     y += 200 if to_island else 0
+    return land_near(world, collisions, car, x, y, to_island)
+
+
+def land_near(world, collisions, car, x, y, to_island: bool):
+    """The nearest clear spot for the car near (x, y) on the island or the mainland."""
     mass = "island" if to_island else "mainland"
 
     class OnLandmass:

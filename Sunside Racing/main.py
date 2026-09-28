@@ -18,7 +18,7 @@ from autosave import Autosave
 from car import F1_SPEED, TOP_SPEED, Car
 from collision_manager import CollisionManager, nearest_clear_spot
 from drag_race import DragRace
-from fast_travel import destination, island_destination, on_island, on_mainland_beach
+from fast_travel import destination, island_destination, land_near, on_island, on_mainland_beach
 from fishing import (FishingSession, beach_destination, fishing_spot, pier_open, pier_requirement,
                      pier_title, trader_near, trader_sprites)
 from fishing_ui import SpendMenu, StrikeBar, level_up_line
@@ -31,6 +31,9 @@ from parking import Parking
 from pedestrians import Pedestrians
 from progression import CENTER_RACES, FISHING_LEVEL, HARDER_LEVEL, ISLAND_LEVEL, REGIONS
 from racers import LAPS, RIVAL_RATINGS, rival, track_size
+from grid_race import GridRace
+from island import (CLUB, CLUBS, ISLAND_LAPS, ISLAND_RACES, ISLAND_RATINGS, ISLAND_RIVALS, LEAGUES, TOURNEY_PASS_PRICE,
+                    TOURNEY_RACES, IslandCenterInterior, Tournament, ferry_spots, league_name, payout, rivals_of)
 from pause_menu import PauseMenu
 from title_menu import TitleMenu
 from world_map import WorldMap, guide_line, landmarks
@@ -68,8 +71,13 @@ STORE_DOOR_RANGE = 40    # On foot, px from the General Store's door to go in.
 FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
 FAIR_DOOR_RANGE = 52     # On foot, px from the Snow Fair's ticket booth window.
 FACTORY_RANGE = 50       # On foot, px from the factory's door, the depot, or the cargo dock.
+ISLAND_RANGE = 56        # On foot, px from a ferry kiosk or a club camp's tent.
+
+
+def ordinal(n: int) -> str:
+    return f"{n}{'st' if n == 1 else 'nd' if n == 2 else 'rd' if n == 3 else 'th'}"
 SURFACE_NAMES = {"city": "asphalt", "snow": "ice", "rural": "mud", "desert": "sand",
-                 "jungle": "grass"}
+                 "jungle": "grass", "island": "island clay"}
 
 
 def camera_position(target, width: float, height: float, zoom: float = 1.0,
@@ -166,6 +174,17 @@ class Game:
         self.in_factory = False
         self.factory_rng = random.Random()
         self.pending_run = False     # The stone machine is asking how much biofuel to burn.
+        # Elite Island: its racing center (a level), tournaments, and their questions.
+        self.island_level = IslandCenterInterior(world.seed)
+        self.island_collisions = CollisionManager(None, self.island_level)
+        self.in_island_center = False
+        self.tournament = None       # The tournament under way (4 races), if any.
+        self.tour_entrants = None    # The current tournament race's AI racers.
+        self.pending_tour = False    # Closing the standings starts the next race.
+        self.pending_spawn = False   # City home or club camp?
+        self.pending_league = None   # Leagues the clubs desk offered.
+        self.pending_club = None     # Clubs the clubs desk offered.
+        self.pending_tourney = False  # Buy a pass or start?
         self.market_board = MarketBoard(ctx, TOOLKIT_ROOT, viewport, self.state)
         self.arcade = ArcadeCabinet(ctx, TOOLKIT_ROOT, viewport)
         self.inventory = InventoryMenu(ctx, TOOLKIT_ROOT, viewport, self.state)   # I
@@ -186,13 +205,16 @@ class Game:
         self.pending_confirm = None  # "abort" or "quit_race" while the panel asks to confirm.
         self.center_race = None     # (region, race number) while a center race runs.
         self.autosave = Autosave()
+        if self.missions.island.club:
+            self._offer_spawn()      # Club members choose where to start.
 
     # Helpers --------------------------------------------------------------------
 
     def _landmarks(self):
         """Map landmarks; farm buyers show once the farm is the player's."""
         m = self.missions
-        return landmarks(self.world, m.givers, m.orders.orders.values() if m.farm.owned else ())
+        return landmarks(self.world, m.givers, m.orders.orders.values() if m.farm.owned else (),
+                         ferry=m.progress.island_unlocked(), clubs=m.island.crossed)
 
     def _refresh_landmarks(self):
         """Buyers come and go: rebuild the map's landmarks, keeping the guide if it's still there."""
@@ -248,7 +270,9 @@ class Game:
     def _confirm_give_up(self, choice):
         self.pending_confirm = choice
         if choice == "quit_race":
-            if self.center_race:
+            if self.tournament:
+                lines = ("You'll finish last in this race", "The tournament goes on", "")
+            elif self.center_race:
                 region, number = self.center_race
                 lines = (f"Race {number} counts as a loss", "You'll be back at the racing center",
                          "You can race it again any time")
@@ -264,7 +288,10 @@ class Game:
                 "You can retry the same mission"), "ABORT", "KEEP GOING")
 
     def _give_up(self, choice):
-        if choice == "quit_race" and self.race and not self.race.result:
+        if choice == "quit_race" and isinstance(self.race, GridRace) and not self.race.result:
+            self.race.finish(quit=True)                # Last place; the tournament goes on.
+            self._end_race()
+        elif choice == "quit_race" and self.race and not self.race.result:
             self.race.result, self.race.quit = "lose", True
             self._end_race()
         elif choice == "abort" and self.missions.active and not self.race:
@@ -344,7 +371,7 @@ class Game:
                 self._confirm_give_up(choice)
             elif choice == "home":
                 self.menu.toggle()
-                self._go_home()
+                self._offer_spawn()          # Club members choose: city home or club camp.
             elif choice == "spend":
                 self.menu.toggle()
                 self.spend_menu.show(self.missions)
@@ -376,7 +403,23 @@ class Game:
             plant, self.pending_plant = self.pending_plant, None
             buy, self.pending_buy = self.pending_buy, False
             run, self.pending_run = self.pending_run, False
-            if outcome.startswith("choice:") and run:
+            spawn, self.pending_spawn = self.pending_spawn, False
+            leagues, self.pending_league = self.pending_league, None
+            clubs, self.pending_club = self.pending_club, None
+            tourney, self.pending_tourney = self.pending_tourney, False
+            tour, self.pending_tour = self.pending_tour, False
+            pick = int(outcome.split(":")[1]) if outcome.startswith("choice:") else None
+            if tour:
+                self._next_tournament_race()     # Any key on the standings: the next race.
+            elif pick is not None and spawn:
+                self._go_club_camp() if pick == 1 else self._go_home()
+            elif pick is not None and leagues:
+                self._offer_clubs(leagues[pick])
+            elif pick is not None and clubs:
+                self._confirm_join(clubs[pick])
+            elif pick is not None and tourney:
+                self._buy_tourney_pass() if pick == 0 else self._start_tournament()
+            elif outcome.startswith("choice:") and run:
                 self._run_machine(list(RUNS)[int(outcome.split(":")[1])])
             elif outcome.startswith("choice:") and buy:
                 self._buy_game_tickets(GAME_TICKET_PACKS[int(outcome.split(":")[1])])
@@ -389,6 +432,10 @@ class Game:
                 elif confirm == "store_leave":
                     self.store.cart.empty()            # Put everything back and go.
                     self._leave_store()
+                elif confirm and confirm.startswith("join:"):
+                    self._join_club(confirm.split(":", 1)[1])
+                elif confirm == "ferry":
+                    self._take_ferry()
                 elif confirm == "factory_unlock":
                     if self.missions.factory.unlock(self.missions):
                         self.autosave.request()
@@ -450,7 +497,10 @@ class Game:
             self.walker.respawn_nearby(self.fair_collisions)
         elif self.in_factory and action == "reset":
             self.walker.respawn_nearby(self.factory_collisions)
-        elif (self.inside or self.in_store or self.in_farm or self.at_fair or self.in_factory) \
+        elif self.in_island_center and action == "reset":
+            self.walker.respawn_nearby(self.island_collisions)
+        elif (self.inside or self.in_store or self.in_farm or self.at_fair or self.in_factory
+              or self.in_island_center) \
                 and action in ("island", "call_car"):
             pass                       # Nothing to travel to or call from inside the house.
         elif self.inside and action == "reset":
@@ -486,6 +536,9 @@ class Game:
         if self.in_factory:
             self._interact_factory()
             return
+        if self.in_island_center:
+            self._interact_island_center()
+            return
         if self.walker is None:
             spot = exit_spot(self.car, self.collisions) if abs(self.car.speed) < EXIT_SPEED else None
             if spot:
@@ -502,6 +555,17 @@ class Game:
         if (math.dist((self.walker.x, self.walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
                 and not self.walker.can_enter(self.car)):
             self._enter_home()
+            return
+        side = self._ferry_side(self.walker)
+        if side:
+            self._ferry(side)
+            return
+        camp = self._camp_near(self.walker)
+        if camp:
+            self._talk_to_club(camp)
+            return
+        if self._near_island_center(self.walker):
+            self._enter_island_center()
             return
         factory_spot = self._factory_spot(self.walker)
         if factory_spot:
@@ -669,6 +733,7 @@ class Game:
         if self.in_factory:
             self._collect_running_stone()
             self.in_factory = False
+        self.in_island_center = False
 
     def _interact_store(self):
         spot = self.store.spot_near(self.walker.x, self.walker.y)
@@ -741,6 +806,289 @@ class Game:
         if self.world_map.open:
             shop = self.world.general_store
             self.world_map.render(shop.x, shop.y, self.guide_to)
+
+    # Elite Island -----------------------------------------------------------------
+
+    def _ferry_side(self, walker):
+        """"mainland" or "island" at a ferry kiosk (the mainland one once the ferry runs)."""
+        mainland, island = ferry_spots(self.world)
+        if math.dist((walker.x, walker.y), island) <= ISLAND_RANGE:
+            return "island"
+        if (math.dist((walker.x, walker.y), mainland) <= ISLAND_RANGE
+                and self.missions.progress.island_unlocked()):
+            return "mainland"
+        return None
+
+    def _ferry(self, side):
+        progress, isl = self.missions.progress, self.missions.island
+        if self.missions.active:
+            self.panel.show_message("Island ferry", "Finish your current mission first.")
+        elif side == "island":
+            self._cross(to_island=False)
+        elif isl.crossed:
+            self._cross(to_island=True)
+        elif count_of(self.missions, "island_pass"):
+            self.pending_confirm = "ferry"
+            self.panel.show_confirm("Island ferry", "", ("Board the ferry to Elite Island?",
+                                                         "Your Island pass is used up;",
+                                                         "the island stays open for good."), "BOARD", "NOT NOW")
+            self.panel.selected = 0
+        else:
+            self.panel.show_lines("Island ferry", "", ("Boarding needs an Island pass.",
+                                                       "The General Store sells it.", ""))
+
+    def _take_ferry(self):
+        if not self.missions.add_item("island_pass", -1):
+            return
+        self.missions.island.crossed = True
+        self._refresh_landmarks()                    # Club camps on the map.
+        self.autosave.request()
+        self._cross(to_island=True)
+        self.panel.show_lines("Elite Island", "Island unlocked", (
+            "Welcome to Elite Island!", "Race at the Island Racing Center.",
+            "T on a mainland beach brings you back any time."))
+
+    def _cross(self, to_island: bool):
+        """The ferry: an instant crossing, car and all, to the other dock."""
+        mainland, island = ferry_spots(self.world)
+        x, y = island if to_island else mainland
+        landing = land_near(self.world, self.collisions, self.car, x, y, to_island)
+        if landing is None:
+            self.panel.show_message("Island ferry", "The ferry can't dock right now.")
+            return
+        self.car.x, self.car.y, self.car.heading = landing
+        self.car.speed = 0.0
+        self.walker = None
+        self.collisions.fixed = []
+        self._snap_zoom(DRIVE_ZOOM)
+        self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
+
+    def _camp_near(self, walker):
+        if not self.missions.island.crossed:
+            return None
+        return next((c for c in self.world.island_camps.values()
+                     if math.dist((walker.x, walker.y), c.spot) <= ISLAND_RANGE), None)
+
+    def _talk_to_club(self, camp):
+        club = CLUB[camp.club]
+        league = club[2]
+        if self.missions.island.club == camp.club:
+            self.panel.show_lines(club[1], "Your club", (league_name(league),
+                                                        f"Rival club: {CLUB[rivals_of(camp.club)][1]}",
+                                                        "Tournaments at the Island Racing Center."))
+        else:
+            self.panel.show_lines(club[1], "", (league_name(league),
+                                                f"Entry {LEAGUES[league][2]:,} S at the Clubs desk",
+                                                "Island Racing Center"))
+
+    def _near_island_center(self, walker) -> bool:
+        if not self.missions.island.crossed:
+            return False
+        return math.dist((walker.x, walker.y), self.missions.center_position("island")) <= CENTER_TALK_RANGE
+
+    def _enter_island_center(self):
+        if self.missions.active:
+            self.panel.show_message("Island Racing Center", "Finish your current mission first.")
+            return
+        self.in_island_center = True
+        self.walker.x, self.walker.y = self.island_level.entry
+        self.walker.heading, self.walker.speed = 0.0, 0.0
+        self.state.set_player_pose(self.walker_id, self.walker.x, self.walker.y, self.walker.heading)
+
+    def _leave_island_center(self):
+        self.in_island_center = False
+        cx, cy = self.missions.center_position("island")
+        self._return_to_giver(type("Spot", (), {"x": cx, "y": cy + 150})())
+
+    def _interact_island_center(self):
+        spot = self.island_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return
+        if spot.kind == "exit":
+            self._leave_island_center()
+        elif spot.kind == "races":
+            self._offer_center_race("island")
+        elif spot.kind == "clubs":
+            self._clubs_desk()
+        elif spot.kind == "tourney":
+            self._tourney_desk()
+        else:
+            self.panel.show_message(spot.label, spot.key)
+
+    def _island_center_prompt(self):
+        spot = self.island_level.spot_near(self.walker.x, self.walker.y)
+        if spot is None:
+            return ""
+        return {"exit": "E   Go outside", "races": "E   Races", "clubs": "E   Clubs",
+                "tourney": "E   Tournaments"}.get(spot.kind, f"E   Look  ·  {spot.label}")
+
+    def _clubs_desk(self):
+        isl, rating = self.missions.island, self.missions.progress.rating("island")
+        if isl.races < 1:
+            self.panel.show_message("Clubs", "Win your first race at the Races desk to join a club.")
+            return
+        leagues = [league for league in LEAGUES if isl.can_join(league, rating)]
+        if not leagues:
+            mine = CLUB[isl.club][1]
+            nxt = isl.league + 1
+            self.panel.show_lines("Clubs", "Your club", (
+                f"You race for the {mine}, {league_name(isl.league)}.",
+                (f"{league_name(nxt)} opens at rating {LEAGUES[nxt][3]}." if nxt in LEAGUES
+                 else "That's the top league."),
+                f"Your rating: {rating}"))
+            return
+        self.pending_league = leagues
+        now = f"  ·  now with the {CLUB[isl.club][1]}" if isl.club else ""
+        self.panel.show_choice("Clubs", "", (f"Your rating: {rating}{now}",), [f"L{n}" for n in leagues],
+                               [(f"{league_name(n)}  ·  entry {LEAGUES[n][2]:,} S",
+                                 "  vs  ".join(c[1] for c in CLUBS if c[2] == n)) for n in leagues])
+
+    def _offer_clubs(self, league):
+        clubs = [c for c in CLUBS if c[2] == league]
+        self.pending_club = [c[0] for c in clubs]
+        self.panel.show_choice(league_name(league), "", ("Pick a club. Once in, there's no leaving.",),
+                               [c[1].split()[0].upper() for c in clubs],
+                               [(c[1], f"Entry {LEAGUES[league][2]:,} S  ·  camp on the island") for c in clubs])
+
+    def _confirm_join(self, club_id):
+        club = CLUB[club_id]
+        self.pending_confirm = f"join:{club_id}"
+        self.panel.show_confirm(f"Join the {club[1]}?", "", (
+            f"{league_name(club[2])}  ·  entry {LEAGUES[club[2]][2]:,} S",
+            "Once in a club there's no leaving;", "you can only move up a league."), "JOIN", "NOT NOW")
+        self.panel.selected = 0
+
+    def _join_club(self, club_id):
+        isl = self.missions.island
+        why = isl.join(self.missions, club_id, self.missions.progress.rating("island"))
+        if why:
+            self.panel.show_message("Clubs", why)
+            return
+        self.autosave.request()
+        club = CLUB[club_id]
+        self.panel.show_lines(f"Welcome to the {club[1]}", "Success", (
+            f"{league_name(club[2])}: tournaments vs the {CLUB[rivals_of(club_id)][1]}.",
+            f"Tourney passes at the Tournaments desk ({TOURNEY_PASS_PRICE:,} S).",
+            "You can start at your club's camp from now on."))
+
+    def _tourney_desk(self):
+        isl = self.missions.island
+        if not isl.club:
+            self.panel.show_message("Tournaments", "Join a club at the Clubs desk first.")
+            return
+        share, mastery, pool = payout(isl.league)
+        self.pending_tourney = True
+        self.panel.show_choice("Tournaments", "", (
+            f"{CLUB[isl.club][1]} vs {CLUB[rivals_of(isl.club)][1]}  ·  {league_name(isl.league)}",
+            f"Pool {pool:,} S  ·  a win pays you {share:,} S + {mastery} mastery",
+            f"{TOURNEY_RACES} races, 2 laps each  ·  pass {TOURNEY_PASS_PRICE:,} S"), ["BUY PASS", "START"])
+
+    def _buy_tourney_pass(self):
+        if self.missions.tokens < TOURNEY_PASS_PRICE:
+            self.panel.show_message("Tournaments", f"A tourney pass is {TOURNEY_PASS_PRICE:,} S. "
+                                                   "You don't have enough Sunside Tokens.")
+            return
+        if not self.missions.add_item("tourney_pass", 1):
+            self.panel.show_message("Tournaments", "You can't carry more tourney passes.")
+            return
+        self.missions.add_item("sunside_tokens", -TOURNEY_PASS_PRICE)
+        self.autosave.request()
+        self.panel.show_lines("Tournaments", "Success", ("Bought a tourney pass.",
+                                                         "START at this desk when you're ready.", ""))
+
+    def _start_tournament(self):
+        isl = self.missions.island
+        if not self.missions.add_item("tourney_pass", -1):
+            self.panel.show_message("Tournaments", "You need a tourney pass. Buy one here.")
+            return
+        isl.played += 1
+        self.tournament = Tournament(isl.club, f"{self.world.seed}-{isl.played}")
+        self.autosave.request()
+        self._start_tournament_race()
+
+    def _start_tournament_race(self):
+        tour, progress = self.tournament, self.missions.progress
+        track = tour.tracks[tour.race]
+        self.tour_entrants = tour.entrants(progress)
+        # Each track is a region's surface: the player drives at that region's speed.
+        self.race = GridRace(track.as_track(), progress.speed_scale(track.theme), tour.race * 911 + tour.rng.randrange(1 << 20),
+                             self.tour_entrants, f1=self.car.f1)
+        self.in_island_center = False
+        self.race_over = 0.0
+        self._snap_zoom(DRIVE_ZOOM)
+
+    def _finish_tournament_race(self):
+        race, tour = self.race, self.tournament
+        tour.record(race.order, self.tour_entrants)
+        self.race = None
+        place = race.order.index(-1) + 1
+        cx, cy = self.missions.center_position("island")
+        self._return_to_giver(type("Spot", (), {"x": cx, "y": cy + 150})())
+        home, away = CLUB[tour.home][1], CLUB[tour.away][1]
+        score = f"{home} {tour.points['home']}  -  {tour.points['away']} {away}"
+        theme = tour.tracks[tour.race - 1].theme
+        if not tour.over:
+            upcoming = tour.tracks[tour.race].theme
+            self.pending_tour = True
+            self.panel.show_lines(f"Race {tour.race} / {TOURNEY_RACES}  ·  {SURFACE_NAMES[theme]}", "",
+                                  ("You quit: last place" if race.quit else f"You finished {ordinal(place)}",
+                                   score, f"Next: {SURFACE_NAMES[upcoming]}  ·  2 laps"), ("NEXT RACE",))
+            return
+        isl = self.missions.island
+        self.tournament = None
+        if tour.winner() == "home":
+            isl.won += 1
+            share, mastery, pool = payout(isl.league)
+            self.missions.add_item("sunside_tokens", share)
+            self.missions.add_universal(mastery)
+            self.panel.show_lines("Tournament won!", "Success", (
+                score, f"Your quarter of the {pool:,} S pool: +{share:,} S", f"+{mastery} mastery points (inventory)"))
+        else:
+            self.panel.show_lines("Tournament over", "Failed", (score, f"The {away} take it this time.",
+                                                                "Try again with another tourney pass."))
+        self.autosave.request()
+
+    def _next_tournament_race(self):
+        if self.tournament and not self.tournament.over:
+            self._start_tournament_race()
+
+    def _offer_spawn(self):
+        """GO HOME (and opening the game): club members choose the city home or their camp."""
+        if not self.missions.island.club:
+            self._go_home()
+            return
+        self.pending_spawn = True
+        self.panel.show_choice("Where to?", "", ("Your city home,",
+                                                 f"or the {CLUB[self.missions.island.club][1]} camp on Elite Island.", ""),
+                               ["CITY HOME", "CLUB CAMP"])
+
+    def _go_club_camp(self):
+        """Like GO HOME, but in the car at the club's camp."""
+        camp = self.world.island_camps[self.missions.island.club]
+        self._go_home()
+        self.car.x, self.car.y, self.car.heading = camp.parking
+        self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
+
+    def _update_island_center(self, dt):
+        walker = self.walker
+        self.island_level.update(dt)
+        walker.update(dt, *self.inputs.walking(), self.island_collisions)
+        self.state.set_player_pose(self.walker_id, walker.x, walker.y, walker.heading)
+        self.state.set_frame(self.walker_id, walker.frame())
+        self._ease_zoom(dt)
+
+    def _render_island_center(self):
+        walker, zoom, level = self.walker, self.zoom, self.island_level
+        view_w, view_h = self.state.viewport[0] / zoom, self.state.viewport[1] / zoom
+        camera_x, camera_y = camera_position(walker, view_w, view_h, zoom, (level.width, level.height))
+        self.state.render(level.visible_sprites(), camera_x, camera_y, [self.walker_id], zoom)
+        isl = self.missions.island
+        panel = ((CLUB[isl.club][1].upper(), league_name(isl.league)) if isl.club
+                 else (f"ISLAND RACES  {isl.races} / {ISLAND_RACES}", "Win race 1 to join a club"))
+        self.hud.render(0.0, "Island Racing Center", "Races  ·  Clubs  ·  Tournaments", self._island_center_prompt(),
+                        show_speed=False, mission=panel, toast=self._toast())
+        if self.world_map.open:
+            self.world_map.render(*self.missions.center_position("island"), self.guide_to)
 
     # Mining Factory ---------------------------------------------------------------
 
@@ -1230,6 +1578,8 @@ class Game:
             return self.world.farm.house
         if self.at_fair:
             return self.world.fair.center
+        if self.in_island_center:
+            return self.missions.center_position("island")
         if self.in_factory:
             return self.world.factory.building
         player = self.walker or self.car
@@ -1364,7 +1714,22 @@ class Game:
                 return region
         return None
 
+    def _center_count(self, region):
+        return ISLAND_RACES if region == "island" else CENTER_RACES
+
+    def _center_won(self, region):
+        return self.missions.island.races if region == "island" else self.missions.progress.races[region]
+
+    def _center_rival(self, region, race):
+        """(name, line, sprite, rating) of a center's race `race`."""
+        if region == "island":
+            return (*ISLAND_RIVALS[race - 1], ISLAND_RATINGS[race - 1])
+        return (*rival(region, race), RIVAL_RATINGS[race - 1])
+
     def _offer_center_race(self, region):
+        if region == "island":
+            self._offer_island_race()
+            return
         title = f"{region.title()} Racing Center"
         won = self.missions.progress.races[region]
         if self.missions.active:
@@ -1389,16 +1754,37 @@ class Game:
             "can_decline": False,
         })
 
+    def _offer_island_race(self):
+        title = "Island Racing Center"
+        won = self.missions.island.races
+        if won >= ISLAND_RACES:
+            self.panel.show_lines(title, "Champion", (f"All {ISLAND_RACES} island races won.",
+                                                      "Tournaments are where it's at now.", ""))
+            return
+        race = won + 1
+        name, line, _, rating_ = self._center_rival("island", race)
+        self.pending_center, self.pending_offer = "island", None
+        self.panel.show_offer({
+            "title": title, "difficulty": f"Race {race} / {ISLAND_RACES}",
+            "detail": f'{name}: "{line}"',
+            "rules": f"{name} ({rating_}) VS You ({self.missions.progress.rating('island')})",
+            "reward": f"{ISLAND_LAPS} laps on island clay  ·  "
+                      + ("the clubs open with a win" if race == 1 else
+                         "win to become island champion" if race == ISLAND_RACES else f"win to unlock race {race + 1}"),
+            "can_decline": False,
+        })
+
     def _start_center_race(self, region):
-        race = self.missions.progress.races[region] + 1
+        race = self._center_won(region) + 1
         # Each race has its own seed-generated track; later races are bigger blobs
         # (longer laps, more corners). The rival drives at its rating, tuned to the track.
         track = {"kind": "circuit", "theme": region, "laps": LAPS,
                  "seed": f"{self.world.seed}-{region}-{race}", "size": track_size(race)}
-        _, _, sprite = rival(region, race)
-        scale = self.missions.progress.speed_scale(region)
-        self.race = DragRace(track, None, scale, race * 101 + REGIONS.index(region),
-                             rival_sprite=sprite, rival_rating=RIVAL_RATINGS[race - 1], f1=self.car.f1)
+        _, _, sprite, rating_ = self._center_rival(region, race)
+        scale = self.missions.progress.speed_scale(region)    # On the island: the best region's.
+        self.in_island_center = False
+        self.race = DragRace(track, None, scale, race * 101 + (REGIONS + ("island",)).index(region),
+                             rival_sprite=sprite, rival_rating=rating_, f1=self.car.f1)
         self.center_race = (region, race)
         self.race_over = 0.0
         self._snap_zoom(DRIVE_ZOOM)
@@ -1406,12 +1792,30 @@ class Game:
     def _finish_center_race(self):
         region, number = self.center_race
         race = self.race
-        name, _, _ = rival(region, number)
+        name, _, _, rating_ = self._center_rival(region, number)
         progress = self.missions.progress
         self.race, self.center_race = None, None
         cx, cy = self.missions.center_position(region)
         self._return_to_giver(type("Spot", (), {"x": cx, "y": cy + 150})())
         title = f"{region.title()} Racing Center"
+        if region == "island":
+            isl = self.missions.island
+            if race.result == "win":
+                isl.races = min(ISLAND_RACES, isl.races + 1)
+                lines = [f"You beat {name} in {race.times['player']:.1f} s",
+                         ("Island champion! All five races won." if isl.races >= ISLAND_RACES
+                          else f"Race {isl.races + 1} unlocked  ·  {isl.races}/{ISLAND_RACES} won"),
+                         "The clubs are open: see the Clubs desk." if isl.races == 1 else ""]
+                chip = "Champion" if isl.races >= ISLAND_RACES else "Success"
+            else:
+                chip = "Failed"
+                lines = [(f"You quit the race against {name}" if getattr(race, "quit", False)
+                          else f"{name} finished first ({race.times['rival']:.1f} s)"),
+                         "Try again at the Races desk",
+                         f"{name} ({rating_}) VS You ({progress.rating('island')})"]
+            self.autosave.request()
+            self.panel.show_lines("Island Racing Center", chip, lines)
+            return
         if race.result == "win":
             was_unlocked = progress.island_unlocked()
             won = progress.win_race(region)
@@ -1421,7 +1825,7 @@ class Game:
                       else f"Race {won + 1} unlocked  ·  {won}/{CENTER_RACES} won")]
             if progress.island_unlocked() and not was_unlocked:
                 chip = "Island unlocked"
-                lines.append("Elite Island is open: press T on any beach")
+                lines.append("Elite Island is open: take the island ferry")
             else:
                 lines.append(self._island_status() if won >= CENTER_RACES else "")
         else:
@@ -1437,14 +1841,16 @@ class Game:
     def _island_status(self):
         progress = self.missions.progress
         if progress.island_unlocked():
-            return "Elite Island is open: press T on any beach"
+            return ("Elite Island is open: T on a mainland beach" if self.missions.island.crossed
+                    else "Elite Island is open: take the island ferry")
         return (f"Elite Island: centers {progress.centers_done()}/{len(REGIONS)}  ·  "
                 f"best level {max(progress.levels.values())}/{ISLAND_LEVEL}")
 
     # Elite Island -----------------------------------------------------------------
 
     def _island_prompt(self, player):
-        if not self.missions.progress.island_unlocked() or self.race:
+        # Fast travel once the first ferry crossing has been made.
+        if not (self.missions.progress.island_unlocked() and self.missions.island.crossed) or self.race:
             return ""
         if on_island(self.world, player.x, player.y):
             return "T   Return to mainland"
@@ -1514,6 +1920,9 @@ class Game:
         if self.in_factory:
             self._update_factory(dt)  # And the factory.
             return
+        if self.in_island_center:
+            self._update_island_center(dt)
+            return
         if self.at_fair:
             self._update_fair(dt)    # And the fair.
             return
@@ -1578,6 +1987,9 @@ class Game:
         if self.center_race:
             self._finish_center_race()
             return
+        if self.tournament:
+            self._finish_tournament_race()
+            return
         won = race.result == "win"
         seconds = race.times.get("player", race.clock)
         if getattr(race, "quit", False):
@@ -1608,6 +2020,8 @@ class Game:
             self._render_fair()
         elif self.in_factory:
             self._render_factory()
+        elif self.in_island_center:
+            self._render_island_center()
         else:
             self._render_world()
         if self.fair_game.open:
@@ -1687,6 +2101,12 @@ class Game:
         elif (walker and math.dist((walker.x, walker.y), HOME_DOOR) <= HOME_DOOR_RANGE
               and not walker.can_enter(car)):
             prompt = "E   Go inside"
+        elif walker and self._ferry_side(walker):
+            prompt = "E   Island ferry"
+        elif walker and self._camp_near(walker):
+            prompt = f"E   {CLUB[self._camp_near(walker).club][1]}"
+        elif walker and self._near_island_center(walker):
+            prompt = "E   Island Racing Center"
         elif walker and self._factory_spot(walker):
             prompt = {"door": ("E   Mining Factory" if self.missions.factory.unlocked
                                else "E   Mining Factory  ·  Factory pass"),
@@ -1736,19 +2156,27 @@ class Game:
         self.state.render(race.sprites(camera_x, camera_y, view_w, view_h), camera_x, camera_y,
                           [self.player_id], 1.0)
         remaining = max(0.0, level.race_length - race.player_progress) / 10
-        place = "1ST" if race.position() == 1 else "2ND"
+        place = ordinal(race.position()).upper()
         clock = max(0.0, race.clock)
         banner = ""
         if race.clock < 0:
             banner = str(race.countdown)
         elif race.clock < 0.8 and not race.result:
             banner = "GO!"
+        elif race.result == "done":
+            banner = f"{ordinal(race.position()).upper()} PLACE"
         elif race.result:
             banner = "YOU WIN!" if race.result == "win" else "YOU LOSE"
         self.hud.top_speed = TOP_SPEED * race.speed_scale * (F1_SPEED if race.car.f1 else 1.0)
-        if self.center_race:
+        if self.tournament and isinstance(race, GridRace):
+            tour = self.tournament
+            title = f"Tournament  ·  race {tour.race + 1}/{TOURNEY_RACES}"
+            guide = f"Lap {race.lap()}/{race.level.laps}  ·  {remaining:.0f} m to go"
+            panel = (f"{CLUB[tour.home][1].upper()} {tour.points['home']} - {tour.points['away']}",
+                     f"{place} of 8  ·  Lap {race.lap()}/{race.level.laps}  ·  {clock:.1f} s")
+        elif self.center_race:
             region, number = self.center_race
-            name, _, _ = rival(region, number)
+            name = self._center_rival(region, number)[0]
             title, guide = (f"{region.title()} race {number}",
                             f"Lap {race.lap()}/{LAPS}  ·  {remaining:.0f} m to go")
             panel = (f"VS {name.upper()}", f"{place}  ·  Lap {race.lap()}/{LAPS}  ·  {clock:.1f} s")
@@ -1770,6 +2198,9 @@ class Game:
         changed, so an autosave does not interrupt the mission."""
         if self.center_race:
             cx, cy = self.missions.center_position(self.center_race[0])
+            start = (cx, cy + 150)
+        elif self.tournament:
+            cx, cy = self.missions.center_position("island")
             start = (cx, cy + 150)
         elif self.missions.active:
             giver = self.missions.active.giver

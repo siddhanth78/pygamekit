@@ -1364,6 +1364,7 @@ TRACK_SURFACES = {
     "rural": ("#6b4f35", ("#7f6040", "#58402a"), "#d8c48e", ("#d9b75a", "#8a6440")),   # Mud.
     "desert": ("#c9a063", ("#dab677", "#b08650"), "#f6e6ba", ("#d9803a", "#f6e6ba")),  # Packed sand.
     "jungle": ("#4f8a45", ("#62a052", "#3f7338"), "#e8e0b0", ("#2f5f35", "#e8e0b0")),  # Worn grass.
+    "island": ("#a8553a", ("#b8664a", "#8f4630"), "#fff4d6", ("#2fb8c0", "#fff4d6")),  # Red clay.
 }
 TRACK_PARTS = ("base", "edge", "corner", "inner", "start", "finish")
 
@@ -1427,7 +1428,7 @@ TRACK_TILES = tuple(f"track_{surface}_{part}" for surface in TRACK_SURFACES
 
 
 def track() -> Atlas:
-    a = Atlas("track-atlas", 64, 8, 4)
+    a = Atlas("track-atlas", 64, 8, 5)
     for i, name in enumerate(TRACK_TILES):
         track_tile(a.tile(name, i % 8, i // 8), name)
     return a
@@ -1967,11 +1968,108 @@ def factory() -> Atlas:
     return a
 
 
+CLUB_COLORS = {"palm": "#e05a4a", "reef": "#3fb0c9", "lagoon": "#4f9a5a", "coral": "#f28fb0",
+               "volcano": "#e08a2a", "tide": "#3f6fd0", "summit": "#f2ca57", "elite": "#8a55c9"}
+ISLAND_ART = ("ferry_boat", "ferry_kiosk", "club_tent", *(f"club_flag_{c}" for c in CLUB_COLORS),
+              "desk_races", "desk_clubs", "desk_tourney", "trophy_case", "podium", "tourney_pass")
+
+
+def island_art(p: Painter, name: str):
+    """Elite Island in 96 px cells: the ferry (bow east), kiosks, club camps, and the
+    racing center's desks (fronts face south), trophies, podium, and the tourney pass."""
+    if name == "ferry_boat":
+        p.rect(4, 26, 86, 72, "#1d2a30")
+        p.ellipse(84, 48, 10, 22, "#e8eef0")                 # White hull, bow east,
+        p.rect(6, 26, 84, 70, "#e8eef0")
+        p.rect(6, 26, 84, 30, "#3f7fd0")
+        p.rect(6, 66, 84, 70, "#3f7fd0")
+        p.rect(12, 34, 60, 62, "#5d6366")                    # the car deck,
+        for x in (18, 36):
+            p.rect(x, 38, x + 12, 46, "#d9453f")
+            p.rect(x, 50, x + 12, 58, "#f2ca57")
+        p.rect(62, 32, 80, 64, "#f4ead0")                    # and the bridge.
+        p.rect(66, 36, 76, 44, "#83b8c0")
+    elif name == "ferry_kiosk":
+        p.rect(20, 30, 78, 72, "#1d2a30")
+        p.rect(18, 28, 76, 70, "#3f7fd0")                    # A ticket kiosk,
+        p.rect(18, 28, 76, 36, "#f4ead0")
+        p.rect(28, 42, 66, 56, "#f4ead0")                    # with a boat on its sign.
+        p.rect(34, 48, 60, 52, "#3f7fd0")
+        p.rect(44, 44, 50, 48, "#3f7fd0")
+    elif name == "club_tent":
+        p.rect(10, 16, 90, 86, "#1d2a30")
+        p.rect(8, 14, 88, 84, "#f4ead0")                     # A big white race tent,
+        for x in range(8, 88, 16):
+            p.rect(x, 14, x + 8, 84, "#e8dcc0")
+        p.rect(8, 46, 88, 50, "#c9bfa6")                     # its ridge,
+        p.rect(36, 70, 60, 84, "#8a6440")                    # an open front,
+        p.rect(40, 74, 56, 84, "#5a3d28")
+        p.rect(14, 76, 30, 82, "#3a3f44")                    # and tool chests.
+        p.rect(66, 76, 82, 82, "#d9453f")
+    elif name.startswith("club_flag_"):
+        color = CLUB_COLORS[name.removeprefix("club_flag_")]
+        p.rect(46, 20, 50, 84, "#5d6366")                    # A pole
+        p.rect(50, 20, 84, 44, "#1d2a30")
+        p.rect(50, 18, 82, 42, color)                        # with the club's colors
+        for x in range(54, 80, 8):
+            p.rect(x, 22, x + 4, 26, "#fff4d6")               # and a checker trim.
+        p.ellipse(48, 86, 8, 4, "#3a3f44")
+    elif name in ("desk_races", "desk_clubs", "desk_tourney"):
+        accent = {"desk_races": "#d9453f", "desk_clubs": "#4f9a5a", "desk_tourney": "#f2ca57"}[name]
+        p.rect(8, 30, 90, 70, "#1d2a30")
+        p.rect(6, 28, 88, 66, "#8a6440")                     # A counter,
+        p.rect(6, 28, 88, 36, accent)
+        p.rect(10, 38, 84, 62, "#a47a4a")
+        if name == "desk_races":                             # its sign: a checkered flag,
+            for i in range(4):
+                for j in range(3):
+                    if (i + j) % 2 == 0:
+                        p.rect(34 + i * 6, 42 + j * 6, 40 + i * 6, 48 + j * 6, "#27353d")
+        elif name == "desk_clubs":                           # a club pennant,
+            p.rect(36, 42, 58, 56, "#4f9a5a")
+            p.rect(36, 42, 58, 46, "#fff4d6")
+        else:                                                # or a cup.
+            p.ellipse(47, 48, 9, 7, "#f2ca57")
+            p.rect(44, 54, 50, 60, "#b8862a")
+    elif name == "trophy_case":
+        p.rect(10, 20, 90, 80, "#1d2a30")
+        p.rect(8, 18, 88, 78, "#6b4a30")
+        p.rect(12, 22, 84, 74, "#83b8c0")                    # A glass case
+        for x, c in ((24, "#f2ca57"), (48, "#c8ced4"), (70, "#cd7f32")):
+            p.ellipse(x, 44, 7, 6, c)                        # of cups.
+            p.rect(x - 2, 50, x + 2, 58, c)
+            p.rect(x - 6, 58, x + 6, 62, c)
+    elif name == "podium":
+        p.rect(10, 34, 90, 78, "#1d2a30")
+        for x0, x1, top, c in ((8, 34, 50, "#c8ced4"), (34, 62, 36, "#f2ca57"), (62, 88, 58, "#cd7f32")):
+            p.rect(x0, top, x1, 76, c)                       # A winners' podium.
+            p.rect(x0, top, x1, top + 3, "#fff4d6")
+    elif name == "tourney_pass":
+        p.rect(14, 30, 86, 70, "#1d2a30")
+        p.rect(10, 26, 82, 66, "#27353d")                    # A black pass,
+        p.rect(10, 26, 82, 32, "#f2ca57")
+        p.ellipse(34, 48, 10, 9, "#f2ca57")                  # a gold cup,
+        p.rect(31, 56, 37, 62, "#f2ca57")
+        for i in range(3):
+            for j in range(2):
+                if (i + j) % 2 == 0:
+                    p.rect(52 + i * 7, 40 + j * 7, 59 + i * 7, 47 + j * 7, "#fff4d6")   # and checks.
+    else:
+        raise ValueError(name)
+
+
+def island() -> Atlas:
+    a = Atlas("island-atlas", 96, 4, 5)
+    for i, name in enumerate(ISLAND_ART):
+        island_art(a.tile(name, i % 4, i // 4), name)
+    return a
+
+
 def main():
     BITMAP.mkdir(exist_ok=True)
     ASSETS.mkdir(exist_ok=True)
     atlases = [terrain(), roads(), vehicles(), structures(), props(), people(), camp(),
-                markers(), track(), canopies(), home(), store(), highway(), farm(), fair(), factory()]
+                markers(), track(), canopies(), home(), store(), highway(), farm(), fair(), factory(), island()]
     manifest = {"format": 1, "art_style": "top-down pixel art", "atlases": {}}
     for atlas in atlases:
         (BITMAP / f"{atlas.name}.json").write_text(json.dumps(atlas.spec(), indent=2) + "\n")

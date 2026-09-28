@@ -41,6 +41,8 @@ KINDS = {
     "buyer": ((232, 196, 120), "Farm buyer"),
     "fair": ((110, 200, 236), "Snow Fair"),
     "factory": ((170, 180, 196), "Mining Factory"),
+    "ferry": ((90, 200, 200), "Island ferry"),
+    "club": ((255, 150, 90), "Island club"),
 }
 SPARE_MARKS = 12               # Room for landmarks that come and go (farm buyers).
 PANEL = (20, 32, 40, 235)
@@ -62,11 +64,15 @@ class Landmark:
         return KINDS[self.kind][0]
 
 
-def landmarks(world, givers=(), buyers=()) -> list[Landmark]:
-    """Every landmark the map shows. More kinds can be added here."""
+def landmarks(world, givers=(), buyers=(), ferry=False, clubs=False) -> list[Landmark]:
+    """Every landmark the map shows. ferry: the island ferry is open (a diamond at the
+    mainland dock); clubs: the island's been reached by ferry (its racing center and a
+    diamond at each club camp; the island stays off the map until then)."""
     out = []
     for (sx, sy), name in sorted(CENTERS.items()):
         region = name.removeprefix("center_")
+        if region == "island" and not clubs:
+            continue
         out.append(Landmark("center", f"{region.title()} racing center", *world.center_position(sx, sy)))
     for dock in world.docks:
         ex, ey = dock.end
@@ -88,6 +94,13 @@ def landmarks(world, givers=(), buyers=()) -> list[Landmark]:
     for giver in givers:
         if giver.harder:
             out.append(Landmark("veteran", giver.name, giver.x, giver.y))
+    if ferry:
+        from island import ferry_spots
+        out.append(Landmark("ferry", "Island ferry", *ferry_spots(world)[0]))
+    if clubs:
+        from island import CLUB
+        for club_id, camp in getattr(world, "island_camps", {}).items():
+            out.append(Landmark("club", CLUB[club_id][1], *camp.spot))
     for order in buyers:                     # Only while the farm is the player's.
         out.append(Landmark("buyer", order.title, order.x, order.y))
     return out

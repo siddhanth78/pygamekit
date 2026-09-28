@@ -77,6 +77,8 @@ ITEMS = (
          "Unlocks the factory.", max_stack=1, price=20_000, aisle="tickets"),
     Item("arcade_tow_train", "Tow Train cartridge", "store-atlas", "arcade_tow_train",
          "Unlocks Tow Train.", max_stack=1, price=10_000, aisle="games", unlocks="tow_train"),
+    Item("tourney_pass", "Tourney pass", "island-atlas", "tourney_pass", "Starts one tournament.",
+         price=2_000),
     Item("island_pass", "Island pass", "store-atlas", "island_pass",
          "Passage to the island.", max_stack=1, price=100_000, aisle="tickets"),
 )
