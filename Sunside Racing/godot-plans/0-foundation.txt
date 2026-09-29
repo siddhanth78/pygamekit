@@ -53,8 +53,7 @@ GODOT BUILD
   cycles (people-atlas "<kind>_idle/_walk_a/_walk_b").
 - Input map: move_up/down/left/right (W/S/A/D + arrows), confirm (Enter, keypad
   Enter, Space), interact (E), pause (Esc), map (M), clear (C), inventory (I),
-  orders (O), call_car (Q), travel (T), respawn (R), run (Shift), handbrake (Space
-  while driving), mouse click/release/motion for menus and fair games.
+  orders (O), call_car (Q), travel (T), respawn (R), run (Shift), mouse click/release/motion for menus and fair games.
 - Autoload "Events": a signal bus (mission_finished, level_up, item_changed,
   race_finished, toast(text), autosave_requested, ...).
 - Autoload "Save": player save (JSON, atomic write: temp file then rename) in
@@ -100,3 +99,49 @@ loaders with safe defaults), an 'Autosave' autoload (60 s interval plus on reque
 one background write at a time, 'Saved' toast), and a Theme with the listed colors
 and auto-shrinking labels. Add GUT and tests for the atlas lookup and save round
 trip. Follow the porting rules in godot-plans/0-foundation.txt."
+
+AS BUILT (2026-09-28)
+- Godot 4.6.1, GL Compatibility. GUT 9.6.1 in res://addons/gut (9.7.x needs a newer
+  Godot). Run tests: Godot --headless -s addons/gut/gut_cmdln.gd (config in
+  .gutconfig.json, tests in res://tests/unit/). Run once without --headless too: the
+  atlas pixel spot check only compares pixels when a real renderer is present.
+- Window: 1280x720, not resizable, stretch mode viewport/keep. Nearest filter and 2D
+  transform/vertex pixel snap in project settings. Main scene res://scenes/main.tscn
+  (blank Node2D) until 16-game-flow replaces it.
+- Autoload order: Events, Atlas, Save, Autosave.
+- Atlas (scripts/autoload/atlas.gd): texture(atlas, name), frames(kind) ->
+  [idle, walk_a, walk_b], region(), sheet(), names(), cell_px(), has(),
+  z_index(atlas) = DRAW_ORDER index x 10 (terrain 0 ... marker 160). Unknown names
+  push_error and return null. Imported textures differ from the PNG only in RGB under
+  alpha 0 (fix_alpha_border), which never shows.
+- Events (scripts/autoload/events.gd): mission_finished(result), level_up(region,
+  level), item_changed(item, count), purchase_made(item, cost), race_finished(result),
+  toast(text), autosave_requested, saved(ok). Add signals here as components land.
+- Save (scripts/autoload/save.gd): the Godot save format starts at VERSION 1 (Python
+  saves are not carried over). Payload {version, mode, car, walker (walk only),
+  missions}. save_state(car_pose, walker_pose = null, missions = null);
+  payload(...) builds one; write(dict) is the atomic, thread-safe writer (refuses
+  NaN/INF/non-JSON). load_state() returns {version, mode, car, walker, missions};
+  missing/corrupt/unsupported data gives Save.defaults() (car null). A bad walker
+  gives walker null with mode "walk" (walking code steps out beside the car). Checking
+  poses against the world (collisions) is left to 3-on-foot/6-progression.
+- SaveData (scripts/save/save_data.gd): validating readers for sub-state loaders:
+  number, pose, read_int/float/bool/string/dict/array, is_json_safe. JSON numbers load
+  as floats; read_int accepts whole floats.
+- Autosave (scripts/autoload/autosave.gd, timing in AutosaveClock = autosave.py): the
+  game sets Autosave.collect (Callable -> payload dict, {} skips) and optionally
+  Autosave.can_save (Callable -> bool, e.g. false mid drag race). request() or
+  Events.autosave_requested / mission_finished / purchase_made / race_finished queue a
+  save. Writes go through WorkerThreadPool, one at a time; save_now() writes
+  synchronously (also on window close). Shows the "Saved" toast itself (120x28,
+  top-center, hud.MARGIN) for 1.5 s; 5-ui may take the toast over.
+- Theme res://ui/theme.tres (project default): Godot's default font, size 20, cream
+  labels, ink panels. Type variations: TitleLabel (gold, 32, bold), BoldLabel,
+  MutedLabel, GoodLabel, FailLabel, AccentPanel (gold 4 px left bar). Colors as
+  constants in UiColors (INK, GOLD, CREAM, MUTED, GOOD, FAIL).
+- FitLabel (scripts/ui/fit_label.gd): Label with clip_text on (width comes from
+  layout); font_size export (0 = theme size); shrinks 1 pt at a time to MIN_FIT_SIZE
+  10 until the widest line fits; refits when text or width changes.
+- No handbrake action: the Python game removed the handbrake (see 1-car).
+- Extra tests beyond the plan: input map and pixel settings, wording (banned phrases
+  from test_display_text.py plus "(inventory)", scanned over scripts/scenes/ui).

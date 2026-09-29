@@ -2,7 +2,7 @@ SUNSIDE RACING -> GODOT: 1. CAR (DRIVING)
 
 PURPOSE
 The player's car: an arcade driving model whose grip and top speed depend on the
-surface under it, plus handbrake, ice sliding, crashes, respawn, and the F1 upgrade.
+surface under it, plus ice sliding, crashes, respawn, and the F1 upgrade (no handbrake).
 Reference: car.py, collision_manager.py.
 
 HOW IT WORKS
@@ -16,12 +16,16 @@ HOW IT WORKS
   progression) x F1_SPEED 1.10 if the F1 car is owned (grip x F1_GRIP 1.20).
 - Ice (snow surfaces): the car carries momentum sideways; ICE_TRACTION 1.8 and
   ICE_SCRUB 0.9 set how fast velocity turns toward the heading and bleeds off.
-- Handbrake (Space while driving) for sharp turns.
+- No handbrake: the Python game removed it (reference/plan.txt, "No handbrake; ice is
+  slippery", 2026-09-27). Driving input is throttle and steer only; Space is confirm.
+- Steering: 135 x grip deg/s, scaled by min(1, |speed| / 130); none below 4 px/s;
+  reversed when backing up. Coasting (no throttle) loses 95 px/s per second.
 - Crash: a hit that stops the car from above 40 px/s (CRASH_SPEED) counts (missions
   use it, with a 1 s grace).
 - Collisions: the car's rotated box vs. solid scenery (buildings, props with solid
   sizes), traffic cars, parked cars, pedestrians (only when not already overlapping)
-  and world bounds / sea. The car slides along what it hits.
+  and world bounds / sea. Movement is checked in steps of at most 12 px; the first
+  blocked step stops the car dead (speed 0), as in car.py (it does not slide along).
 - R (respawn): search outward rings (8 px apart, up to 480 px) for the nearest spot
   where the car plus 16 px clearance is drivable and clear; keep the heading, stop
   the car. Start position only if nothing nearby is free.
@@ -60,8 +64,34 @@ DONE WHEN
 PROMPT
 "Port the Sunside Racing car (car.py, collision_manager.py) to Godot 4 per
 godot-plans/1-car.txt: a custom arcade model (not RigidBody2D) with the listed
-surfaces, acceleration, braking, reverse cap, ice momentum, handbrake, crash
-detection, rotated-box collisions against a level interface (region_at,
+surfaces, acceleration, braking, reverse cap, ice momentum, crash detection (no
+handbrake: removed in the Python game), rotated-box collisions against a level interface (region_at,
 can_place_car, nearby_obstacles), ring-search respawn, and the F1 upgrade. Build a
 small flat test level with walls and patches of each surface, and GUT tests for the
 done-when checks."
+
+AS BUILT (2026-09-28)
+- scripts/car/car.gd (class Car, scene scenes/car/car.tscn: Node2D + Sprite2D "Sprite",
+  z_index 150 = Atlas.z_index("vehicle-atlas")). Model state x, y, heading, speed,
+  travel (NAN until moving), crashed, f1 (setter swaps the sprite). update(delta,
+  throttle, steer, level, collisions, speed_scale = 1.0); delta clamped to 0.05.
+  velocity(), handling(level, speed_scale) -> Vector2(grip, top speed),
+  collision_box(x, y) (24 x 44, rotation -heading), obstacle() for the parked car,
+  respawn_nearby(collisions, max_radius = 480), reset() to START_X/START_Y (the Python
+  world start), sync_node() copies the pose to position/rotation_degrees.
+- scripts/collision/: SolidBox (rotated rect = Sprite.obstacle_record, rotation
+  counter-clockwise, SAT overlap where touching counts; source = what it belongs to),
+  ObstacleGrid (buckets of 512 px, nearby(x, y) within 145 px), Collisions (level +
+  sources [anything with nearby_obstacles] + fixed boxes; can_move, can_walk,
+  colliding_obstacles, static nearest_clear_spot). The parking is_away filter and
+  pedestrian overlap rule belong to 4-traffic-and-people.
+- scripts/levels/level.gd: class Level (Node2D) with defaults: region_at, surface_at
+  (= region_at; the world overrides it for highway asphalt), is_ice (false),
+  is_drivable (true), can_place_car (center + corners drivable), can_place_walker,
+  nearby_obstacles ([]). World, tracks and interiors extend it.
+- Test level: scripts/levels/test_level.gd (TestLevel), 24 x 16 tiles with a sea
+  border, a 4 x 4-tile patch of every surface plus ice and runoff, a straight wall and
+  a 45-degree wall. scenes/levels/car_playground.tscn drives it (WASD/arrows, R
+  respawn, F toggles the F1 car; debug readout only).
+- Input: the "handbrake" action was removed from the input map (0-foundation).
+- Tests: tests/unit/test_car.gd, tests/unit/test_car_collisions.gd.

@@ -92,3 +92,45 @@ Mastery page with TRAVEL, Help, Docks), the title screen, and the world map with
 legend, clickable landmark diamonds, guide set/clear, and hidden island marks until
 unlocked. All labels auto-shrink; all text follows the wording rule. Tests for
 panel navigation and pause-menu button sets."
+
+AS BUILT (2026-09-28)
+- Scenes: scenes/ui/hud.tscn (CanvasLayer 10), world_map.tscn (55), panel.tscn (60),
+  pause_menu.tscn (70), title.tscn (Control). Scripts in scripts/ui/: Hud, WorldMap,
+  ModalPanel, PauseMenu, TitleScreen, plus UiKit (labels placed like DynamicLabel
+  records, center rects, diamonds, input events -> "menu_up"/"confirm"/"pointer"/...
+  intents), DrawLayer (callback drawing), and more UiColors.
+- Fonts: pygame's default font draws at 0.6875 of its nominal size, so every Python
+  size is x 0.6875 (UiKit.font_px). All text is FitLabel (shrinks, never clips);
+  UiKit.place refits at once.
+- Overlays autoload (UI stack): push/pop/top/is_top/any_open; only the top overlay
+  handles input. (16 changed pausing: the Game skips its gameplay step while any overlay
+  is open instead of pausing the tree; Overlays.pause_game stays available, off.)
+- ModalPanel: show_offer(preview), show_result(result), show_lines, show_message,
+  show_confirm (no starts selected), show_choice(options <= 4, per-option details),
+  show_bill(rows <= 8, "...and N more", panel grows) - each takes an on_close
+  Callable(outcome) ("accept"/"decline", "choice:<i>", "close"); also closed signal.
+  handle(action, value) drives it (keys: left/right move, up/down cycle, Enter, Esc;
+  mouse hover/click). Callbacks may open the next panel.
+- PauseMenu: items() per page and ongoing ("", "mission", "race"); set_mastery(rows,
+  footer) (Missions.mastery_rows shape; the beach row; SPEND POINTS when unspent),
+  set_docks([[pier, open]]); open/close/toggle; handle returns and sends
+  (on_choice / chosen) "resume" (also closes), "exit", "abort", "quit_race", "home",
+  "spend", "travel:<region>", "dock:<pier>". Pages: main, mastery, help, docks.
+- WorldMap: set_world(WorldData), set_marks(WorldMap.landmarks(data, givers, buyers,
+  ferry, clubs, club_names)), select(mark)/guide_changed; handle: diamonds hit as
+  diamonds, nearest wins; C clears, M/Esc closes. The island center, ferry and club
+  diamonds are left out until unlocked/crossed. The legend lists every kind,
+  including Island ferry / Island club, as Python does (flagged to the user).
+- Hud: set_place(place, guide), set_speed(speed, top, visible), set_mission(title,
+  line) (red accent when the line starts "CRASH" or "Time 0."), set_banner,
+  set_prompt, show_toast (also Events.toast), set_arrow(target, player, camera
+  origin, zoom, color). It shows the autosave's "Saved" toast (Autosave's own is
+  turned off while a HUD exists). Static compass, speed_color, lit_segments,
+  orbit_tip, center_guide; WorldMap.guide_line, WorldMap.arrow_color.
+- Pier numbers/names/rules moved ahead into scripts/fishing/piers.gd (Piers) for the
+  docks page and map; 9-fishing extends it. World.center_for added.
+- Title: the staged scene is drawn as one canvas item (separately snapped turned
+  sprites left seams). Project clear color = Python's (0.10, 0.25, 0.36).
+- Wired into scenes/game.tscn (was scenes/world/world_drive.tscn, replaced by the game scene in 16) (HUD, M map with guide arrow, Esc pause with
+  GO HOME / EXIT); mastery rows there are placeholders until 6-progression.
+- Tests: tests/unit/test_modal_panel.gd, test_pause_menu.gd, test_world_map_hud.gd.

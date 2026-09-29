@@ -89,3 +89,57 @@ machine (world, interiors, races), the overlay stack with the listed input order
 pausing, the E interaction and prompt priority lists, the mission-lock refusals,
 travel/GO HOME cleanup (cart, stone run, rides, fishing), race return flow, focus-loss
 pause, and the HUD place line. Port test_game_flows.py as GUT integration tests."
+
+AS BUILT (2026-09-28, first pass: components 0-5 wired; 6-15 wire in as they land)
+- scenes/main.tscn (Main, the project's main scene): the title screen until PLAY (the
+  game scene loads only then), EXIT quits (tests: quit_on_exit off, exit_requested).
+  skip_title starts straight in the game.
+- scenes/game.tscn (Game, scripts/game/game.gd): World, Life (traffic/parking/people),
+  Car, Walker, GameCamera, PlayerController, and the HUD, map, pause and panel layers.
+  Opens at home in the car (HOME_PARK), driving zoom.
+- Modes: "world", "interior", "race". enter_interior(node) (needs level or is a
+  Level, bounds, entry; optional room_name, update, interact, exit_spot) /
+  leave_interior(by_travel); start_race(node) (update(delta, move), optional respawn)
+  / finish_race(return_to, show_result) -> on foot beside it (return_beside: nearest
+  clear spot, car called, WALK zoom), the result panel, Autosave.request(). The world
+  hides (not freed) while another mode runs.
+- Pausing: Game.frame(delta, move, run) steps the active mode only while no overlay
+  is open (traffic, races, timers wait; the HUD still draws). This replaced pausing
+  the tree (Overlays.pause_game now defaults off): same effect, and tests can drive
+  frames. Esc or losing window focus opens the pause menu.
+- Overlays: input goes to the first open overlay in Overlays.ORDER (inventory,
+  market, badges, orders, arcade, map, pause, spend, panel, fair_game); each overlay
+  pushes itself with its kind. Gameplay input (Game._unhandled_input) only when none
+  is open.
+- E: in the car, step out under 15 px/s; on foot, register_interaction(key, name,
+  near, prompt, interact) with key from Game.PRIORITY (fishing 1 ... car 16); the first
+  in range wins, and prompt() follows the same order, then island_prompt, then
+  "Q   Call car". The car's "E   Get in" is registered now; each component registers
+  its own. In an interior E goes to interior.interact(player).
+- Mission lock: refuse_during_mission(title) shows "Finish your current mission
+  first." while mission_active() is true; each locked interact() calls it first.
+- Travel: prepare_travel() leaves any interior, runs add_travel_cleanup() callables
+  (store cart back, stone run collected, ride / booth game ended, fishing stopped),
+  puts the player in the car, snaps the driving zoom; travel_to(pose), go_home().
+- Hooks for later plans: mission_active, mission_target (yellow arrow), missions_data
+  (save), island_prompt, menu_handlers ("travel", "dock", "spend", "abort",
+  "quit_race"), refresh_landmarks(buyers, ferry, clubs, club_names). Veteran givers
+  come from people.json (names "Veteran <Region> <Title>").
+- Autosave: collect = Game.save_payload (car, walker on foot, missions dict);
+  can_save = not in a race.
+- HUD place line: "Highway" on the highway, else the region, or the interior's
+  room_name; guide line from the picked landmark or the nearest racing center.
+- The dev scene scenes/world/world_drive.tscn was replaced by scenes/game.tscn.
+- Tests: tests/integration/test_game_flows.gd (22). Ported from test_game_flows.py:
+  title (3), opens at home, GO HOME, no guide until a landmark is picked, map colors
+  and landmarks, mission target arrow, eased zoom, get out/in zoom, travel snaps zoom,
+  no map during races. Framework: priority, prompt order, mission lock, pause-menu
+  sets, race return, interiors + GO HOME cleanup, overlays pause traffic, overlay
+  input order, focus loss, place line, autosave payload.
+- Still to port as their components land (test_game_flows.py): center races and
+  their confirms / quit (8), drag races (8, 7), deliveries and aborts (7), offers and
+  declines (7), quitting mid mission / race reopens at home (6, 7), autosave mid
+  mission (7), home interior, sit/sleep/lamp/TV, badge board, arcade (11, 15), mastery
+  page Del/Time/Drag and spend (6), inventory (10), fishing, traders, piers, beach
+  travel (9), store and cart (10), locked veterans (7), farm and buyers and orders
+  (12), Snow Fair (13), factory (14), Elite Island (15).

@@ -13,7 +13,8 @@ HOW IT WORKS
 - Rating = 100 + 10 x (level - 1) (level 1 = 100, level 51 = 600). Rivals are rated
   on the same scale; RATING_EDGE 10 sets Easy / Medium / Hard labels.
 - Speed bonus: +4% top speed per level above 1 in that region (car speed_scale).
-  The island (and beach) use the best region's level ("island" = best region).
+  The island uses the best region's level; the beach counts as level 1 (Python
+  level_at; the "(and beach)" here was wrong).
 - MAX_LEVEL 51: a region at 51 is MAX; it earns nothing more there, and a level-up
   that lands on 51 zeroes the leftover. Saves above 51 load as 51.
 - Unlocks: level 3 in a region = fast travel there (TRAVEL on the Mastery page;
@@ -62,3 +63,34 @@ godot-plans/6-progression-and-saves.txt: per-region level/mastery (15xL, 30xL fr
 travel, 4 fishing, 5 veterans), universal mastery points spent from a spend menu,
 and one PlayerState autoload that serializes every sub-state through the Save
 autoload with validation. Include GUT tests for every rule listed."
+
+AS BUILT (2026-09-28)
+- scripts/progression/progress.gd (class Progress): REGIONS, the constants, levels /
+  mastery / completed / races, add (chains level-ups, stops at 51 with leftover
+  zeroed), win_race, centers_done, island_unlocked, record_completion, is_max,
+  best_level, level_at, speed_scale, rating_at, fishing_unlocked, harder_unlocked,
+  fast_travel_unlocked; static mastery_to_next, mastery_to_reach, rating,
+  rating_speed, rating_difficulty, reward. Loads per field with fallbacks (levels
+  above 51 load as 51; whole floats from JSON count).
+- Autoload PlayerState (scripts/autoload/player_state.gd) instead of a "Progress"
+  autoload (the class keeps that name): progress, unspent (max 999), counter, offers,
+  items, arcade, arcade_unlocked, and sections (fish, farm, farm_orders, fair,
+  factory, island) kept as checked dictionaries until 7-15 own them. load_from(data)
+  / to_dict() is the Save's "missions" dict (same keys as Python); reset();
+  add_universal, spend (MAX refuses, points kept), add_mastery (emits
+  Events.level_up), spend_line, mastery_rows(here) (active_mission {region, type} is
+  set by 7 and never saved), dock_states, island_status.
+- scripts/progression/fast_travel.gd (FastTravel): destination(data, region) (the
+  center's lot from sites.json), shore(dock), beach_destination(world, collisions,
+  car, from, pier) (from fishing.beach_destination). Island travel is 15.
+- Spend menu: scripts/ui/spend_menu.gd, scenes/ui/spend_menu.tscn (layer 68, overlay
+  kind "spend"). DECISION (user, 2026-09-28): +1 / +5 / +10 / +25 per region (Python
+  has +1 / +5); buttons 64 px, bar 180 px so four fit. Each spend autosaves and shows
+  the level-up / MAX / +N line.
+- Game wiring: PlayerState loads from the save when the game starts (after the
+  title); car speed_scale and the speedometer's top speed use it; the Mastery page
+  shows real rows, TRAVEL and pier picks fast travel, SPEND POINTS opens the spend
+  menu; Autosave saves PlayerState.to_dict().
+- Tests: tests/unit/test_progression.gd (19), plus 3 game-flow tests (travel and
+  spend with keys, level speed bonus, save and reopen at home). Tests point
+  Save.path at a test file so they never touch the real save.

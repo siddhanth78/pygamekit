@@ -56,6 +56,7 @@ DONE WHEN
 - The badge board shows exactly the earned badges in the 3-2-1 layout.
 - Each arcade game plays, ends by its rule, keeps the best score; locked games stay
   locked until their unlock.
+- Wired into the game flow as per plan 16 (interactions, prompts, mission locks, cleanup).
 
 PROMPT
 "Port Sunside Racing's home interior, badge board, and arcade (home.py, badge_ui.py,
@@ -63,4 +64,4 @@ arcade.py) to Godot 4 per godot-plans/11-home-and-arcade.txt: the 14x9 two-room
 house with solid furniture and E spots (sit, sleep, lamps, remarks, arcade, badge
 board), the text-free 3-2-1 badge board overlay, and the arcade with Lane Dodge, Pit
 Stop, and Tow Train using the listed speeds and rules, saved best scores, and locked
-games that only say 'Unlocks later'. GUT tests for each minigame's rules."
+games that only say 'Unlocks later'. GUT tests for each minigame's rules. Wire it into the game flow as per plan 16 (godot-plans/16-game-flow-and-integration.txt): register its E interactions and prompts in their priority slots, add its mission-lock refusals, and add any travel/GO HOME cleanup it needs."

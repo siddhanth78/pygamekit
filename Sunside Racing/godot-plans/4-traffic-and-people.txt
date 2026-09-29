@@ -61,7 +61,8 @@ GODOT BUILD
   removal by distance (hysteresis), same data-oriented approach.
 
 DONE WHEN
-- City start: about 9 cars on screen on average, queues form behind a stopped
+- City start: about 18 cars on screen on average (Python measures 17.8 with the 70
+  extra loops; the old "about 9" predates them), queues form behind a stopped
   player, cars never drive through each other in a queue, no car stalls > 10 s over
   several simulated minutes.
 - Commuters back out, lap a block, and re-park in the same stall.
@@ -77,3 +78,38 @@ listed routes, counts, speeds, yielding and intersection rules (4 s patience), t
 commuter trips, and distance-based pedestrian groups for city blocks, farms,
 plazas, camps, beaches, and country roads. Add GUT tests for lanes staying on
 roads, queueing, no gridlock, and commuters returning to their stall."
+
+AS BUILT (2026-09-28)
+- scripts/traffic/traffic.gd (class Traffic, RefCounted): every car as parallel packed
+  arrays (ids, names, path_of, speed, size, solid_w/h, reverse_first, trip_length, x,
+  y, heading, segment, progress, travelled, waited), paths as flat
+  PackedFloat64Arrays. Loads the 272 cars from world/data/traffic.json at their
+  exported start. update(delta, player_box, blockers) is traffic.update: active cars
+  within 1600 px; stop for any stopper whose box lies 18 px ahead (never while already
+  overlapping); queue behind same-direction cars 0-56 px ahead within 16 px; crossing
+  waits with 4 s PATIENCE. Queue and stopper checks use 64 / 128 px grids (same
+  answers as the all-pairs Python loops, far cheaper). add_path_car, remove,
+  index_of, box(i, ahead), nearby_obstacles, draw(pool, view); static lane_path,
+  there_and_back, crossing_at.
+- scripts/traffic/parking.gd (class Parking): the 103 commuters (stall, name, trip)
+  from traffic.json; timers only for lots within 2 sectors; depart() adds a trip car
+  (115 px/s, size 56, solid 18 x 38, first segment reversed); is_away(box) for
+  Collisions.parking; hides/shows the stall sprite via World.set_stall_hidden.
+- scripts/people/pedestrians.gd (class Pedestrians): people as parallel arrays; groups
+  from world/data/pedestrians.json switched on within 2 sectors (at their exported
+  start) and dropped past 3; 16 road walkers always. update(delta, player_box),
+  nearby_obstacles, road_blockers, draw. Difference: Python regenerates a beach group
+  away from the player; the fixed map can't, so a beach group waits to appear until
+  the player is 110 px clear of its gear and people.
+- scripts/traffic/sprite_pool.gd (SpritePool): reused Sprite2Ds, begin/add/end.
+- scripts/traffic/world_life.gd (WorldLife node): setup(world, collisions) makes
+  traffic and people solid (collisions.sources) and adds the parking filter;
+  step(delta, player_box, blockers, view) runs parking, people, traffic (stopping for
+  road_blockers too), then draws. Wired into scenes/game.tscn (was scenes/world/world_drive.tscn, replaced by the game scene in 16); the game
+  scene (16) does the same.
+- Collisions gained `parking` (skip boxes whose parked car is away); World gained
+  set_stall_hidden / is_stall_hidden.
+- Measured: traffic + 320 people 1.1 ms per frame at the city start (0.6-0.8 ms of it
+  traffic); longest stall over 3 simulated minutes 1.3 s; 5-car queue behind a
+  stopped player; 17.8 cars on screen on average (Python 17.8).
+- Tests: tests/unit/test_traffic.gd, test_parking.gd, test_pedestrians.gd.

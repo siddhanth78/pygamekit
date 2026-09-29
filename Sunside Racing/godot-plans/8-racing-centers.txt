@@ -66,6 +66,7 @@ DONE WHEN
   does (the Python test bounds).
 - Rivals never leave the track; the player passes through them.
 - Race load (including calibration) stays well under the 3 s countdown.
+- Wired into the game flow as per plan 16 (interactions, prompts, mission locks, cleanup).
 
 PROMPT
 "Port Sunside Racing's race system (track_gen.py, drag_race.py, racers.py) to Godot 4
@@ -74,4 +75,4 @@ with region surfaces, barriers and tires, rated rivals with seeded corner cuts, 
 drift, calibration against a flawless lap (CLEAN_LAP 1.04, STRAIGHT_BOOST 1.02 on
 circuits), ghost rivals, and the five racing centers (10 races, ratings 100..350, 3
 laps, stories and rival lines) with offer/win/loss flow and race HUD. GUT tests for
-layout validity and per-race balance."
+layout validity and per-race balance. Wire it into the game flow as per plan 16 (godot-plans/16-game-flow-and-integration.txt): register its E interactions and prompts in their priority slots, add its mission-lock refusals, and add any travel/GO HOME cleanup it needs."

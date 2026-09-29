@@ -57,6 +57,7 @@ DONE WHEN
 - Feeding animals converts feed to milk/eggs.
 - Orders price correctly (distance bonus, mastery rate), one active at a time,
   deliver pays and moves the buyer.
+- Wired into the game flow as per plan 16 (interactions, prompts, mission locks, cleanup).
 
 PROMPT
 "Port Sunside Racing's farm and farm orders (farm.py, farm_orders.py) to Godot 4 per
@@ -64,4 +65,4 @@ godot-plans/12-farm-and-orders.txt: the claimable farmhouse (rural level 6, +500
 once), the 5x5 plot (plant, fertilize, harvest), the farmhouse interior with 2 cows
 and 4 wandering hens turning feed into milk and eggs, and one buyer per region with
 priced orders (goods prices, +10%/km, tokens or 1 mastery per 20 S), one active at
-a time with the guide arrow and a new buyer after delivery. GUT tests for each rule."
+a time with the guide arrow and a new buyer after delivery. GUT tests for each rule. Wire it into the game flow as per plan 16 (godot-plans/16-game-flow-and-integration.txt): register its E interactions and prompts in their priority slots, add its mission-lock refusals, and add any travel/GO HOME cleanup it needs."

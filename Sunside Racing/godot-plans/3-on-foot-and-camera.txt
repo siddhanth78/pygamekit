@@ -57,3 +57,31 @@ parked car as an obstacle, Q to call the car to a clear spot 80-320 px away, R t
 unstick, and a Camera2D that follows, clamps to level bounds, rounds to whole
 pixels, and eases between 1x (driving) and 2x (walking) over 0.3 s. Tests for
 exit/enter, call range, and zoom."
+
+AS BUILT (2026-09-28)
+- scripts/player/walker.gd (class Walker, scene scenes/player/walker.tscn: Node2D +
+  Sprite2D "Sprite", z_index 130 = people band). x, y (64-bit floats; Vector2 is too
+  coarse at world coordinates), heading (sprite turns with it), speed, stride, pose
+  (held frame such as "player_sit"; "" = walk cycle). update(delta, move_x, move_y,
+  run, collisions) uses collisions.can_walk (piers) when present. frame(),
+  collision_box(), obstacle(padding), can_enter(car), place(x, y, heading),
+  respawn_nearby(collisions) (8 px clearance). Static exit_spot(car, collisions)
+  (driver, passenger 30 px; back, front 40 px; checked with can_move, as in Python)
+  and call_spot(walker, car, collisions) (none under 80 px; nearest clear spot within
+  320 px with the walker padded 16 px and 12 px clearance; sets car.heading to the
+  walker's on success, restores it otherwise).
+- scripts/player/game_camera.gd (class GameCamera extends Camera2D): bounds (level
+  size), ease_to(zoom), snap_zoom(zoom), follow(target, delta) once per frame after the
+  player moves; static camera_position (clamped top-left on whole screen pixels) and
+  eased_zoom (out-cubic, 0.3 s, lands exactly). Fair rides call ease_to(RIDE_ZOOM).
+- scripts/player/player_controller.gd (class PlayerController): car, walker, camera
+  (exported); setup(level, collisions, bounds); tick(delta, move, run) (move in screen
+  directions; driving uses -move.y as throttle, move.x as steer); interact() (step
+  out under 15 px/s / get in within 44 px), call_car(), respawn(), prompt() ("E   Get
+  in", "Q   Call car" past 320 px, else ""), speed_scale callable (surface -> scale,
+  for 6-progression), mode_changed(walking) signal. Walking = walker.visible. While on
+  foot collisions.fixed = [car.obstacle()]; getting in clears it.
+- Dev scenes now use it: scenes/levels/car_playground.tscn (test level) and
+  scenes/game.tscn (was scenes/world/world_drive.tscn, replaced by the game scene in 16) (world, from home).
+- Traffic stopping for the parked car and the walker is 4-traffic-and-people.
+- Tests: tests/unit/test_walker.gd, tests/unit/test_player_controller.gd.

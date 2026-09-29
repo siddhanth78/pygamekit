@@ -53,6 +53,7 @@ DONE WHEN
 - Run odds match over many runs; runs need enough biofuel; 3 s timing.
 - Prices = cost x (1 + margin) within range; the market moves only on a real
   shipment; history capped at 12 and saved; ship pays tokens + mastery.
+- Wired into the game flow as per plan 16 (interactions, prompts, mission locks, cleanup).
 
 PROMPT
 "Port Sunside Racing's Mining Factory (factory.py, market_ui.py) to Godot 4 per
@@ -60,4 +61,4 @@ godot-plans/14-mining-factory.txt: one-time pass unlock, the depot (corn -> biof
 200 tank), the stone machine with 2/5/10/20 runs and their odds (3 s), the stone
 market (cost from corn at 60 S, margin -10..+20% per stone per shipment, fixed
 mastery, 12-shipment chart), and the cargo dock bill/receipt. GUT tests for odds,
-pricing, market movement, and shipping."
+pricing, market movement, and shipping. Wire it into the game flow as per plan 16 (godot-plans/16-game-flow-and-integration.txt): register its E interactions and prompts in their priority slots, add its mission-lock refusals, and add any travel/GO HOME cleanup it needs."

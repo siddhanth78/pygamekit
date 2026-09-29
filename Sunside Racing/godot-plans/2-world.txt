@@ -97,3 +97,45 @@ sprites + collision rects) and data resources, and a runtime World that streams
 chunks around the camera and implements the Level interface from the imported data.
 Do not port the world generator. Verify with the sample-query test and the listed
 screenshot comparisons."
+
+AS BUILT (2026-09-28)
+- Import: tools/world_importer.gd (class WorldImporter). Run from the editor with
+  tools/import_world.gd (File > Run), or headless:
+    Godot --headless -s res://tools/import_world_cli.gd      (about 2.5 s)
+  It replaces res://world/ only: world/tilesets/terrain.tres (32 px cells) and
+  roads.tres (64 px), world/chunks/chunk_<cx>_<cy>.tscn (256 chunks of 4 x 4 sectors),
+  world/data/*.json (regions, highway, sites, traffic, pedestrians, people copied from
+  the export; tracks/center_<region>_<race>.json; solids.json and roads.json derived).
+- Chunk scene: Node2D with Ground (TileMapLayer, scale 2 so 32 px terrain cells draw
+  64 px; z 0), Roads (TileMapLayer, z 10), Sprites (one Sprite2D per sprite: the atlas
+  PNG with a region, position = x, y, scale = size / cell, rotation_degrees =
+  -rotation, z_index = Atlas.z_index(atlas); metadata "sprite" = "atlas/name" and,
+  for obstacles, "solid" = Vector2(w, h)). Turned tiles use alternative tiles 1 (90
+  ccw: transpose + flip_v), 2 (90 cw: transpose + flip_h), 3 (180).
+- Decision: Sprite2D per sprite instead of MultiMeshInstance2D. The 2D renderer
+  batches same-texture sprites anyway, a view holds a few hundred at most, and
+  Sprite2Ds can be moved and edited by hand in the editor.
+- Hand edits: after editing chunk scenes, run tools/rebuild_world_data.gd (or the CLI
+  with -- --rebuild-only) to regenerate solids.json and roads.json from the scenes.
+- Runtime: scripts/world/world.gd (class World extends Level) and WorldData (shared,
+  loaded once) and RoadIndex (highway.RoadIndex port). Queries: region_at,
+  surface_at, is_ice, road_at ("hwy"/"ramp"/""), on_highway, road_tile(tx, ty),
+  is_drivable, dock_at (dock dict or {}), can_place_car, can_place_walker,
+  nearby_obstacles (SolidBox, source = {atlas, name}). WorldData also has sites,
+  docks, highway, and read(file) / track(region, race) for the other data files.
+  visible_sprites is not ported: chunks draw the map.
+- Streaming: World.stream(view) (automatic from the current Camera2D unless
+  follow_camera is off). In the tree: chunks touching view + 96 px; background
+  preload (load_threaded_request) for chunks within 768 px; freed beyond 1024 px.
+  Measured driving across the map: at most 6 chunks in the tree, slowest stream()
+  5.5 ms.
+- Checks: tests/unit/test_world.gd (all 7,600 samples agree on every field; every
+  sector imported with 64 ground tiles, 14,171 sprites, 3,052 road tiles, 11,924
+  solids; a sector matches its export row for row; road openings match their
+  neighbours across sector edges; highway continuous, ramps join the loop, one piece
+  per segment; buildings block the car; streaming). Screenshots:
+  tools/map_compare/ (README): 19 spots, 99.2-100% identical pixels; only 1 px edges
+  of fractionally placed sprites differ.
+- Dev scene: scenes/game.tscn (was scenes/world/world_drive.tscn, replaced by the game scene in 16) (drive from home).
+- For 16-game-flow: exported builds must include res://world/data/*.json (add
+  "world/data/*" to the export's non-resource include filter).

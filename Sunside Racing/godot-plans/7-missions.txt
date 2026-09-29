@@ -9,7 +9,7 @@ HOW IT WORKS
 - Givers: 3 per mainland region, one per type, about 200 px from the region's
   racing center; veterans (unlocked at region level 5) are extra copies of each
   type farther out; they double the reward. Positions come from the fixed map
-  export (world/givers.json); delivery recipients and time-trial checkpoints are
+  export (world/people.json); delivery recipients and time-trial checkpoints are
   rolled at runtime among drivable spots at the listed distances.
   Floating marker badges over each giver (marker-atlas icon_delivery / icon_speed /
   icon_drag, *_hard for veterans). Locked veterans still show their badge and

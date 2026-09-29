@@ -84,6 +84,7 @@ DONE WHEN
 - Over many tournaments, the team edge averages exactly as rolled; every car starts
   on its team's square; scoring and the tie rule are right; payouts per league.
 - League 4 wins increment badges at 10/25/50/75/100/150 and pay no mastery.
+- Wired into the game flow as per plan 16 (interactions, prompts, mission locks, cleanup).
 
 PROMPT
 "Port Sunside Racing's Elite Island (island.py, grid_race.py) to Godot 4 per
@@ -93,4 +94,4 @@ the island racing center (5 races 360-550, clubs desk with 4 leagues and fees,
 tournaments desk with passes), 8-car ghost GridRaces on a chessboard grid, team
 offset balancing with an exact edge, 3-race scoring with the tie rule, league
 payouts, league-4 badges revealed only when earned, and the city-home / club-camp
-spawn choice. GUT tests for every rule listed."
+spawn choice. GUT tests for every rule listed. Wire it into the game flow as per plan 16 (godot-plans/16-game-flow-and-integration.txt): register its E interactions and prompts in their priority slots, add its mission-lock refusals, and add any travel/GO HOME cleanup it needs."
