@@ -2060,23 +2060,29 @@ Tow Train, arcade game 3 (built, 2026-09-28)
   chain end it, the one-time unlock (not in the inventory, saved, refused
   again), and the stand is reachable. 273 passing.
 
-Unity port (future; agreed idea, not started)
-- User: after the island is complete, the game may be rebuilt in Unity (with
-  Unity MCP). Not a line-for-line translation: the same game and gameplay
-  mechanics, using the existing assets (no new assets generated).
-- Deliverable when it starts: one plan per component, each saved as its own
-  file, each naming exactly which existing assets it uses. Components (draft):
-  driving and walking (car feel, surfaces, ice, camera), the world and map
-  (regions, roads, highway, landmarks, guide), progression (mastery, levels,
-  ratings, unlocks, fast travel, saves), missions and races (givers,
-  veterans, racing centers, rivals), fishing and trading, the store,
-  inventory, and orders, the farm (house, plot, animals, buyers), the Snow
-  Fair (booths, rides, tickets, F1 prize), the Mining Factory (depot, stone
-  machine, market, dock), the home and arcade (Lane Dodge, Pit Stop, Tow
-  Train), the island, and the UI (HUD, menus, popups).
-- Open when it starts: 2D or 3D and the camera; the Unity version and render
-  pipeline.
-- Order: finish the island first.
+Godot port (future; engine decided 2026-09-28, supersedes the Unity port idea)
+- User: the game will be rebuilt in Godot 4 (GDScript, 2D), optionally with a Godot
+  MCP server for running the game and reading errors. Same game and mechanics,
+  existing assets only (no new art), not a line-for-line translation.
+- Per-component plans (workings, assets, connectivity, Godot build, done-when
+  checks, and a ready-to-use prompt each) are in godot-plans/, in build order:
+  0-foundation, 1-car, 2-world, 3-on-foot-and-camera, 4-traffic-and-people,
+  5-ui-hud-menus-map, 6-progression-and-saves, 7-missions, 8-racing-centers,
+  9-fishing, 10-inventory-store-orders, 11-home-and-arcade, 12-farm-and-orders,
+  13-snow-fair, 14-mining-factory, 15-elite-island, 16-game-flow-and-integration.
+- Fixed map (user, 2026-09-28): the world is today's seed-2026 world, exported
+  once from Python (export_world.py: sectors, sites, traffic routes, giver and buyer
+  spots, the 55 center/island tracks) and imported into Godot. The world generator
+  is not ported; every fixed site stays exactly where it is. Only tournament and
+  mission drag tracks are generated at runtime (track_gen is ported for those).
+- The wording rule (mechanics and costs only, no prize spoilers) applies to all
+  text.
+- Godot project: ~/Desktop/sunside-racing (created in Godot 4.6, GL Compatibility
+  renderer) with assets/, a copy of godot-plans/, a read-only snapshot of this
+  game's code in reference/ (both with .gdignore so the editor skips them), and
+  CLAUDE.md. Step 0 of the plans configures the project.
+- Keep the plans in sync if the Python game changes first (and refresh the
+  snapshot in sunside-racing/reference/ if it should follow).
 
 Elite Island (agreed design, 2026-09-28; BUILT, see "Elite Island (built)" at the end)
 The final unlock and the late game: the ferry, the island racing center, clubs,
@@ -2479,10 +2485,23 @@ Wording rule: mechanics and costs only, no prize spoilers (built, 2026-09-28)
 - Guard: test_display_text.WordingTests fails if any banned direction or
   spoiler phrase comes back in game source. 295 passing.
 
-TEMP playtest override (2026-09-28; remove when done)
-- main.TEMP_START_AT_FAIR = True: launching the game (main() only, not tests)
-  calls Game.temp_start_at_fair(): on foot at the Snow Fair's ticket booth,
-  the car parked 220 px south in the lot, at least one fair ticket, and no
-  city home / club camp choice. Set it False (or delete the flag and method)
-  to go back to opening at home.
+TEMP playtest override removed (2026-09-28)
+- The Snow Fair start switch (TEMP_START_AT_FAIR / temp_start_at_fair) is
+  gone; the game opens at home again (club members still choose home or camp).
+
+World export for the Godot port (built, 2026-09-28)
+- export_world.py writes the fixed world (the player's world.json seed 2026 plus
+  generated sectors; the 568 cached sectors match the generator exactly) into
+  ~/Desktop/sunside-racing/export: 4,096 sector files (ground, roads, sprites with
+  solids), regions, highway, all fixed sites, 272 traffic cars and 103 commuters,
+  456 pedestrian groups, 30 givers and farm-buyer spots, 55 race layouts, 7,600
+  sample points with expected answers, a README on the format (Godot rotation =
+  -rotation), and a sha256 manifest. About 19 MB, 2.5 s. world.json is never
+  written (read through a temporary copy).
+- test_export_world.py: sectors rebuild exactly what the game draws (and a full
+  run checked all 4,096), the data files are complete, samples match the world,
+  and the export repeats byte for byte. The wording guard skips tool scripts.
+  299 passing.
+- godot-plans/2-world.txt (both copies) now describes the real files; the Godot
+  project's CLAUDE.md points at export/.
 

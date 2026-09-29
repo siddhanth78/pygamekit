@@ -2,125 +2,65 @@
   "version": 3,
   "mode": "drive",
   "car": {
-    "x": 11883.08094485605,
-    "y": 11879.192373007823,
-    "heading": 78.9910604307693
+    "x": 10964.0,
+    "y": 15976.0,
+    "heading": 0.0
   },
   "missions": {
     "progress": {
       "city": {
-        "level": 28,
-        "mastery": 470,
+        "level": 1,
+        "mastery": 0,
         "completed": {
-          "delivery": 5,
-          "speed": 10,
-          "drag": 26
+          "delivery": 0,
+          "speed": 0,
+          "drag": 0
         },
-        "races": 10
+        "races": 0
       },
       "jungle": {
-        "level": 24,
+        "level": 1,
         "mastery": 0,
         "completed": {
           "delivery": 0,
-          "speed": 1,
-          "drag": 4
+          "speed": 0,
+          "drag": 0
         },
-        "races": 10
+        "races": 0
       },
       "desert": {
-        "level": 24,
+        "level": 1,
         "mastery": 0,
         "completed": {
           "delivery": 0,
           "speed": 0,
           "drag": 0
         },
-        "races": 10
+        "races": 0
       },
       "snow": {
-        "level": 24,
-        "mastery": 17,
-        "completed": {
-          "delivery": 0,
-          "speed": 0,
-          "drag": 0
-        },
-        "races": 10
-      },
-      "rural": {
-        "level": 24,
+        "level": 1,
         "mastery": 0,
         "completed": {
           "delivery": 0,
           "speed": 0,
           "drag": 0
         },
-        "races": 10
+        "races": 0
+      },
+      "rural": {
+        "level": 1,
+        "mastery": 0,
+        "completed": {
+          "delivery": 0,
+          "speed": 0,
+          "drag": 0
+        },
+        "races": 0
       }
     },
-    "counter": 63,
-    "offers": {
-      "city-speed": {
-        "type": "speed",
-        "scale": 0.752,
-        "target": [
-          11099.12110890298,
-          13540.687164178351
-        ],
-        "track": null,
-        "seed": 785190910,
-        "levels": {
-          "city": 5,
-          "jungle": 3,
-          "desert": 1,
-          "snow": 3,
-          "rural": 2
-        },
-        "rating": null,
-        "declines": 0
-      },
-      "rural-delivery-hard": {
-        "type": "delivery",
-        "scale": 0.812,
-        "target": [
-          17724.319863404107,
-          14649.927848693918
-        ],
-        "track": null,
-        "seed": 291408596,
-        "levels": {
-          "city": 5,
-          "jungle": 3,
-          "desert": 1,
-          "snow": 3,
-          "rural": 6
-        },
-        "rating": null,
-        "declines": 0
-      },
-      "city-drag-hard": {
-        "type": "drag",
-        "scale": 1.0,
-        "target": null,
-        "track": {
-          "kind": "circuit",
-          "theme": "city",
-          "seed": 903937348,
-          "size": 6
-        },
-        "seed": 903937348,
-        "levels": {
-          "city": 28,
-          "jungle": 24,
-          "desert": 24,
-          "snow": 24,
-          "rural": 24
-        },
-        "rating": 374,
-        "declines": 0
-      }
-    },
+    "counter": 0,
+    "offers": {},
     "fish": {
       "bag": {
         "common": 0,
@@ -129,27 +69,18 @@
         "epic": 0
       },
       "caught": {
-        "common": 86,
-        "uncommon": 43,
-        "rare": 33,
+        "common": 0,
+        "uncommon": 0,
+        "rare": 0,
         "epic": 0
       }
     },
     "unspent_mastery": 0,
-    "arcade": {
-      "lane_dodge": 50,
-      "tow_train": 17
-    },
-    "arcade_unlocked": [
-      "tow_train"
-    ],
-    "inventory": {
-      "sunside_tokens": 246267,
-      "fair_ticket": 7,
-      "game_ticket": 18
-    },
+    "arcade": {},
+    "arcade_unlocked": [],
+    "inventory": {},
     "farm": {
-      "owned": true,
+      "owned": false,
       "plot": [
         null,
         null,
@@ -179,7 +110,7 @@
       ]
     },
     "farm_orders": {
-      "counter": 7,
+      "counter": 5,
       "active": null,
       "orders": {
         "city": {
@@ -202,6 +133,17 @@
           "pay": "tokens",
           "value": 375
         },
+        "desert": {
+          "x": 17770.28057450534,
+          "y": 8475.128727848905,
+          "goods": {
+            "corn": 5,
+            "lettuce": 4,
+            "eggs": 1
+          },
+          "pay": "mastery",
+          "value": 1225
+        },
         "snow": {
           "x": 11926.745448541034,
           "y": 21781.54679688744,
@@ -212,76 +154,48 @@
           "value": 425
         },
         "rural": {
-          "x": 21847.84773003846,
-          "y": 18158.315286632867,
-          "goods": {
-            "corn": 5,
-            "lettuce": 5
-          },
-          "pay": "tokens",
-          "value": 1260
-        },
-        "desert": {
-          "x": 18700.75703373023,
-          "y": 9487.706970837678,
+          "x": 19767.08058428026,
+          "y": 23398.124672996815,
           "goods": {
             "corn": 3,
-            "tomato": 4,
-            "milk": 2
+            "milk": 1,
+            "eggs": 3
           },
           "pay": "tokens",
-          "value": 960
+          "value": 425
         }
       }
     },
     "fair": {
-      "best": {
-        "darts": 150,
-        "hammer": 300,
-        "balloons": 10,
-        "ring_toss": 150,
-        "skee_ball": 600,
-        "whack": 30
-      },
-      "band": {
-        "darts": 4,
-        "hammer": 4,
-        "balloons": 4,
-        "ring_toss": 4,
-        "skee_ball": 4,
-        "whack": 4
-      },
-      "f1": true
+      "best": {},
+      "band": {},
+      "f1": false
     },
     "factory": {
-      "unlocked": true,
+      "unlocked": false,
       "tank": 0,
       "market": {
         "iron": [
-          -0.05,
-          0.14
+          0.01
         ],
         "copper": [
-          0.11,
-          -0.09
+          0.19
         ],
         "silver": [
-          0.11,
-          0.05
+          0.18
         ],
         "gold": [
-          0.17,
-          -0.05
+          0.0
         ]
       }
     },
     "island": {
-      "crossed": true,
-      "races": 1,
-      "club": "palm",
-      "played": 14,
-      "won": 9,
-      "elite_wins": 150
+      "crossed": false,
+      "races": 0,
+      "club": null,
+      "played": 0,
+      "won": 0,
+      "elite_wins": 0
     }
   }
 }

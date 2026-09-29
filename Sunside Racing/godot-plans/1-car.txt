@@ -1,0 +1,67 @@
+SUNSIDE RACING -> GODOT: 1. CAR (DRIVING)
+
+PURPOSE
+The player's car: an arcade driving model whose grip and top speed depend on the
+surface under it, plus handbrake, ice sliding, crashes, respawn, and the F1 upgrade.
+Reference: car.py, collision_manager.py.
+
+HOW IT WORKS
+- Surfaces (grip, top speed px/s), from car.SURFACES:
+    city 1.0/170   jungle 0.72/110   desert 0.78/132   snow 0.55/128
+    rural 0.8/140  beach 0.68/105    island 0.9/155    track 1.0/170
+  Off any known surface (race runoff): OFF_SURFACE = 0.75 grip, 110 px/s.
+- Acceleration 85 px/s^2, braking 420, reverse acceleration 90 (all x grip).
+  Reverse is capped at 80 x grip. TOP_SPEED 170 (city) scales the HUD bar.
+- Speed scale: top speed x the region's level bonus (+4% per level above 1, from
+  progression) x F1_SPEED 1.10 if the F1 car is owned (grip x F1_GRIP 1.20).
+- Ice (snow surfaces): the car carries momentum sideways; ICE_TRACTION 1.8 and
+  ICE_SCRUB 0.9 set how fast velocity turns toward the heading and bleeds off.
+- Handbrake (Space while driving) for sharp turns.
+- Crash: a hit that stops the car from above 40 px/s (CRASH_SPEED) counts (missions
+  use it, with a 1 s grace).
+- Collisions: the car's rotated box vs. solid scenery (buildings, props with solid
+  sizes), traffic cars, parked cars, pedestrians (only when not already overlapping)
+  and world bounds / sea. The car slides along what it hits.
+- R (respawn): search outward rings (8 px apart, up to 480 px) for the nearest spot
+  where the car plus 16 px clearance is drivable and clear; keep the heading, stop
+  the car. Start position only if nothing nearby is free.
+- Sprites: vehicle-atlas "racer_player" (or "racer_f1" once the F1 car is won),
+  drawn 64 px.
+
+ASSETS
+vehicle-atlas: racer_player, racer_f1.
+
+CONNECTIVITY
+- Needs from 2-world: surface at a point (region_at / road_at), can_place_car(rect),
+  nearby obstacles. Race tracks (8-racing-centers) and interiors provide the same
+  interface, so the car works unchanged in every level.
+- Needs from 6-progression: speed_scale(region). From 13-snow-fair: f1 flag.
+- Feeds 5-ui (speed for the speedometer), 7-missions (crash events), 3-on-foot
+  (the parked car becomes an obstacle).
+
+GODOT BUILD
+- scenes/car/Car.tscn: Node2D "Car" with a Sprite2D, script car.gd holding x, y,
+  heading, speed, velocity; update(delta, throttle, steer, level, collisions,
+  speed_scale). Do not use RigidBody2D: port the custom model so it feels the same.
+- scripts/collision/collisions.gd: rotated-rectangle overlap tests against a local
+  obstacle list from the level (grid-bucketed by sector). Optional: use
+  PhysicsDirectSpaceState2D shape queries if the obstacles are StaticBody2D, but the
+  "level" interface (region_at, can_place_car, nearby_obstacles) must stay.
+- A Level interface (duck-typed or a base class) used by world, tracks, interiors.
+
+DONE WHEN
+- On a flat test level: 0 -> 170 px/s takes about 2.0 s on city; braking from 170
+  takes about 0.42 s; each surface caps at its top speed.
+- On ice the car visibly slides and recovers; on asphalt it doesn't.
+- Driving into a wall stops the car and reports a crash above 40 px/s.
+- R frees the car from inside a wall to the nearest clear spot.
+- The F1 flag raises top speed 10% and grip 20% and swaps the sprite.
+
+PROMPT
+"Port the Sunside Racing car (car.py, collision_manager.py) to Godot 4 per
+godot-plans/1-car.txt: a custom arcade model (not RigidBody2D) with the listed
+surfaces, acceleration, braking, reverse cap, ice momentum, handbrake, crash
+detection, rotated-box collisions against a level interface (region_at,
+can_place_car, nearby_obstacles), ring-search respawn, and the F1 upgrade. Build a
+small flat test level with walls and patches of each surface, and GUT tests for the
+done-when checks."

@@ -1,0 +1,79 @@
+SUNSIDE RACING -> GODOT: 4. TRAFFIC AND PEOPLE
+
+PURPOSE
+Life in the world: traffic cars on fixed lanes, parked commuters, and pedestrians
+(city, farms, camps, plazas, beaches, country roads). Reference: traffic.py,
+parking.py, pedestrians.py.
+
+HOW IT WORKS
+All routes, stalls, and pedestrian groups come from the fixed map export
+(world/traffic.json, see 2-world): they are data, not generated. What follows is
+how they behave.
+Traffic (right-hand lanes):
+- City: rectangular loops on the road grid, 3 cars each (10 base loops + 70 extra
+  loops: busy), 140-180 px/s; pairs of taxis, buses, police, delivery vans on their
+  own loops. City lane 10 px from the road center (roads 42 px wide).
+- Snow: 4 cars there-and-back on the ice road (100-120 px/s) + 2 SUVs.
+- Rural: 4 on the main dirt road + 1 per branch (120-140 px/s), lane 7 px.
+- Jungle, desert: 3 off-road 4x4s each on wandering loops (85-110 px/s).
+- Highway: 3 cars per direction, 185-215 px/s, 40 px from the median.
+- Cars: 60 px sprite, solid 20 x 40 (bus 22 x 50); turn toward their lane at
+  360 deg/s; follow gap 56 px; stop short of the player/walker/pedestrians on the
+  road and queue behind a car ahead. Intersection boxes (60 x 60): wait if a
+  crossing car is inside or claimed it first; give up after 4 s (PATIENCE) so there
+  is no gridlock. Yielding checks only within 1600 px of the player.
+- Sprites: CITY_CARS (traffic_red/blue/green/white/gray/yellow/compact/wagon...),
+  RURAL_CARS (pickup, service, wagon, gray), SNOW_CARS (suv, van, pickup, white),
+  OFFROAD_CARS (pickup, suv, service), plus taxi, bus, police, delivery.
+Parked commuters (city lots within 2 sectors of the player):
+- 35% of nose-in parked cars (stable per stall) are commuters: after 3-25 s (then
+  15-45 s between trips) one backs out, drives to the nearest north-south road,
+  laps one block (115 px/s), and parks in the same stall. While out, its stall is
+  empty; the moving car is solid and yields like traffic.
+Pedestrians (groups within 2 sectors simulated, dropped past 3):
+- City: 12 per block on the sidewalks (36 px from the road center), pausing at
+  corners (0.8-3 s), entering building doors (hidden 3-9 s), crossing at crosswalks.
+- Farms: 2 farmers circle each farm and use the barn door. Plazas: 3-4 people
+  (city 4) mill around each racing center. Camps: 2 on the bench facing the fire, 2
+  walking the ring and ducking into tents. Beaches: loungers under umbrellas, on
+  chairs or mats (people-atlas beach_*_lounge / _lie), occasional strollers.
+- Always simulated: 8 snow and 8 rural walkers on road shoulders.
+- Walk 26-40 px/s, 32 px sprite, 10 px solid; they wait if the player stands 20 px
+  in front; solid to the player except when already overlapping.
+
+ASSETS
+vehicle-atlas traffic_* (all), people-atlas city_a..h, farmer_a/b, snow_a/b,
+nomad_a/b, explorer_a/b, beach_a..d (idle/walk/lounge/lie), *_sit poses;
+canopy-atlas umbrellas; prop-atlas beach chairs/mats/umbrella_shade.
+
+CONNECTIVITY
+- Needs 2-world (exported routes, lanes, stalls, doors, camps, beaches) and the
+  player pose.
+- Provides obstacles to 1-car / 3-on-foot, "people on road" blocking to traffic.
+- Other systems reuse these movers: fair visitor cars and walkers (13), store
+  shoppers (10), island camp members (15).
+
+GODOT BUILD
+- scripts/traffic/traffic.gd: all cars as plain data (arrays/dicts), updated in one
+  loop; draw with a MultiMeshInstance2D per atlas or pooled Sprite2Ds for the ones
+  near the camera. Avoid one Node per car (hundreds of cars).
+- scripts/traffic/parking.gd, scripts/people/pedestrians.gd: group creation and
+  removal by distance (hysteresis), same data-oriented approach.
+
+DONE WHEN
+- City start: about 9 cars on screen on average, queues form behind a stopped
+  player, cars never drive through each other in a queue, no car stalls > 10 s over
+  several simulated minutes.
+- Commuters back out, lap a block, and re-park in the same stall.
+- Pedestrians walk sidewalks, cross at crosswalks, go in and out of doors, and
+  traffic stops for them on crosswalks.
+- Traffic + people update in about 1 ms per frame.
+
+PROMPT
+"Port Sunside Racing's traffic, parked commuters, and pedestrians (traffic.py,
+parking.py, pedestrians.py) to Godot 4 per godot-plans/4-traffic-and-people.txt.
+Keep them data-oriented (arrays updated in one loop, batched drawing), with the
+listed routes, counts, speeds, yielding and intersection rules (4 s patience), the
+commuter trips, and distance-based pedestrian groups for city blocks, farms,
+plazas, camps, beaches, and country roads. Add GUT tests for lanes staying on
+roads, queueing, no gridlock, and commuters returning to their stall."

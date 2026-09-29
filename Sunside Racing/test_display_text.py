@@ -41,7 +41,7 @@ class WordingTests(unittest.TestCase):
 
     def test_no_directions_or_prize_spoilers(self):
         for path in PROJECT_ROOT.glob("*.py"):
-            if path.name.startswith("test_") or path.name == "asset_sources.py":
+            if path.name.startswith("test_") or path.name in ("asset_sources.py", "export_world.py"):   # Tools.
                 continue
             source = path.read_text()
             for phrase in self.BANNED:

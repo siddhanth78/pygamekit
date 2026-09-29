@@ -1,0 +1,59 @@
+SUNSIDE RACING -> GODOT: 9. FISHING AND FISH TRADERS
+
+PURPOSE
+Beach fishing from three piers, a timing-strike minigame, a fish bag, and fish
+traders who pay universal mastery. Reference: fishing.py, fishing_ui.py (StrikeBar,
+SpendMenu), world.py (DOCK_SITES, piers), pedestrians/world camps (traders).
+
+HOW IT WORKS
+- Opens when any region reaches level 4 (fishing, trading, and beach travel).
+- Piers (west, north, east beaches), each 4 tiles out over the sea:
+    Pier 1 west: any region at 4; mostly common (75/20/4.5/0.5 %).
+    Pier 2 north: three regions at 7; more uncommon (40/45/14/1 %).
+    Pier 3 east: every region at 12; more rare and epic (25/35/37/3 %).
+  Locked piers show "Needs <who> at level <n>" (a mechanic, allowed).
+- At a pier's end: E casts (bobber flies 150 px out, 0.5 s), wait 2 s, "FISH ON!"
+  0.5 s, then strikes: a marker sweeps a bar; press SPACE while it's in the green.
+  Strikes by rarity: common 2, uncommon 3, rare 4, epic 5; green zone 30/22/16/11 %
+  of the bar; sweep speed 0.8/1.0/1.25/1.5 crossings per second; 4 s allowed per
+  strike. A miss or timeout loses the fish. Then an automatic 1 s reel-in and the
+  catch shows 2 s ("Caught: Rare Swordfish!", "Worth 3 mastery"). E casts again;
+  moving away stops fishing.
+- Fish names: common Sardine/Mackerel/Herring, uncommon Sea Bass/Red Snapper, rare
+  Bluefin Tuna/Swordfish, epic Golden Marlin. Values 1/2/3/5 mastery.
+- Bag: fish go to the inventory (fish_common..fish_epic). A full stack releases
+  the catch.
+- Fish traders: one beside the south tent of each jungle camp (fish_trader people
+  sprite, floating icon_fishing badge). E trades the whole bag for universal
+  mastery points (capped at 999: the rest waits).
+- Beach travel: the pause menu's Docks page (and fast travel) parks the car on the
+  sand at the chosen pier, facing inland.
+
+ASSETS
+terrain-atlas pier_planks, pier_end; people-atlas player_fish_cast,
+player_fish_hold, player_fish_reel, fishing_bobber, fishing_bobber_bite,
+fishing_line, fish_common..fish_epic, fish_trader_*; marker-atlas icon_fishing.
+
+CONNECTIVITY
+- Needs 2-world (piers, camps), 3-on-foot (walking onto piers; cars can't),
+  6-progression (unlock levels, universal points), 10-inventory (bag and points),
+  5-ui (strike bar overlay, Docks page, prompts "E Fish", "E Trade n fish").
+
+GODOT BUILD
+- scripts/fishing/fishing_session.gd (state machine: cast, wait, hooked, strike,
+  between, reel, caught/escaped), scenes/ui/StrikeBar.tscn, trader interaction in
+  the world scene.
+
+DONE WHEN
+- Locked/unlocked piers follow the level rules.
+- A scripted perfect player lands every rarity; a miss or 4 s timeout loses it.
+- Odds per pier match over many rolls; trading pays the right points and respects
+  the cap.
+
+PROMPT
+"Port Sunside Racing's fishing (fishing.py, StrikeBar/SpendMenu in fishing_ui.py) to
+Godot 4 per godot-plans/9-fishing.txt: three piers with level gates and odds, the
+cast/wait/hook/strike/reel state machine with per-rarity strikes, zone widths,
+sweep speeds and 4 s timeouts, fish into the inventory, jungle-camp traders paying
+universal mastery (capped), and beach travel to a chosen pier. GUT tests for gates,
+odds, strikes, and trading."

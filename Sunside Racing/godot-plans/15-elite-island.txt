@@ -1,0 +1,96 @@
+SUNSIDE RACING -> GODOT: 15. ELITE ISLAND
+
+PURPOSE
+The late game (a surprise until it opens): the ferry, the island racing center, 8
+clubs in 4 leagues, 8-car team tournaments, top-league badges, and the spawn choice.
+Reference: island.py, grid_race.py, fast_travel.py, main.py (ferry, clubs,
+tournaments, _offer_spawn).
+
+HOW IT WORKS
+- Unlock (never hinted in any text before it happens): every mainland center
+  10/10 and a region at level 25. The last center win then says "Elite Island is
+  open!" and the "Island ferry" map diamond appears.
+- Ferry: a kiosk beside the mainland ferry dock (sector 47,31), the ferry moored
+  there, and a kiosk on the island dock. Boarding needs an Island pass (100,000 S):
+  BOARD uses it up, the island stays open for good, and the crossing is instant, car
+  and all. After that the ferry is free both ways, and T on a mainland beach travels
+  there (T on the island returns). Island map marks show only after the crossing.
+- On the island the car drives at the best region's speed (island clay surface).
+- Island Racing Center (a 16 x 10 interior): three desks (Races, Clubs,
+  Tournaments), trophy cases, podium, visitors.
+  - Races desk: 5 races, 3 laps on island clay (track-atlas island set), rivals
+    Coral Jax 360, Mako Senn 390, Lani Kade 450, Riptide Rue 500, The Admiral 550.
+    Winning race 1 opens the clubs.
+  - Clubs desk: offers only leagues above yours whose join rating you meet; then the
+    two clubs; then JOIN (pays the entry fee). No leaving, never down.
+      League 1 (360-400): Palm Runners / Reef Raiders, join after race 1, 20,000 S
+      League 2 (410-480): Lagoon Kings / Coral Crew, rating 410, 40,000 S
+      League 3 (490-590): Volcano Vipers / Tidebreakers, rating 490, 80,000 S
+      League 4 (600+): Summit Aces / Sunside Elite, rating 600, 150,000 S
+    Rating = the best region's rating. Each club has a camp on the island (race
+    tent, flag, two club cars, members); E there gives league and rival.
+  - Tournaments desk: BUY PASS (tourney_pass, 2,000 S) / START (uses one).
+- Tournament: you and 3 teammates vs the other club in your league's 4; 3 races on
+  3 different region surfaces (generated circuits, size 5-9, 2 laps each); the player
+  drives at that region's speed.
+  - AI ratings: offsets rolled once per tournament, added to the player's rating in
+    each track's region. Teammates one -5..0, one +1..+5, one +3..+8. Team edge
+    -5..+5; two rivals rolled (-5..0, +3..+8), the other two split the rest so the
+    team averages differ by exactly the edge.
+  - Grid: 8 cars, 2 lanes x 4 rows like a chessboard (home squares 0,3,4,7; away
+    1,2,5,6); everyone, the player included, is shuffled onto their team's squares
+    each race.
+  - All rivals are ghosts (no car collisions); tournament racers slide more on ice
+    (steer 1.6, recover 0.6, room 84). Rivals get STRAIGHT_BOOST like everywhere.
+  - Points by place 10-8-6-5-4-3-2-1; a race ends when the player finishes or all 7
+    AIs finish; a quit puts you last. Standings popup after each race (NEXT RACE).
+    After 3 races the higher total wins; a tie goes to the team whose best finisher
+    placed higher in the last race.
+  - Win pays a quarter of the league pool: 10,000 x 2^(league-1) S (pools 40k /
+    80k / 160k / 320k) plus mastery 50 / 100 / 150 for leagues 1-3. League 4 pays
+    tokens only; its wins count toward badges instead (secret until earned).
+  - Race HUD: place of 8, lap, team score, "TOURNAMENT n/3".
+- Badges (league 4 wins): bronze 10, silver 25, gold 50, green 75, blue 100,
+  purple 150. A win that earns one says "<Badge> badge earned!" and nothing
+  otherwise. Shown on the home badge board (11-home-and-arcade).
+- Spawn choice: once in a club, opening the game and GO HOME ask CITY HOME / CLUB
+  CAMP (the car waits in the camp's lot).
+- Saved as "island": crossed, races, club, played, won, elite_wins.
+
+ASSETS
+island-atlas (ferry_boat, ferry_kiosk, club_tent, club_flag_* x8, desk_races,
+desk_clubs, desk_tourney, trophy_case, podium, tourney_pass), structure-atlas
+center_island, beach_ferry_dock, track-atlas track_island_* and all region sets,
+vehicle-atlas racer_* for club cars and racers, terrain island_grass/island_stone,
+people-atlas visitors/members, home-atlas badge_* (board).
+
+CONNECTIVITY
+- Needs 8-racing-centers (TrackLevel, Rival, calibration; a GridRace variant for 8
+  cars), 6-progression (ratings, best region, universal mastery, unlock rule),
+  2-world (island landmass, docks, camps), 10-inventory/store (passes, tokens),
+  5-ui (desks as choice/confirm panels, map marks, spawn choice), 11-home (badges).
+
+GODOT BUILD
+- scripts/island/island_state.gd, scripts/island/tournament.gd (tracks, offsets,
+  scoring, tie rule), scenes/race/GridRace.tscn (8 cars, chessboard grid, finish
+  order by time then distance), scenes/interiors/IslandCenter.tscn, camp and ferry
+  sprites placed by the world generator.
+
+DONE WHEN
+- The ferry refuses without a pass, boards with one, and stays free afterwards; T
+  travel works only after the first crossing; no island text or marks show before
+  it opens.
+- Join rules (race 1, rating floors, only upward, fees) hold.
+- Over many tournaments, the team edge averages exactly as rolled; every car starts
+  on its team's square; scoring and the tie rule are right; payouts per league.
+- League 4 wins increment badges at 10/25/50/75/100/150 and pay no mastery.
+
+PROMPT
+"Port Sunside Racing's Elite Island (island.py, grid_race.py) to Godot 4 per
+godot-plans/15-elite-island.txt: the secret unlock (all centers + a level-25
+region), the ferry with a one-time Island pass and free crossings after, T travel,
+the island racing center (5 races 360-550, clubs desk with 4 leagues and fees,
+tournaments desk with passes), 8-car ghost GridRaces on a chessboard grid, team
+offset balancing with an exact edge, 3-race scoring with the tie rule, league
+payouts, league-4 badges revealed only when earned, and the city-home / club-camp
+spawn choice. GUT tests for every rule listed."

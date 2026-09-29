@@ -73,7 +73,6 @@ FARM_DOOR_RANGE = 44     # On foot, px from the farmhouse's porch door.
 FAIR_DOOR_RANGE = 52     # On foot, px from the Snow Fair's ticket booth window.
 FACTORY_RANGE = 50       # On foot, px from the factory's door, the depot, or the cargo dock.
 ISLAND_RANGE = 56        # On foot, px from a ferry kiosk or a club camp's tent.
-TEMP_START_AT_FAIR = True  # TEMP (playtest): launch on foot at the Snow Fair gate with a fair ticket.
 
 
 def ordinal(n: int) -> str:
@@ -210,22 +209,6 @@ class Game:
         self.autosave = Autosave()
         if self.missions.island.club:
             self._offer_spawn()      # Club members choose where to start.
-
-    def temp_start_at_fair(self):
-        """TEMP (playtest): on foot at the Snow Fair's ticket booth, car parked nearby,
-        holding at least one fair ticket. Skips the city home / club camp choice."""
-        self.panel.open, self.pending_spawn = False, False
-        fx, fy = self.world.fair.door
-        self._return_to_giver(type("Spot", (), {"x": fx, "y": fy - 30})())
-        # Park the car down the plaza, out of reach, so E at the booth is the fair gate.
-        self.collisions.fixed = []
-        spot = nearest_clear_spot(self.collisions, self.car.collision_record, fx, fy + 220, 12)
-        if spot:
-            self.car.x, self.car.y, self.car.heading = *spot, 0.0
-            self.state.set_player_pose(self.player_id, self.car.x, self.car.y, self.car.heading)
-        self.collisions.fixed = [self.car.obstacle()]
-        if not count_of(self.missions, "fair_ticket"):
-            self.missions.add_item("fair_ticket", 1)
 
     # Helpers --------------------------------------------------------------------
 
@@ -2270,8 +2253,6 @@ def main():
         if not run_title(ctx):
             return   # EXIT (or closing the window) before anything was loaded or saved.
         game = Game(ctx)
-        if TEMP_START_AT_FAIR:
-            game.temp_start_at_fair()
         clock = pygame.time.Clock()
         running = True
         while running:

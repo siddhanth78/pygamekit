@@ -1,0 +1,59 @@
+SUNSIDE RACING -> GODOT: 3. ON FOOT AND CAMERA
+
+PURPOSE
+Getting out of the car and walking, calling the car, and the camera (follow, zoom
+between driving and walking). Reference: walker.py, main.py (camera_position, zoom,
+_step_out, call), collision_manager.nearest_clear_spot.
+
+HOW IT WORKS
+- E beside a nearly stopped car (under 15 px/s) steps out: driver's side first, else
+  passenger, back, front (EXIT_GAP 30 px). E within 44 px of the car gets back in.
+- Walking: W/A/S/D or arrows move in screen directions at 60 px/s; Shift runs at
+  105. 12 px square collision box; slides along walls. Walk cycle: people-atlas
+  player_idle / player_walk_a / player_walk_b, a frame every 12 px walked.
+  Poses: player_sit, player_lie (home, rides), player_fish_* (fishing).
+- While on foot the parked car is a solid obstacle; traffic stops for it and for
+  the walker.
+- Q (call car): once the car is over 320 px away ("Q  Call car" prompt shows), it is
+  placed at the nearest clear spot beside the walker (80-320 px away), facing the
+  walker's way.
+- R unsticks the walker the same way the car respawns.
+- Camera: follows the player, clamped to the world/level edges, rounded to whole
+  screen pixels. Zoom 1.0 driving, 2.0 walking; eases over 0.3 s (ZOOM_TIME) when
+  getting in/out; snaps on travel, races, loading. Fair rides set their own zoom
+  (ferris 0.9, carousel 1.5, bumper cars 1.4).
+- Bottom-center prompt ("E  Get in", "Q  Call car", ...) comes from whatever is
+  nearest (see 5-ui).
+
+ASSETS
+people-atlas: player_idle, player_walk_a, player_walk_b, player_sit, player_lie
+(fishing poses in 9-fishing).
+
+CONNECTIVITY
+- Needs 1-car (car pose, obstacle), 2-world / interiors (can_place_walker).
+- Every interior level (home, store, farmhouse, fair, factory, island center)
+  reuses this walker and camera with its own bounds.
+- Feeds 5-ui (prompt), 7-missions (talk range to givers).
+
+GODOT BUILD
+- scenes/player/Walker.tscn (Node2D + Sprite2D, walker.gd).
+- A single Camera2D owned by the game scene; script camera.gd with follow target,
+  limits from the active level, zoom easing, pixel rounding.
+- A PlayerController (game scene script) that switches drive <-> walk and routes
+  input.
+
+DONE WHEN
+- Stop, E: the player appears beside the car; the car becomes solid; zoom eases
+  to 2x. E near the car: back in, zoom 1x.
+- Walking into scenery slides along it; Shift runs.
+- Walk 400 px away, Q: the car arrives beside you facing your way.
+- Camera never shows outside the world or a level and never shimmers.
+
+PROMPT
+"Add on-foot play to the Godot port per godot-plans/3-on-foot-and-camera.txt: step out
+of a stopped car (side priority), walk with screen-direction movement at 60/105 px/s
+with a 12 px box and wall sliding, 3-frame walk animation from people-atlas, the
+parked car as an obstacle, Q to call the car to a clear spot 80-320 px away, R to
+unstick, and a Camera2D that follows, clamps to level bounds, rounds to whole
+pixels, and eases between 1x (driving) and 2x (walking) over 0.3 s. Tests for
+exit/enter, call range, and zoom."

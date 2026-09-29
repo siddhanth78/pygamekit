@@ -1,0 +1,91 @@
+SUNSIDE RACING -> GODOT: 16. GAME FLOW AND INTEGRATION
+(Build incrementally: wire each component in as it lands; do a final pass at the end.)
+
+PURPOSE
+The glue that main.py provides in Python: which mode the game is in, how scenes
+switch, which interaction and prompt win when several are in range, what is blocked
+while a mission runs, what travel must clean up, and what pauses the game.
+Reference: main.py (Game: handle, _interact, _update_world, prompts, render order).
+
+HOW IT WORKS
+- Modes (exactly one active): WORLD (driving or on foot), INTERIOR (home, store,
+  farmhouse, fair, factory, island center; each a level with its own walker bounds
+  and camera limits), RACE (drag race, center race, island race, tournament race),
+  plus fishing (a sub-state of WORLD on foot). The world scene stays loaded
+  (hidden/paused) during interiors and races and is restored on return.
+- Overlays (on top of any mode; only the top one gets input; gameplay pauses while
+  any is open): modal panel, pause menu, world map, inventory, orders, spend menu,
+  market board, badge board, arcade, fair booth game. Input goes to the first open
+  one in this order: inventory, market board, badge board, orders, arcade, world
+  map, pause menu, spend menu, panel, fair booth, then gameplay.
+- E (interact) priority, in the WORLD on foot (first match wins):
+  1. fishing in progress -> cast again
+  2. General Store door -> enter
+  3. home front door (only when out of the car's reach) -> enter home
+  4. ferry kiosk -> ferry
+  5. island club camp -> club info
+  6. island racing center -> enter
+  7. Mining Factory door / depot / cargo dock
+  8. Snow Fair ticket booth
+  9. farmhouse door (claim / enter / abandoned)
+  10. farm plot tile (owned farm, no mission) -> tend
+  11. farm buyer
+  12. mission giver (locked veteran / busy / offer)
+  13. mainland racing center
+  14. fish trader
+  15. pier end -> fish
+  16. car within reach -> get in
+  In the car: E steps out when nearly stopped (< 15 px/s).
+  Interiors dispatch E to their own nearest spot.
+- Prompt priority mirrors the same order, then "E Get in", then the island
+  travel prompt ("T ..."), then "Q Call car" (car > 320 px away).
+- Mission lock: while a mission is active these refuse with "Finish your current
+  mission first.": home, farmhouse, farm plot (it just waits), fair gate, factory,
+  depot, dock, island center, ferry, givers, centers, buyers, orders, fishing piers,
+  island travel. The General Store has no lock. Match main.py exactly: port each
+  check where its interaction is, and grep main.py for the message to find them.
+- Travel and GO HOME cleanup (fast travel, beach travel, island travel, GO HOME,
+  spawn choice): leave any interior; the store cart goes back on the shelves; a
+  running stone machine run is collected first; a fair ride or booth game ends;
+  fishing stops; the walker is removed and the player is in the car; zoom snaps to
+  driving. GO HOME only when no mission or race is running.
+- Races: entering a race hides the world; the race reports its result; the player
+  returns on foot beside the giver / center (car called nearby) with the result
+  panel; autosave.
+- Pause: Esc or window focus lost opens the pause menu (not during the title).
+- HUD place line: "Highway" when on the highway (world.on_highway), else the
+  region / interior room name.
+- Frame order: update the active mode (skipped while an overlay pauses it) ->
+  render the world or level -> HUD -> overlays -> guide arrow last.
+
+ASSETS
+None of its own.
+
+CONNECTIVITY
+Touches every component: it owns the mode switch, the input routing, and the
+interaction/prompt dispatch. Each component exposes near(x,y) -> spot, prompt(spot),
+and interact(spot) so the dispatcher just walks the priority list.
+
+GODOT BUILD
+- scenes/Main.tscn + main.gd: the mode state machine, overlay stack, and dispatch.
+- An Interactable interface (duck-typed): priority, is_near(player), prompt(),
+  interact(). Register world interactables in the priority order above.
+- Keep the mission-lock checks inside each interact() so they read like Python.
+
+DONE WHEN
+- Standing where two interactions overlap (e.g. home door vs. car) picks the same
+  one as Python, and the prompt matches.
+- Every mission-locked interaction refuses during a mission.
+- Fast travel from inside the store empties the cart; from the factory with a run
+  going, the stone is collected; from a ride, the ride ends.
+- Opening any overlay pauses traffic, races, and timers; closing resumes.
+- Port main.py's flow tests (test_game_flows.py) as GUT integration tests driven
+  by simulated input.
+
+PROMPT
+"Build Sunside Racing's game flow in Godot 4 per
+godot-plans/16-game-flow-and-integration.txt: a Main scene with the mode state
+machine (world, interiors, races), the overlay stack with the listed input order and
+pausing, the E interaction and prompt priority lists, the mission-lock refusals,
+travel/GO HOME cleanup (cart, stone run, rides, fishing), race return flow, focus-loss
+pause, and the HUD place line. Port test_game_flows.py as GUT integration tests."

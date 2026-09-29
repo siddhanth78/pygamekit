@@ -1,0 +1,70 @@
+SUNSIDE RACING -> GODOT: 10. INVENTORY, GENERAL STORE, ORDERS VIEW
+
+PURPOSE
+The currency and item system, the inventory screen (I), the General Store interior
+with its cart and checkout, and the orders screen (O). Reference: inventory.py,
+inventory_ui.py, store.py, orders_ui.py, main.py (_interact_store, _pay_at_store).
+
+HOW IT WORKS
+- Inventory: a 7 x 4 grid of stacks (max 999; Sunside Tokens up to 999,999;
+  one-time passes max 1). Sunside Tokens are permanent (always slot 1, even at 0).
+  Items (id, name, store price, note — notes are one line, function only):
+    sunside_tokens "The island's currency." | fish_common..epic "Trades for 1/2/3/5
+    mastery." | mastery_points "Spend on any region." | seeds_corn 10, seeds_tomato 20,
+    seeds_lettuce 30 | super_fertilizer 50 "Grows a sprout at once." | cow_feed 10 |
+    hen_feed 10 | corn, tomato, lettuce, milk, eggs | fair_ticket 100 "Entry to the
+    Snow Fair." | game_ticket "One fair game or ride." | stone_iron..gold |
+    factory_pass 20,000 "Unlocks the factory." (1) | arcade_tow_train 10,000 (unlock,
+    never carried) | tourney_pass 2,000 | island_pass 100,000 "Passage to the
+    island." (1)
+- Inventory screen (I): grid of icons with counts; arrows/mouse select; a details
+  panel (name, one-line note); Mastery points opens the spend menu. Game pauses.
+- General Store (a city building; walk in through its door): an interior level
+  with a checkout counter by the door, a cashier, and three aisles (seeds, items,
+  tickets) plus a game stand ("Game corner") with the Tow Train cartridge.
+  E on a product puts one in the cart (refused if you can't carry it, already own a
+  one-time item, or it's already in the cart). The cashier shows a bill (rows
+  "name  n x price", total) with PAY / NOT YET; paying needs enough tokens; the
+  receipt lists what was bought ("Unlocked: Tow Train." for the cartridge).
+  Leaving with an unpaid cart asks to empty it (EMPTY CART / STAY).
+  HUD panel: "CART · n items" and "total · you have x S". A few shoppers browse.
+  Fast travel or GO HOME from inside puts the cart back on the shelves.
+- Orders (O): every open farm order, nearest first: buyer, wants, pays, distance
+  and direction, active/ready; ENTER works on an order (guide arrow to the buyer).
+  "No orders yet." before any exist.
+
+ASSETS
+store-atlas (shelf, counter, ticket_board, crate, products seeds_*,
+super_fertilizer, fair_ticket, factory_pass, island_pass, cow_feed, hen_feed,
+store_mat, game_stand, arcade_tow_train), structure-atlas general_store, terrain
+city_plaza/wall/wall_door/wall_window, people-atlas shoppers; item icons from their
+atlases (farm-atlas crops, factory-atlas stones, fair-atlas game_ticket,
+island-atlas tourney_pass, marker-atlas icon_token/icon_points, people-atlas fish_*).
+
+CONNECTIVITY
+- Inventory is used by every economy component (9, 12, 13, 14, 15, 11 arcade
+  unlock). The store is the only seller of seeds, fertilizer, feed, passes, fair
+  tickets, and the cartridge.
+- Needs 6-progression (spend menu), 3-on-foot (interior walking), 5-ui (bill panel).
+
+GODOT BUILD
+- Autoload data: inventory.gd (items table as a Resource or Dictionary, add/remove
+  with caps, contents for the grid). scenes/ui/Inventory.tscn, ui/Orders.tscn.
+- scenes/interiors/Store.tscn (TileMapLayer floor/walls, fixtures, product spots as
+  Area2D or distance checks), store.gd (cart, bill, pay).
+
+DONE WHEN
+- Caps and permanent tokens hold; one-time items refuse a second copy.
+- A cart bill totals correctly; paying deducts tokens and adds items; the
+  cartridge unlocks without entering the inventory; leaving asks about an unpaid
+  cart.
+- The inventory and orders screens navigate by keys and mouse.
+
+PROMPT
+"Port Sunside Racing's inventory, General Store, and orders view (inventory.py,
+inventory_ui.py, store.py, orders_ui.py) to Godot 4 per
+godot-plans/10-inventory-store-orders.txt: the 7x4 capped inventory with permanent
+tokens and one-line notes, the I screen with a details panel and spend-menu hook,
+the store interior with aisles, a game stand, a cart, bill/receipt panels and
+unpaid-cart handling, and the O orders screen. GUT tests for caps, one-time items,
+billing, and the cartridge unlock."

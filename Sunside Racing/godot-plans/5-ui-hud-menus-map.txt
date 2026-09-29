@@ -1,0 +1,94 @@
+SUNSIDE RACING -> GODOT: 5. UI: HUD, PANELS, MENUS, MAP
+
+PURPOSE
+Everything drawn over the game: the HUD, the modal panel used by every interaction,
+the pause menu (with the Mastery and Help pages), the title screen, the world map
+with the guide arrow, and toasts. Reference: hud.py, mission_ui.py, pause_menu.py,
+title_menu.py, world_map.py, ui_text.py, main.py (prompts, pending_* choices).
+
+HOW IT WORKS
+- HUD:
+  - Top-left panel: place name and a guide line ("<Region> racing center · N m
+    DIR", or the selected landmark, "Open water" at sea).
+  - Speedometer bottom-right (248 x 64): KM/H number tinted by speed and a
+    20-segment bar green -> yellow -> red scaled to TOP_SPEED; hidden on foot.
+  - Top-right mission/info panel (title + one line), with a red crash flash.
+  - Big center banner (countdown 3-2-1, GO!, YOU WIN / YOU LOSE).
+  - Bottom-center prompt ("E   Get in", "E   Play Darts  ·  1 ticket"); a
+    top-center "Saved" toast.
+  - Guide arrow: yellow 32 x 16 arrow orbiting the player (56 -> 88 px) pointing at
+    the selected landmark; hidden within 300 px of it or when none is selected.
+- Modal panel (MissionPanel), one reusable scene with modes:
+  - show_offer(title, difficulty, detail, rules, reward; ACCEPT / DECLINE).
+  - show_result(success/failed, mastery, level up).
+  - show_lines(title, chip, 3 lines, buttons) and show_message(title, line).
+  - show_confirm(yes/no).
+  - show_choice(title, lines, up to 4 options, optional per-option detail lines
+    that follow the highlight).
+  - show_bill(rows, total, note, buttons).
+  - Chips: Success (green), Failed (red), Level up / Champion (gold),
+    Island unlocked, Locked, ...
+  - Keyboard (arrows + Enter/Space, Esc) and mouse. The game pauses while any
+    panel is open; the caller learns the chosen button when it closes.
+- Pause menu (Esc or window focus lost):
+  - Buttons: RESUME, [ABORT MISSION / QUIT RACE when one is running], MASTERY,
+    HELP, [GO HOME when nothing is running], EXIT.
+  - Mastery page, one row per region: level, progress bar and mastery to next,
+    speed bonus, veterans (Lvl 5 / Unlocked), completions, center x/10, ongoing
+    mission, and TRAVEL (Lvl 3 / Here / Busy / TRAVEL). A status line under it
+    stays empty until Elite Island opens.
+  - Docks page for beach travel (see 9-fishing). Help page: controls table.
+  - EXIT saves and quits.
+- Title screen: a staged scene (the player's car on a city road, turned 45 deg)
+  with SUNSIDE RACING and PLAY / EXIT. Nothing loads until PLAY.
+- World map (M), 768 x 640 on the right, 12 x 10 px per sector; the left column has
+  the MAP title, a legend, and the guide line with controls.
+  - Regions are drawn as flat colors, with roads and the highway on top.
+  - Landmark diamonds, color and label per kind: Racing center, Fishing pier, Fish
+    trader camp, Veteran giver, General Store, Farmhouse, Farm buyer, Snow Fair,
+    Mining Factory, Island ferry, Island club.
+  - Click a diamond to set the guide, C clears it, M closes. Nothing is selected
+    at the start.
+  - The island center, club camps, and ferry diamonds appear only once unlocked or
+    crossed (surprise rule).
+- Text: every label auto-shrinks to fit. Wording rule from 0-foundation applies to
+  every string.
+
+ASSETS
+None from the atlases except icons: marker-atlas (icon_* for panel icons if
+wanted), vehicle-atlas racer_player (title scene), road/terrain tiles (title scene).
+Panels, bars, diamonds, and arrows are flat shapes (StyleBoxFlat / Polygon2D).
+
+CONNECTIVITY
+- Every component opens the modal panel and sets the prompt; the panel reports the
+  chosen option back (signal with the option id). Replace Python's pending_* flags
+  with a callback/Callable passed to show_*().
+- Needs 6-progression (Mastery page rows, travel), 2-world (map geometry, landmarks),
+  7-missions (offers/results), 1-car (speed).
+
+GODOT BUILD
+- scenes/ui/HUD.tscn (CanvasLayer), ui/Panel.tscn (modal, one scene, modes as
+  functions), ui/PauseMenu.tscn (pages as child Controls), ui/Title.tscn,
+  ui/WorldMap.tscn (draws with _draw() onto a Control), ui/GuideArrow (Node2D in
+  world space or drawn from the HUD with the camera transform).
+- A UI stack manager: only the top overlay gets input; gameplay pauses while any
+  overlay is open (get_tree().paused with process_mode on UI nodes).
+
+DONE WHEN
+- Every panel mode opens, navigates by keys and mouse, and returns the right choice.
+- Pause menu buttons appear/disappear with mission/race state; TRAVEL works from
+  the Mastery page; EXIT saves.
+- The map shows regions and landmarks, sets and clears the guide; the arrow orbits
+  and points correctly.
+- Long strings shrink instead of clipping.
+
+PROMPT
+"Build Sunside Racing's UI in Godot 4 per godot-plans/5-ui-hud-menus-map.txt: HUD
+(place + guide panel, compact speedometer, info panel with crash flash, center
+banner, prompt, Saved toast, orbiting guide arrow), one modal Panel scene with
+offer/result/lines/message/confirm/choice(with per-option details)/bill modes and
+chips that returns choices through a callback, the pause menu (dynamic buttons,
+Mastery page with TRAVEL, Help, Docks), the title screen, and the world map with
+legend, clickable landmark diamonds, guide set/clear, and hidden island marks until
+unlocked. All labels auto-shrink; all text follows the wording rule. Tests for
+panel navigation and pause-menu button sets."

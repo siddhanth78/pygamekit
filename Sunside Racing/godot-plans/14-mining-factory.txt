@@ -1,0 +1,63 @@
+SUNSIDE RACING -> GODOT: 14. MINING FACTORY
+
+PURPOSE
+The desert-shore factory loop: corn -> biofuel -> stones -> shipped for tokens and
+mastery at a moving stone market. Reference: factory.py, market_ui.py, main.py
+(_factory_door, _depot, _dock, stone machine).
+
+HOW IT WORKS
+- Site (desert shore): factory building, a biofuel depot tank beside it with a
+  pipe, and a cargo dock on the beach with a cargo ship. Map diamond "Mining
+  Factory".
+- Unlock: one Factory pass (20,000 S) used at the door, once, for good
+  (UNLOCK / NOT NOW). Locked: "Entry needs a Factory pass."
+- Depot (outside): corn -> biofuel 1:1 into a tank that holds 200; FILL UP takes as
+  much corn as fits. The player never carries biofuel.
+- Inside (factory floor level): the stone machine. E -> choose a run size:
+  2 / 5 / 10 / 20 biofuel, each showing its odds (the card updates with the
+  highlight):
+    2:  80% iron, 20% copper      5:  80% copper, 20% silver
+    10: 90% silver, 10% gold      20: 100% gold
+  The run takes 3 s (conveyor, machine glow); the stone drops in the bin and goes
+  to the inventory. Not enough biofuel -> refused.
+- Stone market board (on the north wall): E opens a board with each stone's icon,
+  today's price, its margin ("+10% over cost" green / "1% under cost" red), its cost
+  and mastery, and a bar chart of the last 12 margins.
+  - Cost of a stone = the biofuel of its floor run x 60 S (a corn = seed 10 +
+    fertilizer 50): iron 120, copper 300, silver 600, gold 1,200.
+  - Price = cost x (1 + margin), margin drawn in -10%..+20% for every stone after
+    every shipment. Mastery fixed: iron 3, copper 5, silver 10, gold 25.
+- Cargo dock: ships every stone carried at once: a bill (rows, total "x S + y
+  mastery") with SHIP / NOT NOW, then a receipt; the market moves afterwards.
+  Refused if tokens or mastery are full; "You have no stones to ship." when empty.
+- HUD inside: "BIOFUEL n / 200" (or "MAKING A STONE · n BIOFUEL" and the seconds).
+
+ASSETS
+factory-atlas (factory_building, depot_tank, pipe, cargo_dock, cargo_ship,
+stone_machine, machine_glow, conveyor, stone_bin, barrel, crate_stack, stone_iron,
+stone_copper, stone_silver, stone_gold, market_board), terrain city_concrete and
+walls, store-atlas factory_pass, farm-atlas corn.
+
+CONNECTIVITY
+- Needs 2-world (site on the desert shore), 12-farm (corn), 10-inventory/store
+  (pass, stones, tokens), 6-progression (universal mastery), 5-ui (choice with
+  per-option details, bill panel, market board overlay).
+
+GODOT BUILD
+- scripts/factory/factory_state.gd (unlocked, tank, market history saved),
+  scripts/factory/market.gd, scenes/interiors/Factory.tscn, scenes/ui/
+  MarketBoard.tscn (cards + bar chart with _draw()).
+
+DONE WHEN
+- Pass unlocks once; depot converts and caps at 200.
+- Run odds match over many runs; runs need enough biofuel; 3 s timing.
+- Prices = cost x (1 + margin) within range; the market moves only on a real
+  shipment; history capped at 12 and saved; ship pays tokens + mastery.
+
+PROMPT
+"Port Sunside Racing's Mining Factory (factory.py, market_ui.py) to Godot 4 per
+godot-plans/14-mining-factory.txt: one-time pass unlock, the depot (corn -> biofuel,
+200 tank), the stone machine with 2/5/10/20 runs and their odds (3 s), the stone
+market (cost from corn at 60 S, margin -10..+20% per stone per shipment, fixed
+mastery, 12-shipment chart), and the cargo dock bill/receipt. GUT tests for odds,
+pricing, market movement, and shipping."

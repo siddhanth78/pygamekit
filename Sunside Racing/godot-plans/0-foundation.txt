@@ -1,0 +1,102 @@
+SUNSIDE RACING -> GODOT: 0. FOUNDATION
+(Read this first. Every other plan builds on it.)
+
+PURPOSE
+Set up the Godot project, the asset pipeline, and the shared systems every component
+uses: atlas lookup, input map, save/load, autosave, the event bus, UI theme and text
+rules. No gameplay yet.
+
+PORTING RULES (apply to every plan)
+- Same game and mechanics as the Python version, not a line-for-line translation.
+  The Python source in "Sunside Racing/" is the reference for every number.
+- Existing assets only: the PNG atlases in "Sunside Racing/assets/" and their
+  manifest. No new art. If something truly needs new art, stop and ask.
+- Godot 4.x (latest stable), GDScript, 2D only. Window 1280 x 720, fixed size.
+- Pixel art: nearest filtering everywhere, pixel snap on, whole-pixel camera.
+- Units: 1 world px = 1 Godot px. 10 px = 1 m (HUD distances). Tiles are 64 px,
+  sectors 8 x 8 tiles (512 px), the world 64 x 64 sectors (32,768 px square).
+- Headings: the Python code uses degrees with 0 = north (up), clockwise positive
+  (screen y down). Keep that convention in game logic; convert only when setting a
+  Node2D rotation (rotation_degrees = heading).
+- Wording rule (user, binding): player-facing text explains only mechanics and costs.
+  No directions ("the General Store sells it", "at the Clubs desk") and no mention
+  of final prizes before they happen (the F1 car, Pit Stop, Elite Island, badges are
+  surprises). Keep prompts minimal: no owned counts in E prompts, item notes one line.
+- The world is a fixed map (user decision): the Python seed-2026 world is exported
+  once and imported into Godot (see 2-world). No world generation, no world seed.
+- RNG is only for gameplay (offers, odds, tournament and drag tracks, market).
+  Python uses Mersenne Twister and Godot PCG, so those rolls differ from Python's;
+  keep every rule and range. Tests check rules, not exact rolls. Seed from strings
+  (hash the string) where a roll must repeat (e.g. a tournament's tracks).
+
+ASSETS (all existing; import settings: Filter Off, Mipmaps Off)
+assets/atlas-manifest.json lists every atlas: png, cell_px, atlas_grid [cols, rows],
+and each sprite as {"tile": [col, row_from_bottom], "source_row": row_from_top}.
+Use tile[0] and source_row: region = Rect2(col * cell, source_row * cell, cell, cell).
+Atlases and cell sizes:
+  terrain-atlas 32 (8x6)    road-atlas 64 (8x4)     vehicle-atlas 64 (8x4)
+  structure-atlas 96 (4x5)  prop-atlas 64 (8x5)     people-atlas 32 (12x8)
+  camp-atlas 64 (4x2)       marker-atlas 32 (4x3)   track-atlas 64 (8x5)
+  canopy-atlas 64 (4x1)     home-atlas 64 (4x6)     store-atlas 64 (4x4)
+  highway-atlas 64 (2x1)    farm-atlas 64 (4x5)     fair-atlas 96 (8x5)
+  factory-atlas 96 (4x4)    island-atlas 96 (4x5)
+Draw order (back to front), from game_state.DRAW_ORDER: terrain, road, highway,
+track, structure, prop, camp, home, store, farm, fair, factory, island, people,
+canopy, vehicle, marker. Map these to z_index bands (e.g. 0, 10, 20, ...).
+Sprites are drawn at a given size (often 2x the cell); art faces north.
+
+GODOT BUILD
+- Project: res://assets/ (copy the PNGs and the manifest), res://scripts/,
+  res://scenes/, res://tests/ (GUT).
+- Autoload "Atlas": loads the manifest once; Atlas.texture(atlas, name) returns a
+  cached AtlasTexture (region from the tile coords). Atlas.frames(...) for walk
+  cycles (people-atlas "<kind>_idle/_walk_a/_walk_b").
+- Input map: move_up/down/left/right (W/S/A/D + arrows), confirm (Enter, keypad
+  Enter, Space), interact (E), pause (Esc), map (M), clear (C), inventory (I),
+  orders (O), call_car (Q), travel (T), respawn (R), run (Shift), handbrake (Space
+  while driving), mouse click/release/motion for menus and fair games.
+- Autoload "Events": a signal bus (mission_finished, level_up, item_changed,
+  race_finished, toast(text), autosave_requested, ...).
+- Autoload "Save": player save (JSON, atomic write: temp file then rename) in
+  user://player.json, versioned. Holds mode (drive/walk), car pose, walker pose,
+  and "missions": progress, offers, fish, unspent mastery, inventory, farm,
+  farm_orders, fair, factory, island, arcade best scores, arcade_unlocked.
+  Every loader validates and falls back to defaults on bad data (never crash).
+- Autoload "Autosave": every 60 s and soon after important events (mission
+  result, purchase, race end); writes on a worker thread (Thread or
+  WorkerThreadPool) one at a time; shows a "Saved" toast for 1.5 s.
+- UI theme: one Theme resource (fonts, panel styles). Colors used everywhere:
+  ink (32,45,52), accent gold (242,202,87), cream (238,232,208), muted
+  (150,170,172), good green (140,214,150), fail red (212,80,66).
+  Any label whose text is too wide shrinks its font a point at a time (not below 10)
+  until it fits; text that fits keeps its size (ui_text.py behavior).
+- Build order note: 2-world starts with an export script in the Python project;
+  run it before any Godot world work. 16-game-flow-and-integration is built
+  alongside the others (wire each component in as it lands) with a final pass.
+- Not in the game (so not in the port): audio, weather, day/night, particles.
+- Old Python saves are not carried over (the save was reset).
+- Game always opens at home in the car (HOME_PARK), not at the last position; club
+  members get a CITY HOME / CLUB CAMP choice (see 15-elite-island).
+
+CONNECTIVITY
+Provides Atlas, Events, Save, Autosave, Theme and input to every other component.
+Depends on nothing.
+
+DONE WHEN
+- Opening the project shows a blank 1280x720 window with correct pixel settings.
+- A test draws every sprite name in the manifest from Atlas without errors, and a
+  spot check (vehicle-atlas "racer_player", terrain-atlas "grass") matches the PNG.
+- Save round-trips a sample dict; a corrupt file loads defaults.
+- Autosave fires on the interval and on request.
+
+PROMPT
+"Create a Godot 4 project for Sunside Racing (2D, GDScript, 1280x720, nearest
+filtering, pixel snap). Copy the PNG atlases and atlas-manifest.json from
+'Sunside Racing/assets/' into res://assets/ with filtering and mipmaps off. Write an
+'Atlas' autoload that parses the manifest (region from tile[0] and source_row) and
+returns cached AtlasTextures by atlas and sprite name. Add the input map, an 'Events'
+signal bus, a 'Save' autoload (versioned JSON in user://, atomic writes, validating
+loaders with safe defaults), an 'Autosave' autoload (60 s interval plus on request,
+one background write at a time, 'Saved' toast), and a Theme with the listed colors
+and auto-shrinking labels. Add GUT and tests for the atlas lookup and save round
+trip. Follow the porting rules in godot-plans/0-foundation.txt."

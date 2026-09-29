@@ -4,7 +4,8 @@
   "project_root": ".",
   "directories": [
     "assets",
-    "bitmap"
+    "bitmap",
+    "godot-plans"
   ],
   "files": {
     "code": [
@@ -15,6 +16,7 @@
       "car.py",
       "collision_manager.py",
       "drag_race.py",
+      "export_world.py",
       "factory.py",
       "fair.py",
       "fair_games.py",
@@ -48,6 +50,7 @@
       "test_autosave.py",
       "test_centers.py",
       "test_display_text.py",
+      "test_export_world.py",
       "test_factory.py",
       "test_fair.py",
       "test_farm.py",
@@ -117,6 +120,23 @@
       "bitmap/vehicle-atlas.json"
     ],
     "other": [
+      "godot-plans/0-foundation.txt",
+      "godot-plans/1-car.txt",
+      "godot-plans/10-inventory-store-orders.txt",
+      "godot-plans/11-home-and-arcade.txt",
+      "godot-plans/12-farm-and-orders.txt",
+      "godot-plans/13-snow-fair.txt",
+      "godot-plans/14-mining-factory.txt",
+      "godot-plans/15-elite-island.txt",
+      "godot-plans/16-game-flow-and-integration.txt",
+      "godot-plans/2-world.txt",
+      "godot-plans/3-on-foot-and-camera.txt",
+      "godot-plans/4-traffic-and-people.txt",
+      "godot-plans/5-ui-hud-menus-map.txt",
+      "godot-plans/6-progression-and-saves.txt",
+      "godot-plans/7-missions.txt",
+      "godot-plans/8-racing-centers.txt",
+      "godot-plans/9-fishing.txt",
       "plan.txt",
       "player.json",
       "world.json"

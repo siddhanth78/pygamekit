@@ -1,0 +1,64 @@
+SUNSIDE RACING -> GODOT: 6. PROGRESSION AND SAVES
+
+PURPOSE
+The player's growth: per-region mastery, levels, ratings, speed bonus, unlocks
+(fast travel, veterans, fishing, island), the MAX cap, universal mastery points,
+and what the save stores. Reference: progression.py, missions.py (unspent points,
+spend), fast_travel.py, player_save.py, autosave.py.
+
+HOW IT WORKS
+- Regions: city, jungle, desert, snow, rural. Each has a level (starts 1), mastery
+  toward the next level, completed missions by type, and center races won (0-10).
+- Mastery to go from level L to L+1: 15 x L below level 10, 30 x L from 10 on.
+- Rating = 100 + 10 x (level - 1) (level 1 = 100, level 51 = 600). Rivals are rated
+  on the same scale; RATING_EDGE 10 sets Easy / Medium / Hard labels.
+- Speed bonus: +4% top speed per level above 1 in that region (car speed_scale).
+  The island (and beach) use the best region's level ("island" = best region).
+- MAX_LEVEL 51: a region at 51 is MAX; it earns nothing more there, and a level-up
+  that lands on 51 zeroes the leftover. Saves above 51 load as 51.
+- Unlocks: level 3 in a region = fast travel there (TRAVEL on the Mastery page;
+  lands in the car in the center's own lot); level 5 = veteran givers there;
+  any region at level 4 = fishing, trading, and beach travel; every center 10/10 +
+  a region at 25 = the Island pass can be used (see 15; keep this a surprise).
+- Universal mastery points ("Mastery points" item): from fish trades, farm orders,
+  stone shipments, tournaments. Held in the inventory (max 999), spent on any
+  region from the spend menu (I -> Mastery points, or the Mastery page); a MAX
+  region refuses them ("<Region> is MAX"). Level-ups can chain.
+- Save contents (missions dict): progress {region: level, mastery, completed,
+  races}, offer counter and per-giver offers, fish bag and caught log, unspent
+  points, inventory items, arcade best scores and unlocks, farm, farm orders, fair,
+  factory, island. Car/walker pose is saved but the game always opens at home.
+  An ongoing mission is never saved (it waits at its giver).
+- Autosave: every 60 s and right after mission results, purchases, race ends.
+
+ASSETS
+marker-atlas icon_points (mastery points), icon_token (tokens) for UI rows.
+
+CONNECTIVITY
+- Used by nearly everything: 1-car (speed_scale), 7-missions (rewards, veterans),
+  8-racing-centers (ratings, races), 9-fishing/12-farm/14-factory/15-island (pay
+  universal mastery), 5-ui (Mastery page, spend menu, level-up lines).
+- Needs 0-foundation (Save/Autosave).
+
+GODOT BUILD
+- Autoload "Progress" (progress.gd): pure data + methods add(region, points),
+  level, rating, speed_scale, is_max, fast_travel_ok, veterans_ok, fishing_ok,
+  island_unlocked, to_dict/from_dict with validation.
+- Autoload "Game" or "PlayerState": owns Progress, Inventory, and the other saved
+  sub-states (farm, fair, factory, island...) and serializes them into Save.
+- Spend menu scene (Control): choose a region, amount, confirm.
+
+DONE WHEN
+- Unit tests: mastery thresholds (15 x L / 30 x L), rating formula, +4%/level,
+  the 51 cap (no overflow, leftover zeroed, saves clamped), unlock levels, spending
+  refused on MAX, chained level-ups, and a full save/load round trip of every
+  sub-state with bad data falling back to defaults.
+
+PROMPT
+"Port Sunside Racing's progression and save model (progression.py, spend logic in
+missions.py, fast_travel.py, player_save.py, autosave.py) to Godot 4 per
+godot-plans/6-progression-and-saves.txt: per-region level/mastery (15xL, 30xL from
+10), rating 100 + 10 per level, +4% speed per level, MAX at 51, unlock levels (3
+travel, 4 fishing, 5 veterans), universal mastery points spent from a spend menu,
+and one PlayerState autoload that serializes every sub-state through the Save
+autoload with validation. Include GUT tests for every rule listed."
